@@ -5,6 +5,7 @@ import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { useColorScheme } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Provider as ReduxProvider, useDispatch, useSelector } from 'react-redux';
 
 import { bootstrapAuth } from '@/store/authSlice';
@@ -33,6 +34,12 @@ function AuthBoundary() {
       <Stack.Screen name="index" />
       <Stack.Screen name="login" />
       <Stack.Screen name="register" />
+      <Stack.Screen name="friends" />
+      <Stack.Screen name="feed" />
+      <Stack.Screen name="new-post" />
+      <Stack.Screen name="communities" />
+      <Stack.Screen name="communities/new" />
+      <Stack.Screen name="communities/[id]" />
     </Stack>
   );
 }
@@ -41,12 +48,14 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
 
   return (
-    <ReduxProvider store={store}>
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          <AuthBoundary />
-        </ThemeProvider>
-      </QueryClientProvider>
-    </ReduxProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ReduxProvider store={store}>
+        <QueryClientProvider client={queryClient}>
+          <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+            <AuthBoundary />
+          </ThemeProvider>
+        </QueryClientProvider>
+      </ReduxProvider>
+    </GestureHandlerRootView>
   );
 }

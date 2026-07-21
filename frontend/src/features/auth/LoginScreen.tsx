@@ -5,7 +5,7 @@ import { Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch } from 'react-redux';
 
-import { AuthTextField } from '@/features/auth/components/AuthTextField';
+import { TextField } from '@/components/TextField';
 import { loginSchema, type LoginFormValues } from '@/features/auth/schemas';
 import { useLoginMutation } from '@/services/useAuth';
 import { persistCredentials } from '@/store/authSlice';
@@ -53,7 +53,7 @@ export default function LoginScreen() {
           control={control}
           name="email"
           render={({ field }) => (
-            <AuthTextField
+            <TextField
               label="Email"
               keyboardType="email-address"
               value={field.value}
@@ -66,7 +66,7 @@ export default function LoginScreen() {
           control={control}
           name="password"
           render={({ field }) => (
-            <AuthTextField
+            <TextField
               label="Password"
               secureTextEntry
               value={field.value}

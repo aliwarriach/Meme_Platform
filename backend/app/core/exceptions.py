@@ -22,6 +22,86 @@ class InvalidCredentialsError(DomainError):
     status_code = status.HTTP_401_UNAUTHORIZED
 
 
+class UserNotFoundError(DomainError):
+    status_code = status.HTTP_404_NOT_FOUND
+
+
+class CannotFriendSelfError(DomainError):
+    status_code = status.HTTP_400_BAD_REQUEST
+
+
+class FriendshipAlreadyExistsError(DomainError):
+    status_code = status.HTTP_409_CONFLICT
+
+
+class FriendshipNotFoundError(DomainError):
+    status_code = status.HTTP_404_NOT_FOUND
+
+
+class NotFriendshipParticipantError(DomainError):
+    status_code = status.HTTP_403_FORBIDDEN
+
+
+class FriendshipNotPendingError(DomainError):
+    status_code = status.HTTP_409_CONFLICT
+
+
+class UnsupportedMediaTypeError(DomainError):
+    status_code = status.HTTP_400_BAD_REQUEST
+
+
+class EmptyUploadError(DomainError):
+    status_code = status.HTTP_400_BAD_REQUEST
+
+
+class MediaTooLargeError(DomainError):
+    status_code = status.HTTP_400_BAD_REQUEST
+
+
+class MediaUploadFailedError(DomainError):
+    status_code = status.HTTP_502_BAD_GATEWAY
+
+
+class MemeNotFoundError(DomainError):
+    status_code = status.HTTP_404_NOT_FOUND
+
+
+class InvalidCursorError(DomainError):
+    status_code = status.HTTP_400_BAD_REQUEST
+
+
+class AlreadyReactedError(DomainError):
+    status_code = status.HTTP_409_CONFLICT
+
+
+class ReactionNotFoundError(DomainError):
+    status_code = status.HTTP_404_NOT_FOUND
+
+
+class CommunityNotFoundError(DomainError):
+    status_code = status.HTTP_404_NOT_FOUND
+
+
+class NotCommunityOwnerError(DomainError):
+    status_code = status.HTTP_403_FORBIDDEN
+
+
+class CommunityAccessDeniedError(DomainError):
+    status_code = status.HTTP_403_FORBIDDEN
+
+
+class AlreadyMemberOrRequestedError(DomainError):
+    status_code = status.HTTP_409_CONFLICT
+
+
+class CommunityMembershipNotFoundError(DomainError):
+    status_code = status.HTTP_404_NOT_FOUND
+
+
+class CannotLeaveAsOwnerError(DomainError):
+    status_code = status.HTTP_400_BAD_REQUEST
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(DomainError)
     async def _handle_domain_error(request: Request, exc: DomainError) -> JSONResponse:

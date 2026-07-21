@@ -1,11 +1,11 @@
 import { Text, TextInput, View, type TextInputProps } from 'react-native';
 
-interface AuthTextFieldProps extends TextInputProps {
+interface TextFieldProps extends TextInputProps {
   label: string;
   error?: string;
 }
 
-export function AuthTextField({ label, error, ...inputProps }: AuthTextFieldProps) {
+export function TextField({ label, error, ...inputProps }: TextFieldProps) {
   return (
     <View className="mb-4">
       <Text className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-400">

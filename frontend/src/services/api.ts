@@ -80,10 +80,11 @@ function describeTransportProblem(response: ApiResponse<unknown>): string {
  * `detail` message (single string or Pydantic validation list), falling back to a
  * transport-level description (network/timeout/server/client) rather than a generic
  * "something went wrong" — so the thrown message always says what actually happened.
- * Also logs the full raw response to the console for full-detail debugging.
+ * Doesn't itself log to the console — the monitor above already logs every failed
+ * request, including ones a screen handles gracefully (e.g. an expected 403), so a
+ * second console.error here would just be alarming duplicate noise for non-bugs.
  */
 export function throwApiError(response: ApiResponse<unknown>, context: string): never {
-  console.error(`[api] ${context} failed:`, response);
   const detailMessage = extractDetailMessage(response);
   throw new Error(detailMessage ?? describeTransportProblem(response));
 }

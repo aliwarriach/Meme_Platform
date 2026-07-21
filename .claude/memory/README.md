@@ -48,3 +48,7 @@ One file per backend feature/module. Purpose: let a new session (or the frontend
 
 ## Index
 - [auth-profile.md](auth-profile.md) — User model, JWT auth, register/login/me.
+- [friends.md](friends.md) — Friendship model (request/accept/remove), `/friends` endpoints, friends screen.
+- [meme-feed.md](meme-feed.md) — Meme/PostAudience/Reaction/Comment models, `/memes` endpoints, Cloudinary upload, feed screen.
+- [meme-creator.md](meme-creator.md) — Template model, `/templates` endpoints, shared media/pagination helpers, creator screen (overlay editor + view-shot flatten + template picker).
+- [communities.md](communities.md) — Community/CommunityMembership models, `/communities` endpoints (create/discover/mine/join/leave/members/join-requests), Communities tab + detail screen.

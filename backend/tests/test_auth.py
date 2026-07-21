@@ -1,11 +1,6 @@
 from httpx import AsyncClient
 
-
-async def _register(client: AsyncClient, **overrides) -> dict:
-    payload = {"email": "alice@test.com", "username": "alice", "password": "password123"}
-    payload.update(overrides)
-    response = await client.post("/auth/register", json=payload)
-    return response
+from tests.conftest import register as _register
 
 
 async def test_register_creates_user_and_returns_token(client: AsyncClient):

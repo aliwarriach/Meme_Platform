@@ -34,6 +34,24 @@ export default function SessionScreen() {
         </View>
 
         <Pressable
+          onPress={() => router.push('/feed')}
+          className="mb-3 items-center rounded-xl bg-orange-500 py-3.5">
+          <Text className="text-base font-bold text-white">Feed</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => router.push('/friends')}
+          className="mb-3 items-center rounded-xl bg-orange-500 py-3.5">
+          <Text className="text-base font-bold text-white">Friends</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => router.push('/communities')}
+          className="mb-3 items-center rounded-xl bg-orange-500 py-3.5">
+          <Text className="text-base font-bold text-white">Communities</Text>
+        </Pressable>
+
+        <Pressable
           onPress={onLogout}
           className="items-center rounded-xl border border-neutral-300 py-3.5 dark:border-neutral-700">
           <Text className="text-base font-bold text-neutral-900 dark:text-white">Log out</Text>
