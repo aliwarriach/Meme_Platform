@@ -46,15 +46,18 @@ def _require_owner(community: Community, current_user: User) -> None:
 
 async def require_active_membership(
     db: AsyncSession, community_id: uuid.UUID, user_id: uuid.UUID
-) -> None:
-    """Shared gate for any community-scoped resource (templates, and future feed/challenge
-    scoping) — always member-only, with no open-community carve-out like the member *list*
-    has. Raises 404 if the community doesn't exist, 403 if the caller isn't an active member.
+) -> Community:
+    """Shared gate for any community-scoped resource (templates, feed, community posting) —
+    always member-only, with no open-community carve-out like the member *list* has. Raises
+    404 if the community doesn't exist, 403 if the caller isn't an active member. Returns the
+    community itself since several callers (e.g. community-post creation) need its `privacy`
+    right after checking membership.
     """
-    await _get_community_or_404(db, community_id)
+    community = await _get_community_or_404(db, community_id)
     membership = await _get_membership(db, community_id, user_id)
     if membership is None or membership.status != MembershipStatus.active:
         raise CommunityAccessDeniedError("Only members of this community can do this")
+    return community
 
 
 def _build_community_out(

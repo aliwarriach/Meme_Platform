@@ -10,7 +10,9 @@ import { throwApiError } from '@/services/api';
 import {
   addCommentRequest,
   addReactionRequest,
+  createCommunityMemeRequest,
   createMemeRequest,
+  getCommunityFeedRequest,
   getFeedRequest,
   listCommentsRequest,
   removeReactionRequest,
@@ -20,7 +22,9 @@ import {
   type MemeResponse,
 } from '@/services/memes';
 
+const memesRootKey = ['memes'] as const;
 const feedKey = ['memes', 'feed'] as const;
+const communityFeedKey = (communityId: string) => ['memes', 'community', communityId] as const;
 const commentsKey = (memeId: string) => ['memes', memeId, 'comments'] as const;
 
 export function useFeed() {
@@ -58,6 +62,50 @@ export function useCreateMemeMutation() {
   });
 }
 
+export function useCreateCommunityMemeMutation() {
+  const queryClient = useQueryClient();
+  return useMutation<
+    MemeResponse,
+    Error,
+    {
+      communityId: string;
+      imageUri: string;
+      imageName: string;
+      imageType: string;
+      caption?: string;
+    }
+  >({
+    mutationFn: async (payload) => {
+      const response = await createCommunityMemeRequest(payload);
+      if (!response.ok || !response.data) throwApiError(response, 'post to community');
+      return response.data;
+    },
+    // Covers both the public feed (if the community is open) and this community's
+    // feed in one go, without knowing in advance whether the post went public.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: memesRootKey }),
+  });
+}
+
+export function useCommunityFeed(communityId: string, enabled: boolean) {
+  return useInfiniteQuery<
+    FeedPageResponse,
+    Error,
+    InfiniteData<FeedPageResponse>,
+    ReturnType<typeof communityFeedKey>,
+    string | undefined
+  >({
+    queryKey: communityFeedKey(communityId),
+    initialPageParam: undefined,
+    queryFn: async ({ pageParam }) => {
+      const response = await getCommunityFeedRequest(communityId, { cursor: pageParam, limit: 20 });
+      if (!response.ok || !response.data) throwApiError(response, 'load community feed');
+      return response.data;
+    },
+    getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
+    enabled,
+  });
+}
+
 export function useAddReactionMutation() {
   const queryClient = useQueryClient();
   return useMutation<void, Error, string>({
@@ -65,7 +113,7 @@ export function useAddReactionMutation() {
       const response = await addReactionRequest(memeId);
       if (!response.ok) throwApiError(response, 'add reaction');
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: feedKey }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: memesRootKey }),
   });
 }
 
@@ -76,7 +124,7 @@ export function useRemoveReactionMutation() {
       const response = await removeReactionRequest(memeId);
       if (!response.ok) throwApiError(response, 'remove reaction');
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: feedKey }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: memesRootKey }),
   });
 }
 
@@ -102,7 +150,7 @@ export function useAddCommentMutation(memeId: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: commentsKey(memeId) });
-      queryClient.invalidateQueries({ queryKey: feedKey });
+      queryClient.invalidateQueries({ queryKey: memesRootKey });
     },
   });
 }

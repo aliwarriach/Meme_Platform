@@ -1,8 +1,8 @@
 import { useRouter } from 'expo-router';
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { MemeCard } from '@/features/feed/components/MemeCard';
+import { MemeFeedList } from '@/features/feed/components/MemeFeedList';
 import type { MemeResponse } from '@/services/memes';
 import { useFeed } from '@/services/useMemes';
 
@@ -25,36 +25,17 @@ export default function FeedScreen() {
         </Pressable>
       </View>
 
-      <FlatList
-        data={memes}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <MemeCard meme={item} />}
-        onEndReachedThreshold={0.5}
-        onEndReached={() => {
-          if (feedQuery.hasNextPage && !feedQuery.isFetchingNextPage) {
-            feedQuery.fetchNextPage();
-          }
-        }}
-        refreshControl={
-          <RefreshControl
-            refreshing={feedQuery.isRefetching}
-            onRefresh={() => feedQuery.refetch()}
-          />
-        }
-        ListFooterComponent={
-          feedQuery.isFetchingNextPage ? <ActivityIndicator className="my-4" /> : null
-        }
-        ListEmptyComponent={
-          feedQuery.isLoading ? (
-            <ActivityIndicator className="my-8" />
-          ) : feedQuery.isError ? (
-            <Text className="mx-4 text-sm text-red-500">{feedQuery.error?.message}</Text>
-          ) : (
-            <Text className="mx-4 mt-8 text-center text-sm text-neutral-400">
-              No memes yet — be the first to post
-            </Text>
-          )
-        }
+      <MemeFeedList
+        memes={memes}
+        isLoading={feedQuery.isLoading}
+        isError={feedQuery.isError}
+        errorMessage={feedQuery.error?.message}
+        hasNextPage={feedQuery.hasNextPage}
+        isFetchingNextPage={feedQuery.isFetchingNextPage}
+        onEndReached={() => feedQuery.fetchNextPage()}
+        isRefetching={feedQuery.isRefetching}
+        onRefresh={() => feedQuery.refetch()}
+        emptyMessage="No memes yet — be the first to post"
       />
     </SafeAreaView>
   );

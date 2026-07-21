@@ -16,7 +16,7 @@ A **mobile-first, community-focused** meme creation and sharing platform. Casual
 - **Privacy setting is owner's choice per community**, set at creation and changeable later by the owner:
   - **Open** — anyone can join immediately, no approval needed.
   - **Invite-only** — joining requires an invite from a member/owner, or an owner/admin-approved join request.
-  - Community feed and community leaderboard visibility to non-members follows the same setting by default (open community = publicly viewable feed/leaderboard even to non-members, just not postable/usable; invite-only = visible only to members) — confirm before building if a different visibility split is wanted.
+  - **Resolved**: browsing a community's own feed page (`GET /communities/{id}/feed`) is always member-gated, regardless of privacy — no open-community carve-out (matches the private-template rule in this section, stricter than the member-*list* rule). Community leaderboard visibility follows the same member-gated rule once leaderboards are built (§8). See §4 for how an *open* community's individual posts still reach non-members (via the public feed, not via browsing the community feed page directly).
 - Users can **join/leave communities**; a community has members and (at least) one owner/admin role for moderation and challenge setup.
 - **Community meme templates**: a community can have its own private template library.
   - Templates uploaded to a community are visible and usable **only by members of that community** — not shown in the public/global template library, not usable by non-members.
@@ -24,13 +24,15 @@ A **mobile-first, community-focused** meme creation and sharing platform. Casual
 - **Community score**: every community has an aggregate meme score, computed from a defined rule set over the memes its members produce (see §7 Meme Scoring System). This score drives the community leaderboard and challenge seeding/matchmaking.
 
 ## 4. Feed & Posting
-- A single meme creation flow, but every post declares its **audience/visibility** at publish time:
-  - **Friends** — visible only to the poster's friends.
-  - **Public feed** — visible to everyone, the default open discovery surface.
-  - **Community** — visible only within the selected community's community feed. A post can target one or more of the user's communities (user selects which).
-  - These are not mutually exclusive: a single meme can be published to more than one audience at once (e.g. Public + a specific community) — the UI must make audience selection explicit and reviewable before publish, not a hidden default.
-- Public feed remains infinite-scroll with reactions/likes, same as before.
-- Each community has its own feed, scoped to that community's posts (community-audience posts + any public posts the community chooses to surface, if that's supported later).
+Two distinct posting flows, not one unified creator with a full audience multi-select — **community posting is only reachable from inside the community you're posting to**, not a general-purpose creator option:
+
+- **Personal post** (creator reached from the main Feed's "New Post"): the poster explicitly chooses an audience at publish time — **Friends** and/or **Public**, multi-select, reviewable before publish. Never includes a community — communities aren't targetable from this flow.
+- **Community post** (reached only from inside a specific community, e.g. a "Post" action on that community's own feed screen): **no manual audience picker at all.** Visibility is fully and automatically derived from that community's privacy setting:
+  - **Open community** → the post is visible in that community's feed **and** the public feed — when it appears in the public feed, the card shows **both the poster and the community it was posted in** (a visible community badge/label), so it reads as "posted in the public feed" plus "belongs to this community."
+  - **Invite-only community** → the post is visible **only** within that community's feed, to that community's active members — it never appears in the public feed regardless of the poster's other relationships (friends, etc.).
+  - A community post targets exactly one community (the one it was created from) — no cross-posting a single meme to multiple communities at once.
+- Public feed remains infinite-scroll with reactions/likes, same as before. It now also contains open-communities' posts (badged), not just pure personal Public posts.
+- Each community has its own feed, scoped to that community's own posts only (not a mix of "community posts + public posts the community chooses to surface" — that alternate design was considered and dropped).
 
 ## 5. Meme Creation Tools
 - Upload from camera/gallery, text overlays (top/bottom + custom positioning), preview, save & publish — unchanged from original scope.
@@ -121,7 +123,8 @@ Two challenge shapes, sharing the same underlying lifecycle:
 - **Challenge rewards**: points + badges only for v1. No real/redeemable prizes.
 - **Instagram Companion Mode in challenges**: not eligible — challenges are native-uploads only.
 - **Community privacy**: owner's choice per community, open or invite-only (see §3).
+- **Community posting is its own flow, not a creator audience option** (superseded an earlier Phase 7 design where a single creator let a poster multi-select Public/Friends/one-or-more-communities in one publish action): a community post is only created from inside that community, targets exactly that one community, and has no manual audience picker — visibility (community-only vs. also-public) is fully derived from the community's open/invite-only setting (see §4). Personal posts (Friends/Public) remain a separate, explicit multi-select flow from the main feed's creator.
+- **Community feed page (`GET /communities/{id}/feed`) is always member-gated**, even for open communities — no open-community exception (matches §3). This doesn't limit *reach*: an open community's individual posts still surface in the public feed (badged with the community), so open-community content is publicly visible platform-wide even though browsing the community's dedicated feed page requires membership.
 
 ## 18. Open Questions (still to confirm)
-- Community feed/leaderboard visibility to non-members of an **open** community — assumed viewable-but-not-postable by default; confirm before building if it should be fully public regardless of membership, or something else.
 - Challenge judging mechanics within the (deferred) scoring engine — fully automatic, human-judged, or hybrid — will be settled as part of the scoring-engine design effort, not before.

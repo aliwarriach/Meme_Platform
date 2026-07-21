@@ -6,15 +6,40 @@ from tests.conftest import auth_header, create_user
 async def _post_meme(
     client: AsyncClient,
     user: dict,
-    audiences: list[str],
+    audiences: list[str] | None = None,
     caption: str = "hello world",
     content_type: str = "image/png",
 ) -> object:
     files = {"image": ("test.png", b"fake-bytes", content_type)}
-    data = {"caption": caption, "audiences": audiences}
+    data: dict[str, object] = {"caption": caption}
+    if audiences is not None:
+        data["audiences"] = audiences
     return await client.post(
         "/memes", files=files, data=data, headers=auth_header(user)
     )
+
+
+async def _post_community_meme(
+    client: AsyncClient,
+    user: dict,
+    community_id: str,
+    caption: str = "hello community",
+    content_type: str = "image/png",
+) -> object:
+    files = {"image": ("test.png", b"fake-bytes", content_type)}
+    return await client.post(
+        f"/communities/{community_id}/memes",
+        files=files,
+        data={"caption": caption},
+        headers=auth_header(user),
+    )
+
+
+async def _create_community(client: AsyncClient, owner: dict, privacy: str = "open") -> dict:
+    response = await client.post(
+        "/communities", data={"name": "Meme Lords", "privacy": privacy}, headers=auth_header(owner)
+    )
+    return response.json()
 
 
 async def test_create_meme_returns_meme_with_chosen_audiences(client: AsyncClient):
@@ -43,7 +68,123 @@ async def test_create_meme_rejects_empty_audiences(client: AsyncClient):
     response = await client.post(
         "/memes", files=files, data={"caption": "hi"}, headers=auth_header(alice)
     )
-    assert response.status_code == 422
+    assert response.status_code == 400
+
+
+async def test_create_meme_rejects_community_literal_in_audiences(client: AsyncClient):
+    alice = await create_user(client, "alice")
+    response = await _post_meme(client, alice, audiences=["community"])
+    assert response.status_code == 400
+
+
+async def test_create_community_meme_requires_active_membership(client: AsyncClient):
+    alice = await create_user(client, "alice")
+    carol = await create_user(client, "carol")
+    community = await _create_community(client, alice)
+
+    response = await _post_community_meme(client, carol, community["id"])
+    assert response.status_code == 403
+
+
+async def test_create_community_meme_to_nonexistent_community_rejected(client: AsyncClient):
+    alice = await create_user(client, "alice")
+    response = await _post_community_meme(
+        client, alice, "00000000-0000-0000-0000-000000000000"
+    )
+    assert response.status_code == 404
+
+
+async def test_community_meme_returns_community_badge(client: AsyncClient):
+    alice = await create_user(client, "alice")
+    community = await _create_community(client, alice)
+
+    response = await _post_community_meme(client, alice, community["id"])
+    assert response.status_code == 201
+    body = response.json()
+    assert body["community"] == {"id": community["id"], "name": community["name"]}
+
+
+async def test_open_community_meme_is_automatically_public_with_community_badge(
+    client: AsyncClient,
+):
+    alice = await create_user(client, "alice")
+    carol = await create_user(client, "carol")
+    community = await _create_community(client, alice, privacy="open")
+
+    response = await _post_community_meme(client, alice, community["id"], caption="open post")
+    assert set(response.json()["audiences"]) == {"community", "public"}
+
+    # a non-member sees it in the global public feed, with the community badge attached
+    carol_feed = await client.get("/memes/feed", headers=auth_header(carol))
+    item = next(i for i in carol_feed.json()["items"] if i["caption"] == "open post")
+    assert item["community"]["id"] == community["id"]
+
+
+async def test_invite_only_community_meme_is_not_public(client: AsyncClient):
+    alice = await create_user(client, "alice")
+    bob = await create_user(client, "bob")
+    carol = await create_user(client, "carol")
+    community = await _create_community(client, alice, privacy="invite_only")
+    await client.post(f"/communities/{community['id']}/join", headers=auth_header(bob))
+    join_requests = await client.get(
+        f"/communities/{community['id']}/join-requests", headers=auth_header(alice)
+    )
+    bob_request_id = join_requests.json()[0]["id"]
+    await client.post(
+        f"/communities/{community['id']}/join-requests/{bob_request_id}/approve",
+        headers=auth_header(alice),
+    )
+
+    response = await _post_community_meme(client, alice, community["id"], caption="private post")
+    assert response.json()["audiences"] == ["community"]
+
+    bob_feed = await client.get("/memes/feed", headers=auth_header(bob))
+    assert any(item["caption"] == "private post" for item in bob_feed.json()["items"])
+
+    carol_feed = await client.get("/memes/feed", headers=auth_header(carol))
+    assert carol_feed.json()["items"] == []
+
+
+async def test_community_feed_shows_only_that_communitys_posts(client: AsyncClient):
+    alice = await create_user(client, "alice")
+    community_a = await _create_community(client, alice)
+    community_b = await _create_community(client, alice, privacy="invite_only")
+
+    await _post_community_meme(client, alice, community_a["id"], caption="for A")
+    await _post_meme(client, alice, audiences=["public"], caption="public only")
+
+    feed = await client.get(f"/communities/{community_a['id']}/feed", headers=auth_header(alice))
+    assert feed.status_code == 200
+    captions = [item["caption"] for item in feed.json()["items"]]
+    assert captions == ["for A"]
+
+
+async def test_community_feed_requires_active_membership(client: AsyncClient):
+    alice = await create_user(client, "alice")
+    carol = await create_user(client, "carol")
+    community = await _create_community(client, alice)
+
+    response = await client.get(f"/communities/{community['id']}/feed", headers=auth_header(carol))
+    assert response.status_code == 403
+
+
+async def test_posting_in_an_open_community_shows_in_both_public_and_community_feed_not_others(
+    client: AsyncClient,
+):
+    alice = await create_user(client, "alice")
+    community_a = await _create_community(client, alice)
+    community_b = await _create_community(client, alice)
+
+    await _post_community_meme(client, alice, community_a["id"], caption="dual")
+
+    public_feed = await client.get("/memes/feed", headers=auth_header(alice))
+    assert any(item["caption"] == "dual" for item in public_feed.json()["items"])
+
+    feed_a = await client.get(f"/communities/{community_a['id']}/feed", headers=auth_header(alice))
+    assert any(item["caption"] == "dual" for item in feed_a.json()["items"])
+
+    feed_b = await client.get(f"/communities/{community_b['id']}/feed", headers=auth_header(alice))
+    assert feed_b.json()["items"] == []
 
 
 async def test_create_meme_rejects_empty_file(client: AsyncClient):

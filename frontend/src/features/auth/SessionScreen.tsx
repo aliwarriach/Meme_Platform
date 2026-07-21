@@ -52,6 +52,12 @@ export default function SessionScreen() {
         </Pressable>
 
         <Pressable
+          onPress={() => router.push('/leaderboards')}
+          className="mb-3 items-center rounded-xl bg-orange-500 py-3.5">
+          <Text className="text-base font-bold text-white">Leaderboards</Text>
+        </Pressable>
+
+        <Pressable
           onPress={onLogout}
           className="items-center rounded-xl border border-neutral-300 py-3.5 dark:border-neutral-700">
           <Text className="text-base font-bold text-neutral-900 dark:text-white">Log out</Text>

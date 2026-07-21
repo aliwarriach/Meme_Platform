@@ -33,9 +33,16 @@ export function MemeCard({ meme }: MemeCardProps) {
             {meme.author.username.slice(0, 2).toUpperCase()}
           </Text>
         </View>
-        <Text className="font-semibold text-neutral-900 dark:text-white">
-          {meme.author.username}
-        </Text>
+        <View>
+          <Text className="font-semibold text-neutral-900 dark:text-white">
+            {meme.author.username}
+          </Text>
+          {meme.community ? (
+            <Text className="text-xs text-neutral-500 dark:text-neutral-400">
+              in {meme.community.name}
+            </Text>
+          ) : null}
+        </View>
       </View>
 
       <Image

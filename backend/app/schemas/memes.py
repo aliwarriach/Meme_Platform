@@ -7,6 +7,13 @@ from app.models.post_audience import AudienceType
 from app.schemas.auth import UserOut
 
 
+class CommunityBadge(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    name: str
+
+
 class MemeOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -15,6 +22,7 @@ class MemeOut(BaseModel):
     image_url: str
     caption: str | None
     audiences: list[AudienceType]
+    community: CommunityBadge | None
     reaction_count: int
     comment_count: int
     viewer_has_reacted: bool

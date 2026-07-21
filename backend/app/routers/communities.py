@@ -6,8 +6,12 @@ from fastapi import APIRouter, Form, Query, UploadFile
 from app.core.deps import CurrentUser, DbSession
 from app.models.community import CommunityPrivacy
 from app.schemas.communities import CommunityOut, CommunityPage, MembershipOut
+from app.schemas.leaderboards import IndividualLeaderboardPage
+from app.schemas.memes import FeedPage, MemeOut
 from app.schemas.templates import TemplatePage
 from app.services import communities as communities_service
+from app.services import leaderboards as leaderboards_service
+from app.services import memes as memes_service
 from app.services import templates as templates_service
 
 router = APIRouter(prefix="/communities", tags=["communities"])
@@ -81,6 +85,43 @@ async def list_community_templates(
 ) -> TemplatePage:
     return await templates_service.list_community_templates(
         db, current_user, community_id, cursor, limit
+    )
+
+
+@router.post("/{community_id}/memes", response_model=MemeOut, status_code=201)
+async def create_community_meme(
+    community_id: uuid.UUID,
+    image: UploadFile,
+    current_user: CurrentUser,
+    db: DbSession,
+    caption: Annotated[str | None, Form(max_length=500)] = None,
+) -> MemeOut:
+    return await memes_service.create_community_meme(
+        db, current_user, community_id, caption, image
+    )
+
+
+@router.get("/{community_id}/feed", response_model=FeedPage)
+async def get_community_feed(
+    community_id: uuid.UUID,
+    current_user: CurrentUser,
+    db: DbSession,
+    cursor: str | None = None,
+    limit: Annotated[int, Query(ge=1, le=50)] = 20,
+) -> FeedPage:
+    return await memes_service.get_community_feed(db, current_user, community_id, cursor, limit)
+
+
+@router.get("/{community_id}/leaderboard", response_model=IndividualLeaderboardPage)
+async def get_internal_community_leaderboard(
+    community_id: uuid.UUID,
+    current_user: CurrentUser,
+    db: DbSession,
+    page: Annotated[int, Query(ge=1)] = 1,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+) -> IndividualLeaderboardPage:
+    return await leaderboards_service.get_internal_community_leaderboard(
+        db, current_user, community_id, page, limit
     )
 
 

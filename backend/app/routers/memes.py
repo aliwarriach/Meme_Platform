@@ -18,9 +18,9 @@ router = APIRouter(prefix="/memes", tags=["memes"])
 @router.post("", response_model=MemeOut, status_code=201)
 async def create_meme(
     image: UploadFile,
-    audiences: Annotated[list[AudienceType], Form()],
     current_user: CurrentUser,
     db: DbSession,
+    audiences: Annotated[list[AudienceType], Form()] = [],
     caption: Annotated[str | None, Form(max_length=500)] = None,
 ) -> MemeOut:
     return await memes_service.create_meme(db, current_user, caption, audiences, image)

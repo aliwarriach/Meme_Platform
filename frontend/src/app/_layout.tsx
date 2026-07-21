@@ -40,6 +40,7 @@ function AuthBoundary() {
       <Stack.Screen name="communities" />
       <Stack.Screen name="communities/new" />
       <Stack.Screen name="communities/[id]" />
+      <Stack.Screen name="leaderboards" />
     </Stack>
   );
 }

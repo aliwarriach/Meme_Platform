@@ -32,7 +32,7 @@ src/
     friends/             friend list, requests, add/accept/remove
     feed/                infinite-scroll public feed, reactions/likes
     communities/         create/join/leave, community profile, community feed, member list, community leaderboard
-    creator/             upload (camera/gallery), text overlays, template picker, audience selector (Friends/Public/Community multi-select), preview/publish
+    creator/             upload (camera/gallery), text overlays, template picker, preview/publish; audience selector (Friends/Public multi-select) shown only for personal posts — when entered from inside a community (communityId param) the audience is auto-derived from that community's privacy and no picker is shown
     templates/           global template library + per-community private template library (upload/browse scoped to membership)
     scoring/             meme score display/breakdown components shared across feed, profile, and challenge results
     leaderboards/        read-only ranked lists — global individual leaderboard, global community leaderboard (top communities), and the internal per-community leaderboard (rendered inside communities/, members-only, distinct from the global community one), time-window filters
@@ -90,7 +90,7 @@ Hand-roll only if trivial (few static items) or no well-maintained library fits.
 - Never mirror a TanStack Query result into Redux/useState — read it directly where needed; duplicating it is the exact bloat this stack exists to avoid.
 - WebSocket connection state (meme-sending) lives in a Redux slice; incoming messages invalidate/update the relevant TanStack Query cache (inbox), not a separate parallel state tree.
 - Community-scoped data (private templates, community feed, challenge submissions) is always fetched through a query hook parameterized by `communityId` — never fetched once and filtered client-side, since that would briefly expose data the user shouldn't see. The backend is the actual gate; the frontend just shouldn't rely on hiding what it already fetched.
-- The creator's audience selector (Friends/Public/Community) is required, explicit state (not an implicit default) — validate at least one audience is chosen before enabling publish.
+- The creator's audience selector (Friends/Public) is required, explicit state (not an implicit default) for personal posts — validate at least one audience is chosen before enabling publish. Community posts skip this picker entirely (see `features/creator/`); don't add a Community option back into it.
 - API / state / UI stay in separate layers.
 
 ## Testing

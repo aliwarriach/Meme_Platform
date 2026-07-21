@@ -1,8 +1,8 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { useRouter } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useMemo, useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,10 +11,10 @@ import { captureRef } from 'react-native-view-shot';
 import { TextField } from '@/components/TextField';
 import { OverlayCanvas } from '@/features/creator/components/OverlayCanvas';
 import { TemplatePickerModal } from '@/features/creator/components/TemplatePickerModal';
-import { creatorSchema, type CreatorFormValues } from '@/features/creator/schemas';
+import { buildCreatorSchema, type CreatorFormValues } from '@/features/creator/schemas';
 import type { AudienceType } from '@/services/memes';
 import type { TemplateResponse } from '@/services/templates';
-import { useCreateMemeMutation } from '@/services/useMemes';
+import { useCreateCommunityMemeMutation, useCreateMemeMutation } from '@/services/useMemes';
 
 const AUDIENCE_OPTIONS: { value: AudienceType; label: string }[] = [
   { value: 'public', label: 'Public' },
@@ -23,7 +23,18 @@ const AUDIENCE_OPTIONS: { value: AudienceType; label: string }[] = [
 
 export default function CreatorScreen() {
   const router = useRouter();
+  const { communityId, communityName } = useLocalSearchParams<{
+    communityId?: string;
+    communityName?: string;
+  }>();
+  // Posting from inside a community has no manual audience picker — visibility is
+  // fully derived server-side from the community's privacy setting.
+  const isCommunityPost = !!communityId;
+
   const createMeme = useCreateMemeMutation();
+  const createCommunityMeme = useCreateCommunityMemeMutation();
+  const activeMutation = isCommunityPost ? createCommunityMeme : createMeme;
+
   const canvasRef = useRef<View>(null);
 
   const [baseImageUri, setBaseImageUri] = useState<string | null>(null);
@@ -31,6 +42,8 @@ export default function CreatorScreen() {
   const [templatePickerVisible, setTemplatePickerVisible] = useState(false);
   const [capturedUri, setCapturedUri] = useState<string | null>(null);
   const [captureError, setCaptureError] = useState<string | null>(null);
+
+  const schema = useMemo(() => buildCreatorSchema(!isCommunityPost), [isCommunityPost]);
 
   const {
     control,
@@ -40,7 +53,7 @@ export default function CreatorScreen() {
     setValue,
     reset,
   } = useForm<CreatorFormValues>({
-    resolver: zodResolver(creatorSchema),
+    resolver: zodResolver(schema),
     defaultValues: { topText: '', bottomText: '', caption: '', audiences: [] },
   });
 
@@ -96,16 +109,26 @@ export default function CreatorScreen() {
     try {
       // Publishes the exact file captured for the preview — preview and published
       // post are pixel-identical because they're the same flattened image.
-      await createMeme.mutateAsync({
-        imageUri: capturedUri,
-        imageName: 'meme.png',
-        imageType: 'image/png',
-        caption: values.caption || undefined,
-        audiences: values.audiences,
-      });
+      if (isCommunityPost) {
+        await createCommunityMeme.mutateAsync({
+          communityId,
+          imageUri: capturedUri,
+          imageName: 'meme.png',
+          imageType: 'image/png',
+          caption: values.caption || undefined,
+        });
+      } else {
+        await createMeme.mutateAsync({
+          imageUri: capturedUri,
+          imageName: 'meme.png',
+          imageType: 'image/png',
+          caption: values.caption || undefined,
+          audiences: values.audiences,
+        });
+      }
       router.back();
     } catch {
-      // surfaced inline via createMeme.isError below
+      // surfaced inline via activeMutation.isError below
     }
   });
 
@@ -122,7 +145,7 @@ export default function CreatorScreen() {
               <Text className="text-2xl text-neutral-900 dark:text-white">‹</Text>
             </Pressable>
             <Text className="ml-1 text-xl font-extrabold text-neutral-900 dark:text-white">
-              New Meme
+              {isCommunityPost ? `New Post to ${communityName}` : 'New Meme'}
             </Text>
           </View>
 
@@ -170,7 +193,7 @@ export default function CreatorScreen() {
             </Text>
           </Pressable>
           <Text className="text-xl font-extrabold text-neutral-900 dark:text-white">
-            {capturedUri ? 'Preview' : 'New Meme'}
+            {capturedUri ? 'Preview' : isCommunityPost ? `New Post to ${communityName}` : 'New Meme'}
           </Text>
           <View className="min-h-[44px] min-w-[44px]" />
         </View>
@@ -240,49 +263,63 @@ export default function CreatorScreen() {
               )}
             />
 
-            <Text className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
-              Audience
-            </Text>
-            <View className="mb-2 flex-row">
-              {AUDIENCE_OPTIONS.map((option) => {
-                const selected = selectedAudiences.includes(option.value);
-                return (
-                  <Pressable
-                    key={option.value}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Toggle ${option.label} audience`}
-                    onPress={() => toggleAudience(option.value)}
-                    className={`mr-2 min-h-[44px] items-center justify-center rounded-xl border px-4 ${
-                      selected
-                        ? 'border-orange-500 bg-orange-500'
-                        : 'border-neutral-300 dark:border-neutral-700'
-                    }`}>
-                    <Text
-                      className={
-                        selected ? 'font-bold text-white' : 'text-neutral-900 dark:text-white'
-                      }>
-                      {option.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-            {errors.audiences ? (
-              <Text className="mb-2 text-sm text-red-500">{errors.audiences.message}</Text>
-            ) : null}
+            {isCommunityPost ? (
+              <View className="mb-4 rounded-xl bg-neutral-100 px-4 py-3 dark:bg-neutral-900">
+                <Text className="text-sm text-neutral-700 dark:text-neutral-300">
+                  Posting to <Text className="font-bold">{communityName}</Text>
+                </Text>
+                <Text className="mt-1 text-xs text-neutral-400">
+                  Visible to this community&apos;s members. If the community is open, it also
+                  appears in the public feed with a &quot;{communityName}&quot; badge.
+                </Text>
+              </View>
+            ) : (
+              <>
+                <Text className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
+                  Audience
+                </Text>
+                <View className="mb-2 flex-row">
+                  {AUDIENCE_OPTIONS.map((option) => {
+                    const selected = selectedAudiences.includes(option.value);
+                    return (
+                      <Pressable
+                        key={option.value}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Toggle ${option.label} audience`}
+                        onPress={() => toggleAudience(option.value)}
+                        className={`mr-2 min-h-[44px] items-center justify-center rounded-xl border px-4 ${
+                          selected
+                            ? 'border-orange-500 bg-orange-500'
+                            : 'border-neutral-300 dark:border-neutral-700'
+                        }`}>
+                        <Text
+                          className={
+                            selected ? 'font-bold text-white' : 'text-neutral-900 dark:text-white'
+                          }>
+                          {option.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                {errors.audiences ? (
+                  <Text className="mb-2 text-sm text-red-500">{errors.audiences.message}</Text>
+                ) : null}
+              </>
+            )}
 
-            {createMeme.isError ? (
-              <Text className="mb-4 text-sm text-red-500">{createMeme.error.message}</Text>
+            {activeMutation.isError ? (
+              <Text className="mb-4 text-sm text-red-500">{activeMutation.error.message}</Text>
             ) : null}
 
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Publish post"
               onPress={onSubmit}
-              disabled={createMeme.isPending}
+              disabled={activeMutation.isPending}
               className="mb-6 items-center rounded-xl bg-orange-500 py-3.5 disabled:opacity-50">
               <Text className="text-base font-bold text-white">
-                {createMeme.isPending ? 'Publishing…' : 'Publish'}
+                {activeMutation.isPending ? 'Publishing…' : 'Publish'}
               </Text>
             </Pressable>
           </>

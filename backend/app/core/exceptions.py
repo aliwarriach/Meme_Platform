@@ -102,6 +102,10 @@ class CannotLeaveAsOwnerError(DomainError):
     status_code = status.HTTP_400_BAD_REQUEST
 
 
+class InvalidAudienceSelectionError(DomainError):
+    status_code = status.HTTP_400_BAD_REQUEST
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(DomainError)
     async def _handle_domain_error(request: Request, exc: DomainError) -> JSONResponse:

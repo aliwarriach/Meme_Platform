@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.exceptions import register_exception_handlers
-from app.routers import auth, communities, friends, memes, templates
+from app.routers import auth, communities, friends, leaderboards, memes, templates
 
 app = FastAPI(title="Meme Platform API")
 
@@ -21,6 +21,7 @@ app.include_router(friends.router)
 app.include_router(memes.router)
 app.include_router(templates.router)
 app.include_router(communities.router)
+app.include_router(leaderboards.router)
 
 
 @app.get("/health")
