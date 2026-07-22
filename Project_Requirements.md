@@ -61,6 +61,8 @@ Leaderboards are **always read-only** — ranking surfaces only, never a posting
 ## 9. Competitions (existing, global)
 - Meme of the Day / Week / Month: one vote per user per period, leaderboard — unchanged from original scope. This runs at the public-feed level, independent of community challenges (§10).
 
+**Open proposal (2026-07-22, raised by user during Phase 9 build — not yet decided/built):** replace the current single "like" reaction (§4/§7) with Reddit-style upvote/downvote on every meme. Upvotes would count positively and downvotes negatively toward a meme's score (§7), so a heavily-downvoted meme ranks *lower* in the feed, leaderboards, and Meme of the Day/Week/Month — not just "less liked." This is a distinct mechanic from this section's existing "one competition-vote per user per period" system (§9's `Vote` is a periodic ballot for *which meme wins*; upvote/downvote would be a continuous, unlimited-frequency quality signal on every meme, closer to a reaction). Both could coexist. **Not yet implemented** — deferred because it touches the Phase 3 `Reaction` model, the Phase 7/8 scoring stub's formula, and every ranked surface (feed ordering if score-sorted, leaderboards, competitions); needs its own scoped pass rather than folding into an unrelated bug fix. Revisit as its own phase/sub-task before or alongside the real scoring engine design (§7).
+
 ## 10. Community Challenges
 Two challenge shapes, sharing the same underlying lifecycle:
 

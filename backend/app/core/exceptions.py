@@ -106,6 +106,74 @@ class InvalidAudienceSelectionError(DomainError):
     status_code = status.HTTP_400_BAD_REQUEST
 
 
+class AlreadyVotedError(DomainError):
+    status_code = status.HTTP_409_CONFLICT
+
+
+class MemeNotVotableError(DomainError):
+    status_code = status.HTTP_400_BAD_REQUEST
+
+
+class SelfVoteNotAllowedError(DomainError):
+    status_code = status.HTTP_400_BAD_REQUEST
+
+
+class InvalidPeriodError(DomainError):
+    status_code = status.HTTP_400_BAD_REQUEST
+
+
+class ChallengeNotFoundError(DomainError):
+    status_code = status.HTTP_404_NOT_FOUND
+
+
+class ChallengeSetupInvalidError(DomainError):
+    status_code = status.HTTP_400_BAD_REQUEST
+
+
+class ChallengeNotActiveError(DomainError):
+    status_code = status.HTTP_400_BAD_REQUEST
+
+
+class ChallengeWindowClosedError(DomainError):
+    status_code = status.HTTP_400_BAD_REQUEST
+
+
+class NotChallengeParticipantError(DomainError):
+    status_code = status.HTTP_403_FORBIDDEN
+
+
+class ChallengeNotEvaluatedError(DomainError):
+    status_code = status.HTTP_400_BAD_REQUEST
+
+
+class MemeNotEligibleForChallengeError(DomainError):
+    status_code = status.HTTP_400_BAD_REQUEST
+
+
+class ChallengeNotPendingError(DomainError):
+    status_code = status.HTTP_400_BAD_REQUEST
+
+
+class CannotChallengeSameCommunityError(DomainError):
+    status_code = status.HTTP_400_BAD_REQUEST
+
+
+class NotChallengeOpponentOwnerError(DomainError):
+    status_code = status.HTTP_403_FORBIDDEN
+
+
+class NotFriendsError(DomainError):
+    status_code = status.HTTP_403_FORBIDDEN
+
+
+class MemeSendNotFoundError(DomainError):
+    status_code = status.HTTP_404_NOT_FOUND
+
+
+class NotMemeSendRecipientError(DomainError):
+    status_code = status.HTTP_403_FORBIDDEN
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(DomainError)
     async def _handle_domain_error(request: Request, exc: DomainError) -> JSONResponse:

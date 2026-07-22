@@ -53,7 +53,7 @@ def _visibility_clause(viewer_id: uuid.UUID):
     )
 
 
-def _build_meme_out(
+def build_meme_out(
     meme: Meme, reaction_count: int, comment_count: int, viewer_has_reacted: bool
 ) -> MemeOut:
     community_row = next((a for a in meme.audiences if a.community_id is not None), None)
@@ -106,7 +106,7 @@ async def create_meme(
     # meme is already identity-mapped in this session — db.get() would return it as-is
     # without loading relationships, so refresh() is required to populate author/audiences.
     await db.refresh(meme)
-    return _build_meme_out(meme, reaction_count=0, comment_count=0, viewer_has_reacted=False)
+    return build_meme_out(meme, reaction_count=0, comment_count=0, viewer_has_reacted=False)
 
 
 async def create_community_meme(
@@ -145,7 +145,36 @@ async def create_community_meme(
 
     await db.commit()
     await db.refresh(meme)
-    return _build_meme_out(meme, reaction_count=0, comment_count=0, viewer_has_reacted=False)
+    return build_meme_out(meme, reaction_count=0, comment_count=0, viewer_has_reacted=False)
+
+
+async def get_meme_out_for_viewer(
+    db: AsyncSession, meme_id: uuid.UUID, viewer_id: uuid.UUID
+) -> MemeOut | None:
+    """Builds a MemeOut for a single meme with real reaction/comment counts — the shared
+    query behind both the feed and meme-sending, so a send's embedded meme is never a
+    stale/zeroed-out snapshot."""
+    meme = await db.get(Meme, meme_id)
+    if meme is None:
+        return None
+
+    reaction_count = await db.scalar(
+        select(func.count(Reaction.id)).where(Reaction.meme_id == meme_id)
+    )
+    comment_count = await db.scalar(
+        select(func.count(Comment.id)).where(Comment.meme_id == meme_id)
+    )
+    viewer_reacted_count = await db.scalar(
+        select(func.count(Reaction.id)).where(
+            Reaction.meme_id == meme_id, Reaction.user_id == viewer_id
+        )
+    )
+    return build_meme_out(
+        meme,
+        reaction_count=reaction_count or 0,
+        comment_count=comment_count or 0,
+        viewer_has_reacted=(viewer_reacted_count or 0) > 0,
+    )
 
 
 async def _paginated_feed(
@@ -197,7 +226,7 @@ async def _paginated_feed(
     rows = rows[:limit]
 
     items = [
-        _build_meme_out(meme, reaction_count, comment_count, viewer_reacted_count > 0)
+        build_meme_out(meme, reaction_count, comment_count, viewer_reacted_count > 0)
         for meme, reaction_count, comment_count, viewer_reacted_count in rows
     ]
     next_cursor = encode_cursor(rows[-1][0].created_at, rows[-1][0].id) if has_more and rows else None

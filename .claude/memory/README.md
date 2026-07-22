@@ -54,3 +54,6 @@ One file per backend feature/module. Purpose: let a new session (or the frontend
 - [communities.md](communities.md) — Community/CommunityMembership models, `/communities` endpoints (create/discover/mine/join/leave/members/join-requests), Communities tab + detail screen.
 - [scoring-engine.md](scoring-engine.md) — `services/scoring.py` placeholder score (reactions + comments), live SQL, no stored table/worker yet.
 - [leaderboards.md](leaderboards.md) — individual/global-community/internal-community leaderboards, `/leaderboards/*` + `/communities/{id}/leaderboard` endpoints, Leaderboards tab + community leaderboard tab.
+- [voting-system.md](voting-system.md) — Vote model (day/week/month periods), `/competitions/*` vote/standings/winner endpoints, live period-close computation, Voting screen.
+- [challenges.md](challenges.md) — Challenge/ChallengeSide/ChallengeParticipant/ChallengeSubmission/Badge models, `/communities/{id}/challenges/*` endpoints, scheduled window-close worker, setup wizard + active/results screens.
+- [meme-sending.md](meme-sending.md) — MemeSend model, `/meme-sending/*` REST + `WS /meme-sending/ws` real-time delivery, in-memory connection manager, inbox screen + socket-status slice.

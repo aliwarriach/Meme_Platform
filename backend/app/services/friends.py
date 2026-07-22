@@ -106,6 +106,11 @@ async def list_friends(db: AsyncSession, current_user: User) -> list[FriendOut]:
     ]
 
 
+async def are_friends(db: AsyncSession, user_a_id: uuid.UUID, user_b_id: uuid.UUID) -> bool:
+    friendship = await _get_friendship_between(db, user_a_id, user_b_id)
+    return friendship is not None and friendship.status == FriendshipStatus.accepted
+
+
 async def list_incoming_requests(db: AsyncSession, current_user: User) -> list[Friendship]:
     result = await db.execute(
         select(Friendship).where(

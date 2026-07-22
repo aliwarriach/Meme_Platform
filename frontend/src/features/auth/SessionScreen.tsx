@@ -58,6 +58,18 @@ export default function SessionScreen() {
         </Pressable>
 
         <Pressable
+          onPress={() => router.push('/voting')}
+          className="mb-3 items-center rounded-xl bg-orange-500 py-3.5">
+          <Text className="text-base font-bold text-white">Meme of the Day/Week/Month</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => router.push('/inbox')}
+          className="mb-3 items-center rounded-xl bg-orange-500 py-3.5">
+          <Text className="text-base font-bold text-white">Inbox</Text>
+        </Pressable>
+
+        <Pressable
           onPress={onLogout}
           className="items-center rounded-xl border border-neutral-300 py-3.5 dark:border-neutral-700">
           <Text className="text-base font-bold text-neutral-900 dark:text-white">Log out</Text>

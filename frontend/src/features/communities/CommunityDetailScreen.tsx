@@ -5,6 +5,7 @@ import { ActivityIndicator, FlatList, Pressable, RefreshControl, ScrollView, Tex
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
 
+import { ChallengeRow } from '@/features/challenges/components/ChallengeRow';
 import { JoinRequestRow } from '@/features/communities/components/JoinRequestRow';
 import { MemberRow } from '@/features/communities/components/MemberRow';
 import { MemeFeedList } from '@/features/feed/components/MemeFeedList';
@@ -21,13 +22,14 @@ import {
 } from '@/services/useCommunities';
 import { useCommunityFeed } from '@/services/useMemes';
 import { useInternalCommunityLeaderboard } from '@/services/useLeaderboards';
+import { useCommunityChallenges } from '@/services/useChallenges';
 import type { MemeResponse } from '@/services/memes';
 
 interface CommunityDetailScreenProps {
   communityId: string;
 }
 
-type Tab = 'feed' | 'members' | 'leaderboard';
+type Tab = 'feed' | 'members' | 'leaderboard' | 'challenges';
 
 export default function CommunityDetailScreen({ communityId }: CommunityDetailScreenProps) {
   const router = useRouter();
@@ -55,6 +57,8 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
     isMember && activeTab === 'leaderboard'
   );
   const leaderboardEntries = leaderboardQuery.data?.pages.flatMap((page) => page.items) ?? [];
+
+  const challengesQuery = useCommunityChallenges(communityId, isMember && activeTab === 'challenges');
 
   if (communityQuery.isLoading || !community) {
     return (
@@ -241,6 +245,24 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
                 Leaderboard
               </Text>
             </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Show challenges"
+              onPress={() => setActiveTab('challenges')}
+              className={`ml-2 min-h-[44px] items-center justify-center rounded-xl border px-4 ${
+                activeTab === 'challenges'
+                  ? 'border-orange-500 bg-orange-500'
+                  : 'border-neutral-300 dark:border-neutral-700'
+              }`}>
+              <Text
+                className={
+                  activeTab === 'challenges'
+                    ? 'font-bold text-white'
+                    : 'text-neutral-900 dark:text-white'
+                }>
+                Challenges
+              </Text>
+            </Pressable>
           </View>
 
           <Pressable
@@ -254,6 +276,35 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
             }
             className="min-h-[44px] items-center justify-center rounded-xl bg-orange-500 px-4">
             <Text className="text-sm font-bold text-white">+ Post</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {isMember && activeTab === 'challenges' && isOwner ? (
+        <View className="mb-4 flex-row">
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Set up a new team challenge"
+            onPress={() =>
+              router.push({
+                pathname: '/communities/[id]/challenges/new',
+                params: { id: community.id },
+              })
+            }
+            className="mr-2 flex-1 items-center rounded-xl bg-orange-500 py-3">
+            <Text className="font-bold text-white">+ Team Challenge</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Challenge another community"
+            onPress={() =>
+              router.push({
+                pathname: '/communities/[id]/challenges/vs',
+                params: { id: community.id },
+              })
+            }
+            className="flex-1 items-center rounded-xl border border-orange-500 py-3">
+            <Text className="font-bold text-orange-500">Challenge a Community</Text>
           </Pressable>
         </View>
       ) : null}
@@ -317,6 +368,38 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
             )
           }
         />
+      </SafeAreaView>
+    );
+  }
+
+  if (isMember && activeTab === 'challenges') {
+    return (
+      <SafeAreaView className="flex-1 bg-white dark:bg-neutral-950">
+        <ScrollView className="flex-1">
+          {header}
+          <View className="px-6 pb-6">
+            {challengesQuery.isLoading ? (
+              <ActivityIndicator className="my-4" />
+            ) : challengesQuery.isError ? (
+              <Text className="text-sm text-red-500">{challengesQuery.error?.message}</Text>
+            ) : (challengesQuery.data ?? []).length === 0 ? (
+              <Text className="text-sm text-neutral-400">No challenges yet</Text>
+            ) : (
+              challengesQuery.data?.map((challenge) => (
+                <ChallengeRow
+                  key={challenge.id}
+                  challenge={challenge}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/communities/[id]/challenges/[challengeId]',
+                      params: { id: community.id, challengeId: challenge.id },
+                    })
+                  }
+                />
+              ))
+            )}
+          </View>
+        </ScrollView>
       </SafeAreaView>
     );
   }
