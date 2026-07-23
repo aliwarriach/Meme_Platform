@@ -16,10 +16,12 @@ Both converge on `active` -> members submit memes tagged to their side -> `evalu
 scoring stub) -> results (winning side/community + points/badge on its members).
 
 Unlike Phase 8/9's live-SQL-on-read precedent, window close here is a **scheduled worker**
-(`app/workers/challenges.py`), per backend/CLAUDE.md's explicit directive for this feature:
-the window-close moment must be a single consistent event, not recomputed differently on
-every read — a submission and an evaluation racing the same instant must resolve the same
-way regardless of which request got there first.
+(an arq cron job, `app/workers/tasks/challenges.py::close_expired_challenges` — originally
+an in-process asyncio polling loop, moved onto arq once a real task queue existed), per
+backend/CLAUDE.md's explicit directive for this feature: the window-close moment must be
+a single consistent event, not recomputed differently on every read — a submission and an
+evaluation racing the same instant must resolve the same way regardless of which request
+got there first.
 """
 
 import datetime

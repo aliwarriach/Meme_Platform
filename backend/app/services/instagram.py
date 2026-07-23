@@ -5,17 +5,15 @@ derived metadata (title/thumbnail) + independent reactions/comments/votes (`Cont
 with user: only externally-shared content is containerized — native uploads (`Meme`) are
 never wrapped, and both content types coexist in one merged public feed.
 
-Metadata fetch runs as a **fire-and-forget `asyncio.create_task`** kicked off at intake —
-the container exists immediately (`metadata_status=pending`) and the request returns right
-away; the task fills in title/thumbnail shortly after via the stubbed
-`integrations/instagram_oembed.py`. Confirmed with user over a synchronous inline fetch,
-since a slow/hanging external call must never block intake (no Celery/arq infra exists yet
-for a more durable queue — same "no task queue yet" precedent as every other phase, but
-here it's a genuine one-shot enrichment, not a recurring job, so a bare asyncio task fits).
+Metadata fetch is enqueued as an **arq job** (`app/workers/tasks/instagram.py::fetch_container_metadata_job`)
+at intake — the container exists immediately (`metadata_status=pending`) and the request
+returns right away; the job fills in title/thumbnail shortly after via the stubbed
+`integrations/instagram_oembed.py`, running on the separate `arq` worker process rather
+than a bare `asyncio.create_task` (the original Phase 15 approach, retired once a real
+task queue existed — see `.claude/memory/hardening.md`) so a mid-fetch worker restart no
+longer silently drops the enrichment.
 """
 
-import asyncio
-import logging
 import re
 import urllib.parse
 import uuid
@@ -30,8 +28,7 @@ from app.core.exceptions import (
     MemeContainerNotFoundError,
 )
 from app.core.pagination import decode_cursor, encode_cursor
-from app.db.session import async_session_factory
-from app.integrations.instagram_oembed import fetch_metadata
+from app.core.redis import get_arq_pool
 from app.models.container_comment import ContainerComment
 from app.models.container_reaction import ContainerReaction
 from app.models.meme import Meme
@@ -50,8 +47,6 @@ from app.schemas.instagram import (
 from app.schemas.memes import MemeOut
 from app.services.memes import meme_visibility_clause, get_meme_out_for_viewer
 
-logger = logging.getLogger(__name__)
-
 _INSTAGRAM_URL_RE = re.compile(r"^https?://(www\.)?instagram\.com/", re.IGNORECASE)
 
 
@@ -59,30 +54,6 @@ def _validate_instagram_url(source_url: str) -> None:
     parsed = urllib.parse.urlparse(source_url)
     if parsed.scheme not in ("http", "https") or not _INSTAGRAM_URL_RE.match(source_url):
         raise InvalidSourceUrlError("Only instagram.com links are supported")
-
-
-async def _run_metadata_fetch(container_id: uuid.UUID, source_url: str) -> None:
-    """Runs in its own DB session/task, decoupled from the request that created the
-    container — must never raise into an unawaited task, so every failure path here ends
-    in a `failed` status update, not an unhandled exception.
-    """
-    try:
-        metadata = await fetch_metadata(source_url)
-        status_ = ContainerMetadataStatus.ready
-    except Exception:
-        logger.exception("Metadata fetch failed for container %s", container_id)
-        metadata = None
-        status_ = ContainerMetadataStatus.failed
-
-    async with async_session_factory() as db:
-        container = await db.get(MemeContainer, container_id)
-        if container is None:
-            return
-        container.metadata_status = status_
-        if metadata is not None:
-            container.title = metadata.title
-            container.thumbnail_url = metadata.thumbnail_url
-        await db.commit()
 
 
 def _build_container_out(
@@ -118,7 +89,8 @@ async def create_container(
     await db.commit()
     await db.refresh(container)
 
-    asyncio.create_task(_run_metadata_fetch(container.id, source_url))
+    arq_pool = await get_arq_pool()
+    await arq_pool.enqueue_job("fetch_container_metadata_job", str(container.id), source_url)
 
     return _build_container_out(container, reaction_count=0, comment_count=0, viewer_has_reacted=False)
 

@@ -12,6 +12,7 @@ from app.models.container_vote import ContainerVote
 from app.models.friendship import Friendship, FriendshipStatus
 from app.models.meme import Meme
 from app.models.meme_container import ContainerMetadataStatus, ContainerPlatform, MemeContainer
+from app.models.meme_score import MemeScore
 from app.models.meme_send import MemeSend, MemeSendStatus
 from app.models.post_audience import AudienceType, PostAudience
 from app.models.reaction import Reaction
@@ -45,6 +46,7 @@ __all__ = [
     "MembershipStatus",
     "Meme",
     "MemeContainer",
+    "MemeScore",
     "MemeSend",
     "MemeSendStatus",
     "PostAudience",

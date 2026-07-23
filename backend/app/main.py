@@ -1,4 +1,3 @@
-import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -10,6 +9,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.core.config import settings
 from app.core.exceptions import register_exception_handlers
 from app.core.rate_limit import limiter
+from app.core.redis import close_arq_pool, get_arq_pool
 from app.routers import (
     ai_caption,
     auth,
@@ -23,14 +23,18 @@ from app.routers import (
     memes,
     templates,
 )
-from app.workers.challenges import run_challenge_close_loop
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    close_loop_task = asyncio.create_task(run_challenge_close_loop())
+    # Warms the shared arq connection pool used to *enqueue* jobs (AI captions,
+    # Instagram metadata fetch) — actual job execution happens in a separate
+    # `arq app.workers.arq_worker.WorkerSettings` process, started independently.
+    # Challenge window-close and score recompute are arq cron jobs on that same
+    # worker process, not started here at all.
+    await get_arq_pool()
     yield
-    close_loop_task.cancel()
+    await close_arq_pool()
 
 
 app = FastAPI(title="Meme Platform API", lifespan=lifespan)

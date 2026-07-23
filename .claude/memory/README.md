@@ -61,3 +61,4 @@ One file per backend feature/module. Purpose: let a new session (or the frontend
 - [sharing.md](sharing.md) — frontend-only native share sheet (`expo-sharing` + `expo-file-system`), Share button wired into MemeCard, image-only (no video meme pipeline exists).
 - [instagram-companion.md](instagram-companion.md) — MemeContainer + parallel Container{Reaction,Comment,Vote} tables, stubbed oEmbed fetch, merged `/memes/feed`, container voting, WebView feed cards + share-intake modal.
 - [hardening.md](hardening.md) — Phase 16: rate limiting (slowapi + Redis, first real Redis usage in the repo), CORS allow-list, one real IDOR fix in meme-sending.
+- [redis-arq-infra.md](redis-arq-infra.md) — post-Phase-16: arq task queue + Redis caching added for scoring/leaderboards/challenge-close/ai-caption/instagram-metadata, replacing live-SQL/in-process-asyncio stopgaps. Read this before touching any of those five features' background-work paths.

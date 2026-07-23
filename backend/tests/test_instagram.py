@@ -1,5 +1,3 @@
-import asyncio
-
 import pytest
 from httpx import AsyncClient
 
@@ -35,17 +33,18 @@ async def test_create_container_starts_pending_then_metadata_fills_in(client: As
     response = await _create_container(client, alice)
     assert response.status_code == 201
     body = response.json()
+    # The response body is built from the in-memory container *before* the metadata job
+    # runs, so it always reports "pending" here regardless of how fast the job completes —
+    # this is the real behavior (intake must never block on the external fetch), not a
+    # race the test is trying to win.
     assert body["metadata_status"] == "pending"
     assert body["title"] is None
     container_id = body["id"]
 
-    # Let the fire-and-forget metadata-fetch task actually finish — it's scheduled on the
-    # same event loop as this test (pytest-asyncio), but a bare `sleep` doesn't guarantee
-    # the task scheduler gets to it in time, so wait on every other pending task directly.
-    pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
-    if pending:
-        await asyncio.wait(pending, timeout=2)
-
+    # `FakeArqPool` (see conftest.py) runs the metadata-fetch job inline/synchronously as
+    # part of `enqueue_job`, so by the time `create_container` has returned, the job has
+    # already committed its update — no wait/poll needed here, unlike the old
+    # `asyncio.create_task` fire-and-forget version of this test.
     response = await client.get(f"/instagram/containers/{container_id}", headers=auth_header(alice))
     assert response.status_code == 200
     body = response.json()
