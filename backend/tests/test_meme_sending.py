@@ -74,6 +74,31 @@ async def test_send_nonexistent_meme_rejected(client: AsyncClient):
     assert response.status_code == 404
 
 
+async def test_cannot_send_a_meme_you_cannot_see(client: AsyncClient):
+    alice = await create_user(client, "alice")
+    bob = await create_user(client, "bob")
+    carol = await create_user(client, "carol")
+    await _become_friends(client, bob, carol)
+    # bob is not friends with alice, so bob cannot see alice's friends-only meme —
+    # but if he learns its ID, he must not be able to forward it to carol anyway.
+
+    files = {"image": ("test.png", b"fake-bytes", "image/png")}
+    post_response = await client.post(
+        "/memes",
+        files=files,
+        data={"caption": "hi", "audiences": ["friends"]},
+        headers=auth_header(alice),
+    )
+    meme_id = post_response.json()["id"]
+
+    response = await client.post(
+        "/meme-sending/send",
+        json={"recipient_id": carol["user"]["id"], "meme_id": meme_id},
+        headers=auth_header(bob),
+    )
+    assert response.status_code == 404
+
+
 async def test_recipient_can_mark_seen(client: AsyncClient):
     alice = await create_user(client, "alice")
     bob = await create_user(client, "bob")

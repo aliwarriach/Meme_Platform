@@ -1,7 +1,7 @@
 import enum
 import uuid
 
-from sqlalchemy import CheckConstraint, Computed, ForeignKey, Uuid, UniqueConstraint
+from sqlalchemy import CheckConstraint, Computed, ForeignKey, Index, Uuid, UniqueConstraint
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -41,4 +41,8 @@ class Friendship(UUIDPKMixin, TimestampMixin, Base):
     __table_args__ = (
         UniqueConstraint("user_low", "user_high", name="uq_friendships_pair"),
         CheckConstraint("requester_id <> addressee_id", name="ck_friendships_not_self"),
+        # The feed visibility clause's friend-of-author check runs as two correlated EXISTS
+        # subqueries per candidate meme, each filtering (requester_id/addressee_id, status).
+        Index("ix_friendships_requester_status", "requester_id", "status"),
+        Index("ix_friendships_addressee_status", "addressee_id", "status"),
     )

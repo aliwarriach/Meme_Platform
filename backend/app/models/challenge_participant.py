@@ -22,7 +22,9 @@ class ChallengeParticipant(UUIDPKMixin, TimestampMixin, Base):
     side_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("challenge_sides.id", ondelete="CASCADE"), index=True
     )
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
 
     user: Mapped[User] = relationship(lazy="selectin")
 

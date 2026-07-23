@@ -1,7 +1,7 @@
 import enum
 import uuid
 
-from sqlalchemy import ForeignKey, UniqueConstraint
+from sqlalchemy import ForeignKey, Index, UniqueConstraint
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -39,4 +39,8 @@ class CommunityMembership(UUIDPKMixin, TimestampMixin, Base):
 
     __table_args__ = (
         UniqueConstraint("community_id", "user_id", name="uq_community_membership_pair"),
+        # Every community-scoped access check filters (community_id, user_id, status=active) —
+        # this is the single hottest lookup in the app (feed visibility, template access,
+        # leaderboards, challenges all call require_active_membership).
+        Index("ix_community_memberships_community_user_status", "community_id", "user_id", "status"),
     )

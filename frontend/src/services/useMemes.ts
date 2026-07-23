@@ -20,6 +20,7 @@ import {
   type CommentResponse,
   type FeedPageResponse,
   type MemeResponse,
+  type MergedFeedPageResponse,
 } from '@/services/memes';
 
 const memesRootKey = ['memes'] as const;
@@ -28,7 +29,13 @@ const communityFeedKey = (communityId: string) => ['memes', 'community', communi
 const commentsKey = (memeId: string) => ['memes', memeId, 'comments'] as const;
 
 export function useFeed() {
-  return useInfiniteQuery<FeedPageResponse, Error, InfiniteData<FeedPageResponse>, typeof feedKey, string | undefined>({
+  return useInfiniteQuery<
+    MergedFeedPageResponse,
+    Error,
+    InfiniteData<MergedFeedPageResponse>,
+    typeof feedKey,
+    string | undefined
+  >({
     queryKey: feedKey,
     initialPageParam: undefined,
     queryFn: async ({ pageParam }) => {

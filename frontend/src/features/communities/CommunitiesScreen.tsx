@@ -41,8 +41,9 @@ export default function CommunitiesScreen() {
         {(['mine', 'discover'] as Tab[]).map((value) => (
           <Pressable
             key={value}
-            accessibilityRole="button"
+            accessibilityRole="tab"
             accessibilityLabel={value === 'mine' ? 'My Communities tab' : 'Discover tab'}
+            accessibilityState={{ selected: tab === value }}
             onPress={() => setTab(value)}
             className={`mr-2 min-h-[40px] items-center justify-center rounded-xl px-4 ${
               tab === value ? 'bg-orange-500' : 'bg-neutral-100 dark:bg-neutral-900'

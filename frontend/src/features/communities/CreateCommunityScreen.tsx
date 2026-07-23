@@ -137,8 +137,9 @@ export default function CreateCommunityScreen() {
             return (
               <Pressable
                 key={option.value}
-                accessibilityRole="button"
-                accessibilityLabel={`Set privacy to ${option.label}`}
+                accessibilityRole="radio"
+                accessibilityLabel={`${option.label}: ${option.description}`}
+                accessibilityState={{ selected, checked: selected }}
                 onPress={() => setValue('privacy', option.value, { shouldValidate: true })}
                 className={`mb-2 min-h-[56px] justify-center rounded-xl border px-4 py-2 ${
                   selected

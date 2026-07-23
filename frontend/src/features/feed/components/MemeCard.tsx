@@ -5,6 +5,7 @@ import { useSelector } from 'react-redux';
 
 import { CommentsSection } from '@/features/feed/components/CommentsSection';
 import { SendMemeModal } from '@/features/meme-sending/SendMemeModal';
+import { shareMemeImage } from '@/features/sharing/shareMeme';
 import type { MemeResponse } from '@/services/memes';
 import { useCastVoteMutation } from '@/services/useCompetitions';
 import { useAddReactionMutation, useRemoveReactionMutation } from '@/services/useMemes';
@@ -17,6 +18,8 @@ interface MemeCardProps {
 export function MemeCard({ meme }: MemeCardProps) {
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [sendModalOpen, setSendModalOpen] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
   const currentUser = useSelector((state: RootState) => state.auth.user);
   const addReaction = useAddReactionMutation();
   const removeReaction = useRemoveReactionMutation();
@@ -31,6 +34,18 @@ export function MemeCard({ meme }: MemeCardProps) {
   // one vote per meme per period (DB-enforced server-side) — never for your own meme.
   const isVotable = meme.audiences.includes('public') && !isOwnMeme;
 
+  const onShare = async () => {
+    setIsSharing(true);
+    setShareError(null);
+    try {
+      await shareMemeImage(meme.image_url, meme.id);
+    } catch (error) {
+      setShareError(error instanceof Error ? error.message : 'Could not share this meme.');
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
   const onToggleReaction = () => {
     if (meme.viewer_has_reacted) {
       removeReaction.mutate(meme.id);
@@ -42,7 +57,10 @@ export function MemeCard({ meme }: MemeCardProps) {
   return (
     <View className="mb-4 border-b border-neutral-100 pb-4 dark:border-neutral-800">
       <View className="flex-row items-center px-4 py-2">
-        <View className="mr-2 h-8 w-8 items-center justify-center rounded-full bg-orange-500">
+        <View
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          className="mr-2 h-8 w-8 items-center justify-center rounded-full bg-orange-500">
           <Text className="text-xs font-bold text-white">
             {meme.author.username.slice(0, 2).toUpperCase()}
           </Text>
@@ -63,6 +81,11 @@ export function MemeCard({ meme }: MemeCardProps) {
         source={{ uri: meme.image_url }}
         style={{ width: '100%', aspectRatio: 1 }}
         contentFit="cover"
+        accessible
+        accessibilityRole="image"
+        accessibilityLabel={
+          meme.caption ? `Meme: ${meme.caption}` : `Meme posted by ${meme.author.username}`
+        }
       />
 
       {meme.caption ? (
@@ -73,6 +96,7 @@ export function MemeCard({ meme }: MemeCardProps) {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={meme.viewer_has_reacted ? 'Remove reaction' : 'React to this meme'}
+          accessibilityState={{ selected: meme.viewer_has_reacted, disabled: isReacting }}
           onPress={onToggleReaction}
           disabled={isReacting}
           className="mr-4 min-h-[44px] flex-row items-center disabled:opacity-50">
@@ -104,6 +128,10 @@ export function MemeCard({ meme }: MemeCardProps) {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Vote for Meme of the Day"
+            accessibilityState={{
+              selected: castVote.isSuccess,
+              disabled: castVote.isPending || castVote.isSuccess,
+            }}
             onPress={() => castVote.mutate(meme.id)}
             disabled={castVote.isPending || castVote.isSuccess}
             className="mr-4 min-h-[44px] flex-row items-center disabled:opacity-50">
@@ -124,13 +152,30 @@ export function MemeCard({ meme }: MemeCardProps) {
           accessibilityRole="button"
           accessibilityLabel="Send to a friend"
           onPress={() => setSendModalOpen(true)}
-          className="min-h-[44px] justify-center">
+          className="mr-4 min-h-[44px] justify-center">
           <Text className="text-neutral-500 dark:text-neutral-400">↗ Send</Text>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Share this meme"
+          onPress={onShare}
+          disabled={isSharing}
+          className="min-h-[44px] flex-row items-center disabled:opacity-50">
+          {isSharing ? (
+            <ActivityIndicator size="small" />
+          ) : (
+            <Text className="text-neutral-500 dark:text-neutral-400">⤴ Share</Text>
+          )}
         </Pressable>
       </View>
 
       {castVote.isError ? (
         <Text className="px-4 pt-1 text-xs text-red-500">{castVote.error?.message}</Text>
+      ) : null}
+
+      {shareError ? (
+        <Text className="px-4 pt-1 text-xs text-red-500">{shareError}</Text>
       ) : null}
 
       {commentsOpen ? <CommentsSection memeId={meme.id} /> : null}

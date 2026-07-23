@@ -39,8 +39,9 @@ export default function LeaderboardsScreen() {
 
       <View className="mb-2 flex-row">
         <Pressable
-          accessibilityRole="button"
+          accessibilityRole="tab"
           accessibilityLabel="Show individual leaderboard"
+          accessibilityState={{ selected: activeTab === 'individual' }}
           onPress={() => setActiveTab('individual')}
           className={`mr-2 min-h-[44px] items-center justify-center rounded-xl border px-4 ${
             activeTab === 'individual'
@@ -55,8 +56,9 @@ export default function LeaderboardsScreen() {
           </Text>
         </Pressable>
         <Pressable
-          accessibilityRole="button"
+          accessibilityRole="tab"
           accessibilityLabel="Show community leaderboard"
+          accessibilityState={{ selected: activeTab === 'communities' }}
           onPress={() => setActiveTab('communities')}
           className={`min-h-[44px] items-center justify-center rounded-xl border px-4 ${
             activeTab === 'communities'

@@ -174,6 +174,26 @@ class NotMemeSendRecipientError(DomainError):
     status_code = status.HTTP_403_FORBIDDEN
 
 
+class CaptionGenerationFailedError(DomainError):
+    status_code = status.HTTP_502_BAD_GATEWAY
+
+
+class MemeContainerNotFoundError(DomainError):
+    status_code = status.HTTP_404_NOT_FOUND
+
+
+class InvalidSourceUrlError(DomainError):
+    status_code = status.HTTP_400_BAD_REQUEST
+
+
+class AlreadyReactedToContainerError(DomainError):
+    status_code = status.HTTP_409_CONFLICT
+
+
+class ContainerReactionNotFoundError(DomainError):
+    status_code = status.HTTP_404_NOT_FOUND
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(DomainError)
     async def _handle_domain_error(request: Request, exc: DomainError) -> JSONResponse:

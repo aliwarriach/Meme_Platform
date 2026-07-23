@@ -20,7 +20,7 @@ from app.services.communities import require_active_membership
 from app.services.media import validate_and_upload_image
 
 
-def _visibility_clause(viewer_id: uuid.UUID):
+def meme_visibility_clause(viewer_id: uuid.UUID):
     is_public = exists().where(
         PostAudience.meme_id == Meme.id, PostAudience.audience_type == AudienceType.public
     )
@@ -237,7 +237,7 @@ async def _paginated_feed(
 async def get_feed(
     db: AsyncSession, current_user: User, cursor: str | None, limit: int
 ) -> FeedPage:
-    return await _paginated_feed(db, current_user, _visibility_clause(current_user.id), cursor, limit)
+    return await _paginated_feed(db, current_user, meme_visibility_clause(current_user.id), cursor, limit)
 
 
 async def get_community_feed(
@@ -257,7 +257,7 @@ async def get_community_feed(
 
 
 async def get_visible_meme(db: AsyncSession, current_user: User, meme_id: uuid.UUID) -> Meme:
-    stmt = select(Meme).where(Meme.id == meme_id, _visibility_clause(current_user.id))
+    stmt = select(Meme).where(Meme.id == meme_id, meme_visibility_clause(current_user.id))
     result = await db.execute(stmt)
     meme = result.scalar_one_or_none()
     if meme is None:

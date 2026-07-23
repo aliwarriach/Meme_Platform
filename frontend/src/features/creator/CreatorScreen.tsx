@@ -14,6 +14,7 @@ import { TemplatePickerModal } from '@/features/creator/components/TemplatePicke
 import { buildCreatorSchema, type CreatorFormValues } from '@/features/creator/schemas';
 import type { AudienceType } from '@/services/memes';
 import type { TemplateResponse } from '@/services/templates';
+import { useGenerateCaptionMutation } from '@/services/useAiCaption';
 import { useCreateCommunityMemeMutation, useCreateMemeMutation } from '@/services/useMemes';
 
 const AUDIENCE_OPTIONS: { value: AudienceType; label: string }[] = [
@@ -34,6 +35,7 @@ export default function CreatorScreen() {
   const createMeme = useCreateMemeMutation();
   const createCommunityMeme = useCreateCommunityMemeMutation();
   const activeMutation = isCommunityPost ? createCommunityMeme : createMeme;
+  const generateCaption = useGenerateCaptionMutation();
 
   const canvasRef = useRef<View>(null);
 
@@ -59,6 +61,7 @@ export default function CreatorScreen() {
 
   const topText = watch('topText') ?? '';
   const bottomText = watch('bottomText') ?? '';
+  const caption = watch('caption') ?? '';
   const selectedAudiences = watch('audiences');
 
   const onPickOwnImage = async () => {
@@ -94,6 +97,19 @@ export default function CreatorScreen() {
       setCapturedUri(uri);
     } catch {
       setCaptureError('Could not generate a preview. Try again.');
+    }
+  };
+
+  const onGenerateCaption = async () => {
+    const context = [topText, bottomText].filter(Boolean).join(' / ') || 'a meme image';
+    try {
+      const result = await generateCaption.mutateAsync({
+        context,
+        currentCaption: caption || undefined,
+      });
+      setValue('caption', result.caption, { shouldValidate: true });
+    } catch {
+      // surfaced inline via generateCaption.isError below
     }
   };
 
@@ -195,7 +211,11 @@ export default function CreatorScreen() {
           <Text className="text-xl font-extrabold text-neutral-900 dark:text-white">
             {capturedUri ? 'Preview' : isCommunityPost ? `New Post to ${communityName}` : 'New Meme'}
           </Text>
-          <View className="min-h-[44px] min-w-[44px]" />
+          <View
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            className="min-h-[44px] min-w-[44px]"
+          />
         </View>
 
         {capturedUri ? (
@@ -203,6 +223,9 @@ export default function CreatorScreen() {
             source={{ uri: capturedUri }}
             style={{ width: '100%', aspectRatio: 1, borderRadius: 12 }}
             contentFit="contain"
+            accessible
+            accessibilityRole="image"
+            accessibilityLabel="Preview of your meme, ready to publish"
           />
         ) : (
           <OverlayCanvas ref={canvasRef} imageUri={baseImageUri} topText={topText} bottomText={bottomText} />
@@ -262,6 +285,26 @@ export default function CreatorScreen() {
                 />
               )}
             />
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={caption ? 'Make caption funnier' : 'Generate a caption'}
+              onPress={onGenerateCaption}
+              disabled={generateCaption.isPending}
+              className="mb-2 min-h-[44px] items-center justify-center rounded-xl border border-orange-500 py-2.5 disabled:opacity-50">
+              <Text className="text-sm font-bold text-orange-500">
+                {generateCaption.isPending
+                  ? 'Thinking…'
+                  : caption
+                    ? '✨ Make it funnier'
+                    : '✨ Generate a caption'}
+              </Text>
+            </Pressable>
+            {generateCaption.isError ? (
+              <Text className="mb-3 text-sm text-red-500">
+                Couldn&apos;t generate a caption right now — write your own or try again.
+              </Text>
+            ) : null}
 
             {isCommunityPost ? (
               <View className="mb-4 rounded-xl bg-neutral-100 px-4 py-3 dark:bg-neutral-900">

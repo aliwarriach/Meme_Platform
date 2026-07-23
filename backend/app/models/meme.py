@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import ForeignKey, Index, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, UUIDPKMixin
@@ -20,3 +20,9 @@ class Meme(UUIDPKMixin, TimestampMixin, Base):
 
     author: Mapped[User] = relationship(lazy="selectin")
     audiences: Mapped[list[PostAudience]] = relationship(lazy="selectin")
+
+    __table_args__ = (
+        # Feed/community-feed queries always order by (created_at desc, id desc) for
+        # keyset pagination — composite covers both the sort and the cursor comparison.
+        Index("ix_memes_created_at_id", "created_at", "id"),
+    )

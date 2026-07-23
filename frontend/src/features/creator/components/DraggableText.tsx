@@ -46,6 +46,10 @@ export function DraggableText({ text, initialX, initialY, bounds }: DraggableTex
   return (
     <GestureDetector gesture={pan}>
       <Animated.View
+        accessible
+        accessibilityRole="adjustable"
+        accessibilityLabel={`"${text}" text overlay, draggable`}
+        accessibilityHint="Drag to reposition on the image"
         style={[
           { position: 'absolute', left: initialX, top: initialY, width: BOX_WIDTH },
           animatedStyle,

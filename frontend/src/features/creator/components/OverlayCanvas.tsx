@@ -32,6 +32,9 @@ export const OverlayCanvas = forwardRef<View, OverlayCanvasProps>(
           source={{ uri: imageUri }}
           style={{ width: '100%', height: '100%' }}
           contentFit="contain"
+          accessible
+          accessibilityRole="image"
+          accessibilityLabel="Meme image being edited"
         />
         {size.width > 0 && size.height > 0 ? (
           <>

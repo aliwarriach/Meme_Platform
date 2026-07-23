@@ -1,5 +1,6 @@
 import { api } from '@/services/api';
 import type { AuthUserResponse } from '@/services/auth';
+import type { MemeContainerResponse } from '@/services/instagram';
 import { appendImageToFormData } from '@/utils/multipartImage';
 
 export type AudienceType = 'public' | 'friends';
@@ -27,6 +28,19 @@ export interface FeedPageResponse {
   next_cursor: string | null;
 }
 
+// The public feed merges native memes with externally-shared MemeContainers (Instagram
+// Companion Mode) into one tagged-union list — see backend services/instagram.py::get_merged_feed.
+// Community feeds stay memes-only (FeedPageResponse above), since containers aren't
+// community-scoped.
+export type MergedFeedItem =
+  | { kind: 'meme'; meme: MemeResponse }
+  | { kind: 'container'; container: MemeContainerResponse };
+
+export interface MergedFeedPageResponse {
+  items: MergedFeedItem[];
+  next_cursor: string | null;
+}
+
 export interface CommentResponse {
   id: string;
   author: AuthUserResponse;
@@ -35,7 +49,7 @@ export interface CommentResponse {
 }
 
 export function getFeedRequest(params: { cursor?: string; limit?: number }) {
-  return api.get<FeedPageResponse>('/memes/feed', params);
+  return api.get<MergedFeedPageResponse>('/memes/feed', params);
 }
 
 export async function createMemeRequest(payload: {

@@ -16,8 +16,12 @@ class ChallengeSubmission(UUIDPKMixin, TimestampMixin, Base):
     side_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("challenge_sides.id", ondelete="CASCADE"), index=True
     )
-    submitter_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
-    meme_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("memes.id", ondelete="CASCADE"))
+    submitter_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    meme_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("memes.id", ondelete="CASCADE"), index=True
+    )
 
     meme: Mapped[Meme] = relationship(lazy="selectin")
 

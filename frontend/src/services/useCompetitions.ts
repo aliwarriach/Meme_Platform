@@ -2,10 +2,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { throwApiError } from '@/services/api';
 import {
+  castContainerVoteRequest,
   castVoteRequest,
   getCurrentStandingsRequest,
   getWinnerRequest,
   type CompetitionPeriodType,
+  type ContainerVoteResponse,
   type StandingsPageResponse,
   type VoteResponse,
   type WinnerResponse,
@@ -50,6 +52,18 @@ export function useCastVoteMutation(periodType: CompetitionPeriodType) {
   return useMutation<VoteResponse, Error, string>({
     mutationFn: async (memeId) => {
       const response = await castVoteRequest(periodType, memeId);
+      if (!response.ok || !response.data) throwApiError(response, 'cast vote');
+      return response.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: standingsKey(periodType) }),
+  });
+}
+
+export function useCastContainerVoteMutation(periodType: CompetitionPeriodType) {
+  const queryClient = useQueryClient();
+  return useMutation<ContainerVoteResponse, Error, string>({
+    mutationFn: async (containerId) => {
+      const response = await castContainerVoteRequest(periodType, containerId);
       if (!response.ok || !response.data) throwApiError(response, 'cast vote');
       return response.data;
     },

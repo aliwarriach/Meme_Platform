@@ -1,11 +1,18 @@
 import { api } from '@/services/api';
+import type { MemeContainerResponse } from '@/services/instagram';
 import type { MemeResponse } from '@/services/memes';
 
 export type CompetitionPeriodType = 'day' | 'week' | 'month';
 
+// Native memes and MemeContainers (Instagram Companion Mode) compete together in one
+// ranking — see backend services/competitions.py::_standings_query.
+export type StandingContent =
+  | { kind: 'meme'; meme: MemeResponse }
+  | { kind: 'container'; container: MemeContainerResponse };
+
 export interface StandingEntryResponse {
   rank: number;
-  meme: MemeResponse;
+  content: StandingContent;
   vote_count: number;
 }
 
@@ -23,15 +30,28 @@ export interface VoteResponse {
   period_key: string;
 }
 
+export interface ContainerVoteResponse {
+  id: string;
+  meme_container_id: string;
+  period_type: CompetitionPeriodType;
+  period_key: string;
+}
+
 export interface WinnerResponse {
   period_type: CompetitionPeriodType;
   period_key: string;
-  meme: MemeResponse | null;
+  content: StandingContent | null;
   vote_count: number;
 }
 
 export function castVoteRequest(periodType: CompetitionPeriodType, memeId: string) {
   return api.post<VoteResponse>(`/competitions/${periodType}/votes/${memeId}`);
+}
+
+export function castContainerVoteRequest(periodType: CompetitionPeriodType, containerId: string) {
+  return api.post<ContainerVoteResponse>(
+    `/competitions/${periodType}/container-votes/${containerId}`
+  );
 }
 
 export function getCurrentStandingsRequest(periodType: CompetitionPeriodType, limit = 20) {

@@ -110,7 +110,8 @@ async def test_current_standings_ranks_by_vote_count(client: AsyncClient):
     assert response.status_code == 200
     body = response.json()
     assert body["is_closed"] is False
-    assert body["items"][0]["meme"]["id"] == popular["id"]
+    assert body["items"][0]["content"]["kind"] == "meme"
+    assert body["items"][0]["content"]["meme"]["id"] == popular["id"]
     assert body["items"][0]["vote_count"] == 3
     assert body["items"][1]["vote_count"] == 1
 
@@ -136,7 +137,7 @@ async def test_winner_surfaced_for_closed_period_with_no_votes(client: AsyncClie
     )
     assert response.status_code == 200
     body = response.json()
-    assert body["meme"] is None
+    assert body["content"] is None
     assert body["vote_count"] == 0
 
 
@@ -187,7 +188,8 @@ async def test_winner_surfaced_for_closed_period_with_votes(client: AsyncClient)
     )
     assert response.status_code == 200
     body = response.json()
-    assert body["meme"]["id"] == winning_meme["id"]
+    assert body["content"]["kind"] == "meme"
+    assert body["content"]["meme"]["id"] == winning_meme["id"]
     assert body["vote_count"] == 2
 
 

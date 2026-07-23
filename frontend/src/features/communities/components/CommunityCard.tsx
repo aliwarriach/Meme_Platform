@@ -25,9 +25,14 @@ export function CommunityCard({ community, onPress }: CommunityCardProps) {
           source={{ uri: community.icon_url }}
           style={{ width: 48, height: 48, borderRadius: 12 }}
           contentFit="cover"
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
         />
       ) : (
-        <View className="h-12 w-12 items-center justify-center rounded-xl bg-orange-500">
+        <View
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          className="h-12 w-12 items-center justify-center rounded-xl bg-orange-500">
           <Text className="text-lg font-extrabold text-white">
             {community.name.slice(0, 2).toUpperCase()}
           </Text>

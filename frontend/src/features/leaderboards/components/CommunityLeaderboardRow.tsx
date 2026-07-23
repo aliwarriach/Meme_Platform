@@ -8,9 +8,15 @@ interface CommunityLeaderboardRowProps {
 
 export function CommunityLeaderboardRow({ entry }: CommunityLeaderboardRowProps) {
   return (
-    <View className="flex-row items-center border-b border-neutral-100 px-6 py-3 dark:border-neutral-800">
+    <View
+      accessible
+      accessibilityLabel={`Rank ${entry.rank}, ${entry.community_name}, ${entry.score} points`}
+      className="flex-row items-center border-b border-neutral-100 px-6 py-3 dark:border-neutral-800">
       <Text className="w-8 text-sm font-bold text-neutral-400">{entry.rank}</Text>
-      <View className="mr-3 h-9 w-9 items-center justify-center rounded-2xl bg-orange-500">
+      <View
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        className="mr-3 h-9 w-9 items-center justify-center rounded-2xl bg-orange-500">
         <Text className="text-xs font-bold text-white">
           {entry.community_name.slice(0, 2).toUpperCase()}
         </Text>

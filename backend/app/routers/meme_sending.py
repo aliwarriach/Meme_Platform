@@ -1,9 +1,10 @@
 import uuid
 
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, Depends, Request, WebSocket, WebSocketDisconnect, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import CurrentUser, DbSession
+from app.core.rate_limit import limiter
 from app.core.security import InvalidTokenError, decode_access_token
 from app.db.session import get_db_session
 from app.schemas.meme_sending import MemeSendCreate, MemeSendOut, MemeSendReactionCreate
@@ -15,7 +16,10 @@ router = APIRouter(prefix="/meme-sending", tags=["meme-sending"])
 
 
 @router.post("/send", status_code=status.HTTP_201_CREATED, response_model=MemeSendOut)
-async def send_meme(data: MemeSendCreate, current_user: CurrentUser, db: DbSession) -> MemeSendOut:
+@limiter.limit("30/minute")
+async def send_meme(
+    request: Request, data: MemeSendCreate, current_user: CurrentUser, db: DbSession
+) -> MemeSendOut:
     return await meme_sending_service.send_meme(db, current_user, data)
 
 

@@ -57,3 +57,7 @@ One file per backend feature/module. Purpose: let a new session (or the frontend
 - [voting-system.md](voting-system.md) — Vote model (day/week/month periods), `/competitions/*` vote/standings/winner endpoints, live period-close computation, Voting screen.
 - [challenges.md](challenges.md) — Challenge/ChallengeSide/ChallengeParticipant/ChallengeSubmission/Badge models, `/communities/{id}/challenges/*` endpoints, scheduled window-close worker, setup wizard + active/results screens.
 - [meme-sending.md](meme-sending.md) — MemeSend model, `/meme-sending/*` REST + `WS /meme-sending/ws` real-time delivery, in-memory connection manager, inbox screen + socket-status slice.
+- [ai-caption.md](ai-caption.md) — `integrations/llm_client.py` (Groq, timeout+retry), `POST /ai-caption/generate`, caption generator button wired into the existing creator screen.
+- [sharing.md](sharing.md) — frontend-only native share sheet (`expo-sharing` + `expo-file-system`), Share button wired into MemeCard, image-only (no video meme pipeline exists).
+- [instagram-companion.md](instagram-companion.md) — MemeContainer + parallel Container{Reaction,Comment,Vote} tables, stubbed oEmbed fetch, merged `/memes/feed`, container voting, WebView feed cards + share-intake modal.
+- [hardening.md](hardening.md) — Phase 16: rate limiting (slowapi + Redis, first real Redis usage in the repo), CORS allow-list, one real IDOR fix in meme-sending.

@@ -4,17 +4,15 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
-    MemeNotFoundError,
     MemeSendNotFoundError,
     NotFriendsError,
     NotMemeSendRecipientError,
 )
-from app.models.meme import Meme
 from app.models.meme_send import MemeSend, MemeSendStatus
 from app.models.user import User
 from app.schemas.meme_sending import MemeSendCreate, MemeSendOut, MemeSendReactionCreate
 from app.services import friends as friends_service
-from app.services.memes import get_meme_out_for_viewer
+from app.services.memes import get_meme_out_for_viewer, get_visible_meme
 from app.websockets.connection_manager import connection_manager
 
 
@@ -35,9 +33,9 @@ async def send_meme(db: AsyncSession, current_user: User, data: MemeSendCreate) 
     if not await friends_service.are_friends(db, current_user.id, data.recipient_id):
         raise NotFriendsError("You can only send memes to accepted friends")
 
-    meme = await db.get(Meme, data.meme_id)
-    if meme is None:
-        raise MemeNotFoundError("Meme not found")
+    # A meme the sender can't otherwise see (e.g. another user's Friends-only or
+    # private-community post) must not be forwardable just because its ID is known.
+    await get_visible_meme(db, current_user, data.meme_id)
 
     send = MemeSend(
         sender_id=current_user.id,

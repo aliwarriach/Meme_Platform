@@ -1,4 +1,7 @@
-"""Global competitions (Project_Requirements §9) — Meme of the Day/Week/Month.
+"""Global competitions (Project_Requirements §9) — Meme of the Day/Week/Month. Native
+`Meme`s and externally-shared `MemeContainer`s (§13, Instagram Companion Mode) compete
+together in one ranking, backed by two separate vote tables (`Vote`/`ContainerVote`) unioned
+at read time — same "parallel tables, one merged surface" pattern as the feed.
 
 Period boundaries and winners are computed **live in SQL on read**, the same precedent
 Phase 8 set in [[scoring-engine]]/[[leaderboards]]: no Celery/arq worker exists in this repo
@@ -17,17 +20,29 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import (
     AlreadyVotedError,
     InvalidPeriodError,
+    MemeContainerNotFoundError,
     MemeNotFoundError,
     MemeNotVotableError,
     SelfVoteNotAllowedError,
 )
 from app.models.comment import Comment
+from app.models.container_vote import ContainerVote
 from app.models.meme import Meme
+from app.models.meme_container import MemeContainer
 from app.models.post_audience import AudienceType, PostAudience
 from app.models.reaction import Reaction
 from app.models.user import User
 from app.models.vote import CompetitionPeriod, Vote
-from app.schemas.competitions import StandingEntry, StandingsPage, VoteOut, WinnerOut
+from app.schemas.competitions import (
+    StandingContentContainer,
+    StandingContentMeme,
+    StandingEntry,
+    StandingsPage,
+    VoteOut,
+    WinnerOut,
+)
+from app.schemas.instagram import ContainerVoteOut
+from app.services.instagram import get_container_out_for_standings
 from app.services.memes import build_meme_out
 
 
@@ -123,43 +138,112 @@ async def cast_vote(
     return VoteOut.model_validate(vote, from_attributes=True)
 
 
+async def cast_container_vote(
+    db: AsyncSession,
+    current_user: User,
+    container_id: uuid.UUID,
+    period_type: CompetitionPeriod,
+) -> ContainerVoteOut:
+    """A `MemeContainer` has no author-driven audience system (it's public by nature, see
+    `services/instagram.py::get_merged_feed`) and no self-submission concept either — any
+    member can vote for any container, including their own submission, unlike a native meme.
+    """
+    exists_row = await db.scalar(select(exists().where(MemeContainer.id == container_id)))
+    if not exists_row:
+        raise MemeContainerNotFoundError("MemeContainer not found")
+
+    key = current_period_key(period_type)
+
+    already_voted = await db.scalar(
+        select(
+            exists().where(
+                ContainerVote.user_id == current_user.id,
+                ContainerVote.meme_container_id == container_id,
+                ContainerVote.period_type == period_type,
+                ContainerVote.period_key == key,
+            )
+        )
+    )
+    if already_voted:
+        raise AlreadyVotedError("You already voted for this content in the current period")
+
+    vote = ContainerVote(
+        user_id=current_user.id,
+        meme_container_id=container_id,
+        period_type=period_type,
+        period_key=key,
+    )
+    db.add(vote)
+    await db.commit()
+    await db.refresh(vote)
+    return ContainerVoteOut.model_validate(vote)
+
+
 async def _standings_query(
     db: AsyncSession, period_type: CompetitionPeriod, key: str, limit: int
 ) -> list[StandingEntry]:
-    vote_count = func.count(func.distinct(Vote.id))
-    reaction_count_subq = (
-        select(func.count(Reaction.id))
-        .where(Reaction.meme_id == Meme.id)
-        .correlate(Meme)
-        .scalar_subquery()
-    )
-    comment_count_subq = (
-        select(func.count(Comment.id))
-        .where(Comment.meme_id == Meme.id)
-        .correlate(Meme)
-        .scalar_subquery()
-    )
-    stmt = (
-        select(Meme, vote_count, reaction_count_subq, comment_count_subq)
-        .join(Vote, Vote.meme_id == Meme.id)
-        .where(Vote.period_type == period_type, Vote.period_key == key)
-        .group_by(Meme.id)
-        .order_by(vote_count.desc(), Meme.created_at.asc())
-        .limit(limit)
-    )
-    result = await db.execute(stmt)
-    rows = result.all()
-    return [
-        StandingEntry(
-            rank=i + 1,
-            meme=build_meme_out(
-                meme, reaction_count=reaction_count, comment_count=comment_count,
-                viewer_has_reacted=False,
-            ),
-            vote_count=count,
+    """Ranks native memes and MemeContainers together by vote count for one period. Each
+    content type's vote count is grouped separately (cheap, indexed aggregations against
+    its own vote table), then merged/ranked in Python — unlike the feed's full-table union,
+    this only ever needs `limit` winners so a full SQL-side union isn't worth the complexity.
+    """
+    meme_vote_counts = (
+        await db.execute(
+            select(Vote.meme_id, func.count(Vote.id))
+            .where(Vote.period_type == period_type, Vote.period_key == key)
+            .group_by(Vote.meme_id)
         )
-        for i, (meme, count, reaction_count, comment_count) in enumerate(rows)
-    ]
+    ).all()
+    container_vote_counts = (
+        await db.execute(
+            select(ContainerVote.meme_container_id, func.count(ContainerVote.id))
+            .where(ContainerVote.period_type == period_type, ContainerVote.period_key == key)
+            .group_by(ContainerVote.meme_container_id)
+        )
+    ).all()
+
+    ranked = sorted(
+        [(meme_id, count, "meme") for meme_id, count in meme_vote_counts]
+        + [(container_id, count, "container") for container_id, count in container_vote_counts],
+        key=lambda row: row[1],
+        reverse=True,
+    )[:limit]
+
+    entries: list[StandingEntry] = []
+    for rank, (id_, count, kind) in enumerate(ranked, start=1):
+        if kind == "meme":
+            meme = await db.get(Meme, id_)
+            if meme is None:
+                continue
+            reaction_count = await db.scalar(
+                select(func.count(Reaction.id)).where(Reaction.meme_id == id_)
+            )
+            comment_count = await db.scalar(
+                select(func.count(Comment.id)).where(Comment.meme_id == id_)
+            )
+            meme_out = build_meme_out(
+                meme,
+                reaction_count=reaction_count or 0,
+                comment_count=comment_count or 0,
+                viewer_has_reacted=False,
+            )
+            entries.append(
+                StandingEntry(
+                    rank=rank, content=StandingContentMeme(kind="meme", meme=meme_out), vote_count=count
+                )
+            )
+        else:
+            container_out = await get_container_out_for_standings(db, id_)
+            if container_out is None:
+                continue
+            entries.append(
+                StandingEntry(
+                    rank=rank,
+                    content=StandingContentContainer(kind="container", container=container_out),
+                    vote_count=count,
+                )
+            )
+    return entries
 
 
 async def get_current_standings(
@@ -185,9 +269,9 @@ async def get_winner(db: AsyncSession, period_type: CompetitionPeriod, key: str)
 
     top = await _standings_query(db, period_type, key, limit=1)
     if not top:
-        return WinnerOut(period_type=period_type, period_key=key, meme=None, vote_count=0)
+        return WinnerOut(period_type=period_type, period_key=key, content=None, vote_count=0)
 
     winner = top[0]
     return WinnerOut(
-        period_type=period_type, period_key=key, meme=winner.meme, vote_count=winner.vote_count
+        period_type=period_type, period_key=key, content=winner.content, vote_count=winner.vote_count
     )

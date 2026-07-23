@@ -3,6 +3,14 @@ from httpx import AsyncClient
 from tests.conftest import auth_header, create_user
 
 
+def _meme_items(feed_body: dict) -> list[dict]:
+    """`/memes/feed` merges native memes with MemeContainers (Instagram Companion Mode,
+    Phase 15) into a tagged-union `{kind, meme|container}` list — this file only ever
+    posts native memes, so tests unwrap just the `kind == "meme"` entries.
+    """
+    return [item["meme"] for item in feed_body["items"] if item["kind"] == "meme"]
+
+
 async def _post_meme(
     client: AsyncClient,
     user: dict,
@@ -116,7 +124,7 @@ async def test_open_community_meme_is_automatically_public_with_community_badge(
 
     # a non-member sees it in the global public feed, with the community badge attached
     carol_feed = await client.get("/memes/feed", headers=auth_header(carol))
-    item = next(i for i in carol_feed.json()["items"] if i["caption"] == "open post")
+    item = next(i for i in _meme_items(carol_feed.json()) if i["caption"] == "open post")
     assert item["community"]["id"] == community["id"]
 
 
@@ -139,10 +147,10 @@ async def test_invite_only_community_meme_is_not_public(client: AsyncClient):
     assert response.json()["audiences"] == ["community"]
 
     bob_feed = await client.get("/memes/feed", headers=auth_header(bob))
-    assert any(item["caption"] == "private post" for item in bob_feed.json()["items"])
+    assert any(item["caption"] == "private post" for item in _meme_items(bob_feed.json()))
 
     carol_feed = await client.get("/memes/feed", headers=auth_header(carol))
-    assert carol_feed.json()["items"] == []
+    assert _meme_items(carol_feed.json()) == []
 
 
 async def test_community_feed_shows_only_that_communitys_posts(client: AsyncClient):
@@ -178,7 +186,7 @@ async def test_posting_in_an_open_community_shows_in_both_public_and_community_f
     await _post_community_meme(client, alice, community_a["id"], caption="dual")
 
     public_feed = await client.get("/memes/feed", headers=auth_header(alice))
-    assert any(item["caption"] == "dual" for item in public_feed.json()["items"])
+    assert any(item["caption"] == "dual" for item in _meme_items(public_feed.json()))
 
     feed_a = await client.get(f"/communities/{community_a['id']}/feed", headers=auth_header(alice))
     assert any(item["caption"] == "dual" for item in feed_a.json()["items"])
@@ -206,7 +214,7 @@ async def test_public_meme_visible_to_unrelated_third_user(client: AsyncClient):
     await _post_meme(client, alice, audiences=["public"])
 
     feed = await client.get("/memes/feed", headers=auth_header(carol))
-    usernames = [item["author"]["username"] for item in feed.json()["items"]]
+    usernames = [item["author"]["username"] for item in _meme_items(feed.json())]
     assert "alice" in usernames
 
 
@@ -223,7 +231,7 @@ async def test_friends_only_meme_visible_only_to_accepted_friend(client: AsyncCl
     await _post_meme(client, alice, audiences=["friends"])
 
     bob_feed = await client.get("/memes/feed", headers=auth_header(bob))
-    assert any(item["author"]["username"] == "alice" for item in bob_feed.json()["items"])
+    assert any(item["author"]["username"] == "alice" for item in _meme_items(bob_feed.json()))
 
 
 async def test_friends_only_meme_not_visible_to_non_friend(client: AsyncClient):
@@ -233,7 +241,7 @@ async def test_friends_only_meme_not_visible_to_non_friend(client: AsyncClient):
     await _post_meme(client, alice, audiences=["friends"])
 
     carol_feed = await client.get("/memes/feed", headers=auth_header(carol))
-    assert carol_feed.json()["items"] == []
+    assert _meme_items(carol_feed.json()) == []
 
 
 async def test_author_can_always_see_own_meme_regardless_of_audience(client: AsyncClient):
@@ -241,7 +249,7 @@ async def test_author_can_always_see_own_meme_regardless_of_audience(client: Asy
     await _post_meme(client, alice, audiences=["friends"])
 
     alice_feed = await client.get("/memes/feed", headers=auth_header(alice))
-    assert len(alice_feed.json()["items"]) == 1
+    assert len(_meme_items(alice_feed.json())) == 1
 
 
 async def test_feed_pagination_returns_next_cursor_and_respects_it(client: AsyncClient):
@@ -265,8 +273,8 @@ async def test_feed_pagination_returns_next_cursor_and_respects_it(client: Async
     assert len(second_body["items"]) == 1
     assert second_body["next_cursor"] is None
 
-    first_ids = {item["id"] for item in first_body["items"]}
-    second_ids = {item["id"] for item in second_body["items"]}
+    first_ids = {item["meme"]["id"] for item in first_body["items"]}
+    second_ids = {item["meme"]["id"] for item in second_body["items"]}
     assert first_ids.isdisjoint(second_ids)
 
 
@@ -290,7 +298,7 @@ async def test_add_and_remove_reaction_round_trip(client: AsyncClient):
     assert react_response.status_code == 201
 
     feed = await client.get("/memes/feed", headers=auth_header(bob))
-    meme_in_feed = next(item for item in feed.json()["items"] if item["id"] == meme_id)
+    meme_in_feed = next(item for item in _meme_items(feed.json()) if item["id"] == meme_id)
     assert meme_in_feed["reaction_count"] == 1
     assert meme_in_feed["viewer_has_reacted"] is True
 
@@ -300,7 +308,7 @@ async def test_add_and_remove_reaction_round_trip(client: AsyncClient):
     assert remove_response.status_code == 204
 
     feed_after = await client.get("/memes/feed", headers=auth_header(bob))
-    meme_after = next(item for item in feed_after.json()["items"] if item["id"] == meme_id)
+    meme_after = next(item for item in _meme_items(feed_after.json()) if item["id"] == meme_id)
     assert meme_after["reaction_count"] == 0
     assert meme_after["viewer_has_reacted"] is False
 
