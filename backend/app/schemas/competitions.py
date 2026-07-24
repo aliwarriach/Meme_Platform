@@ -1,18 +1,10 @@
-import uuid
 from typing import Literal
 
 from pydantic import BaseModel
 
-from app.models.vote import CompetitionPeriod
+from app.models.competition_period import CompetitionPeriod
 from app.schemas.instagram import MemeContainerOut
 from app.schemas.memes import MemeOut
-
-
-class VoteOut(BaseModel):
-    id: uuid.UUID
-    meme_id: uuid.UUID
-    period_type: CompetitionPeriod
-    period_key: str
 
 
 class StandingContentMeme(BaseModel):
@@ -28,7 +20,7 @@ class StandingContentContainer(BaseModel):
 class StandingEntry(BaseModel):
     rank: int
     content: StandingContentMeme | StandingContentContainer
-    vote_count: int
+    score: int
 
 
 class StandingsPage(BaseModel):
@@ -42,4 +34,4 @@ class WinnerOut(BaseModel):
     period_type: CompetitionPeriod
     period_key: str
     content: StandingContentMeme | StandingContentContainer | None
-    vote_count: int
+    score: int

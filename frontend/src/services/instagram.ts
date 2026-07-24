@@ -11,10 +11,20 @@ export interface MemeContainerResponse {
   title: string | null;
   thumbnail_url: string | null;
   metadata_status: ContainerMetadataStatus;
-  reaction_count: number;
+  upvote_count: number;
+  downvote_count: number;
+  score: number;
   comment_count: number;
-  viewer_has_reacted: boolean;
+  // Private engagement data — null unless the viewer is the submitter. See backend
+  // services/instagram.py::_build_container_out.
+  view_count: number | null;
+  viewer_vote: 1 | -1 | null;
   created_at: string;
+}
+
+export interface ContainerViewResponse {
+  meme_container_id: string;
+  view_count: number;
 }
 
 export interface ContainerCommentResponse {
@@ -32,12 +42,13 @@ export function getContainerRequest(containerId: string) {
   return api.get<MemeContainerResponse>(`/instagram/containers/${containerId}`);
 }
 
-export function addContainerReactionRequest(containerId: string) {
-  return api.post(`/instagram/containers/${containerId}/reactions`);
+export function castContainerVoteRequest(containerId: string, value: 1 | -1) {
+  return api.post<MemeContainerResponse>(`/instagram/containers/${containerId}/votes`, { value });
 }
 
-export function removeContainerReactionRequest(containerId: string) {
-  return api.delete(`/instagram/containers/${containerId}/reactions`);
+// Records one impression on a container — reach signal for its MemeScore. Fire-and-forget.
+export function recordContainerViewRequest(containerId: string) {
+  return api.post<ContainerViewResponse>(`/instagram/containers/${containerId}/views`);
 }
 
 export function listContainerCommentsRequest(containerId: string) {

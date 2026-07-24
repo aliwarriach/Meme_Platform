@@ -212,15 +212,17 @@ async def test_evaluate_challenge_picks_winner_and_awards_points_and_badge(clien
     await _join(client, bob, community["id"])
     challenge = (await _setup_two_side_challenge(client, alice, bob, community["id"])).json()
 
-    # Team A (alice) submits a meme, then reacts to it twice via two extra accounts to
-    # make its score (reactions + 2*comments, the Phase 8 stub) beat Team B's meme.
+    # Team A (alice) submits a meme, then gets it upvoted via an extra account to
+    # make its score (net votes + 2*comments, the Phase 8 stub) beat Team B's meme.
     winning_meme = await _post_meme(client, alice)
     await client.post(
         f"/communities/{community['id']}/challenges/{challenge['id']}/submissions",
         params={"meme_id": winning_meme["id"]}, headers=auth_header(alice),
     )
     carol = await create_user(client, "carol")
-    await client.post(f"/memes/{winning_meme['id']}/reactions", headers=auth_header(carol))
+    await client.post(
+        f"/memes/{winning_meme['id']}/votes", json={"value": 1}, headers=auth_header(carol)
+    )
 
     losing_meme = await _post_meme(client, bob)
     await client.post(

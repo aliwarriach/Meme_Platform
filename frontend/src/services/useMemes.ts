@@ -9,18 +9,20 @@ import {
 import { throwApiError } from '@/services/api';
 import {
   addCommentRequest,
-  addReactionRequest,
+  castVoteRequest,
   createCommunityMemeRequest,
   createMemeRequest,
   getCommunityFeedRequest,
   getFeedRequest,
   listCommentsRequest,
-  removeReactionRequest,
+  recordMemeViewRequest,
   type AudienceType,
   type CommentResponse,
   type FeedPageResponse,
   type MemeResponse,
+  type MemeViewResponse,
   type MergedFeedPageResponse,
+  type VoteResponse,
 } from '@/services/memes';
 
 const memesRootKey = ['memes'] as const;
@@ -28,22 +30,28 @@ const feedKey = ['memes', 'feed'] as const;
 const communityFeedKey = (communityId: string) => ['memes', 'community', communityId] as const;
 const commentsKey = (memeId: string) => ['memes', memeId, 'comments'] as const;
 
+const FEED_PAGE_SIZE = 20;
+
 export function useFeed() {
   return useInfiniteQuery<
     MergedFeedPageResponse,
     Error,
     InfiniteData<MergedFeedPageResponse>,
     typeof feedKey,
-    string | undefined
+    number
   >({
     queryKey: feedKey,
-    initialPageParam: undefined,
+    initialPageParam: 0,
     queryFn: async ({ pageParam }) => {
-      const response = await getFeedRequest({ cursor: pageParam, limit: 20 });
+      const response = await getFeedRequest({ offset: pageParam, limit: FEED_PAGE_SIZE });
       if (!response.ok || !response.data) throwApiError(response, 'load feed');
       return response.data;
     },
-    getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
+    // Main feed is Hot-ranked (Reddit-style vote score vs. age), not recency, so pages
+    // are offset-based rather than a keyset cursor — the next offset is just how many
+    // items have been loaded so far.
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.has_more ? allPages.length * FEED_PAGE_SIZE : undefined,
   });
 }
 
@@ -113,25 +121,28 @@ export function useCommunityFeed(communityId: string, enabled: boolean) {
   });
 }
 
-export function useAddReactionMutation() {
+export function useCastVoteMutation() {
   const queryClient = useQueryClient();
-  return useMutation<void, Error, string>({
-    mutationFn: async (memeId) => {
-      const response = await addReactionRequest(memeId);
-      if (!response.ok) throwApiError(response, 'add reaction');
+  return useMutation<VoteResponse, Error, { memeId: string; value: 1 | -1 }>({
+    mutationFn: async ({ memeId, value }) => {
+      const response = await castVoteRequest(memeId, value);
+      if (!response.ok || !response.data) throwApiError(response, 'vote on meme');
+      return response.data;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: memesRootKey }),
   });
 }
 
-export function useRemoveReactionMutation() {
-  const queryClient = useQueryClient();
-  return useMutation<void, Error, string>({
+// Fire-and-forget: recording a view must NOT invalidate the feed — that would refetch on
+// every impression as the user scrolls. The counter updates lazily; the score cron picks it
+// up. Callers fire this once per meme becoming visible (see the feed's viewability handler).
+export function useRecordMemeViewMutation() {
+  return useMutation<MemeViewResponse, Error, string>({
     mutationFn: async (memeId) => {
-      const response = await removeReactionRequest(memeId);
-      if (!response.ok) throwApiError(response, 'remove reaction');
+      const response = await recordMemeViewRequest(memeId);
+      if (!response.ok || !response.data) throwApiError(response, 'record view');
+      return response.data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: memesRootKey }),
   });
 }
 

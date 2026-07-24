@@ -2,20 +2,37 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { captureRef } from 'react-native-view-shot';
+import { useDispatch, useSelector } from 'react-redux';
 
 import { TextField } from '@/components/TextField';
-import { OverlayCanvas } from '@/features/creator/components/OverlayCanvas';
+import { CanvasBar } from '@/features/creator/components/CanvasBar';
+import { EditorCanvas, type EditorCanvasHandle } from '@/features/creator/components/EditorCanvas';
+import { LayerInspector } from '@/features/creator/components/LayerInspector';
+import { StickerPickerModal } from '@/features/creator/components/StickerPickerModal';
 import { TemplatePickerModal } from '@/features/creator/components/TemplatePickerModal';
+import { aspectRatio } from '@/features/creator/document';
 import { buildCreatorSchema, type CreatorFormValues } from '@/features/creator/schemas';
 import type { AudienceType } from '@/services/memes';
 import type { TemplateResponse } from '@/services/templates';
 import { useGenerateCaptionMutation } from '@/services/useAiCaption';
 import { useCreateCommunityMemeMutation, useCreateMemeMutation } from '@/services/useMemes';
+import {
+  addEmojiLayer,
+  addImageLayer,
+  addTextLayer,
+  redo,
+  resetDraft,
+  selectCanRedo,
+  selectCanUndo,
+  selectDocument,
+  setBaseImage,
+  undo,
+} from '@/store/creatorDraftSlice';
+import type { AppDispatch } from '@/store/store';
 
 const AUDIENCE_OPTIONS: { value: AudienceType; label: string }[] = [
   { value: 'public', label: 'Public' },
@@ -24,6 +41,7 @@ const AUDIENCE_OPTIONS: { value: AudienceType; label: string }[] = [
 
 export default function CreatorScreen() {
   const router = useRouter();
+  const dispatch = useDispatch<AppDispatch>();
   const { communityId, communityName } = useLocalSearchParams<{
     communityId?: string;
     communityName?: string;
@@ -37,13 +55,25 @@ export default function CreatorScreen() {
   const activeMutation = isCommunityPost ? createCommunityMeme : createMeme;
   const generateCaption = useGenerateCaptionMutation();
 
-  const canvasRef = useRef<View>(null);
+  const editorRef = useRef<EditorCanvasHandle>(null);
 
-  const [baseImageUri, setBaseImageUri] = useState<string | null>(null);
+  const doc = useSelector(selectDocument);
+  const canUndo = useSelector(selectCanUndo);
+  const canRedo = useSelector(selectCanRedo);
+  const baseImageUri = doc.baseImageUri;
+  const canvasRatio = aspectRatio(doc.canvas.aspectId);
+
   const [pickerError, setPickerError] = useState<string | null>(null);
   const [templatePickerVisible, setTemplatePickerVisible] = useState(false);
+  const [stickerPickerVisible, setStickerPickerVisible] = useState(false);
   const [capturedUri, setCapturedUri] = useState<string | null>(null);
   const [captureError, setCaptureError] = useState<string | null>(null);
+
+  // Start every creator session from a clean draft so a previous, unpublished draft
+  // (or another community's image) never leaks into this one.
+  useEffect(() => {
+    dispatch(resetDraft());
+  }, [dispatch]);
 
   const schema = useMemo(() => buildCreatorSchema(!isCommunityPost), [isCommunityPost]);
 
@@ -56,11 +86,9 @@ export default function CreatorScreen() {
     reset,
   } = useForm<CreatorFormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { topText: '', bottomText: '', caption: '', audiences: [] },
+    defaultValues: { caption: '', audiences: [] },
   });
 
-  const topText = watch('topText') ?? '';
-  const bottomText = watch('bottomText') ?? '';
   const caption = watch('caption') ?? '';
   const selectedAudiences = watch('audiences');
 
@@ -73,35 +101,60 @@ export default function CreatorScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
     if (!result.canceled && result.assets[0]) {
       setPickerError(null);
-      setBaseImageUri(result.assets[0].uri);
+      dispatch(setBaseImage(result.assets[0].uri));
     }
   };
 
   const onSelectTemplate = (template: TemplateResponse) => {
-    setBaseImageUri(template.image_url);
+    dispatch(setBaseImage(template.image_url));
     setTemplatePickerVisible(false);
   };
 
+  // Adds a picked photo as a movable image *layer* on top of the meme (distinct from
+  // setBaseImage, which replaces the background).
+  const onAddImageLayer = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      setPickerError('Photo library access is required to add an image.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
+    if (!result.canceled && result.assets[0]) {
+      setPickerError(null);
+      dispatch(addImageLayer(result.assets[0].uri));
+    }
+  };
+
+  const onAddSticker = (emoji: string) => {
+    dispatch(addEmojiLayer(emoji));
+    setStickerPickerVisible(false);
+  };
+
   const onStartOver = () => {
-    setBaseImageUri(null);
+    dispatch(resetDraft());
     setCapturedUri(null);
     setCaptureError(null);
     reset();
   };
 
   const onPreview = async () => {
-    if (!canvasRef.current) return;
     setCaptureError(null);
     try {
-      const uri = await captureRef(canvasRef, { format: 'png', quality: 1 });
-      setCapturedUri(uri);
+      // Flattens the exact Skia scene being edited to a 1080² PNG — preview and
+      // published post are the same file, so they're pixel-identical.
+      const uri = await editorRef.current?.export();
+      if (uri) setCapturedUri(uri);
     } catch {
       setCaptureError('Could not generate a preview. Try again.');
     }
   };
 
   const onGenerateCaption = async () => {
-    const context = [topText, bottomText].filter(Boolean).join(' / ') || 'a meme image';
+    const context =
+      doc.layers
+        .flatMap((layer) => (layer.kind === 'text' ? [layer.text] : []))
+        .filter(Boolean)
+        .join(' / ') || 'a meme image';
     try {
       const result = await generateCaption.mutateAsync({
         context,
@@ -123,8 +176,6 @@ export default function CreatorScreen() {
   const onSubmit = handleSubmit(async (values) => {
     if (!capturedUri) return;
     try {
-      // Publishes the exact file captured for the preview — preview and published
-      // post are pixel-identical because they're the same flattened image.
       if (isCommunityPost) {
         await createCommunityMeme.mutateAsync({
           communityId,
@@ -142,6 +193,7 @@ export default function CreatorScreen() {
           audiences: values.audiences,
         });
       }
+      dispatch(resetDraft());
       router.back();
     } catch {
       // surfaced inline via activeMutation.isError below
@@ -221,44 +273,69 @@ export default function CreatorScreen() {
         {capturedUri ? (
           <Image
             source={{ uri: capturedUri }}
-            style={{ width: '100%', aspectRatio: 1, borderRadius: 12 }}
+            style={{ width: '100%', aspectRatio: canvasRatio, borderRadius: 12 }}
             contentFit="contain"
             accessible
             accessibilityRole="image"
             accessibilityLabel="Preview of your meme, ready to publish"
           />
         ) : (
-          <OverlayCanvas ref={canvasRef} imageUri={baseImageUri} topText={topText} bottomText={bottomText} />
+          <>
+            <CanvasBar />
+            <EditorCanvas ref={editorRef} />
+          </>
         )}
 
         {!capturedUri ? (
           <>
-            <Controller
-              control={control}
-              name="topText"
-              render={({ field }) => (
-                <TextField
-                  label="Top text"
-                  value={field.value}
-                  onChangeText={field.onChange}
-                  error={errors.topText?.message}
-                />
-              )}
-            />
-            <Controller
-              control={control}
-              name="bottomText"
-              render={({ field }) => (
-                <TextField
-                  label="Bottom text"
-                  value={field.value}
-                  onChangeText={field.onChange}
-                  error={errors.bottomText?.message}
-                />
-              )}
-            />
+            <View className="mb-2 mt-3 flex-row">
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Add text layer"
+                onPress={() => dispatch(addTextLayer())}
+                className="mr-2 min-h-[44px] flex-1 items-center justify-center rounded-xl bg-orange-500 px-2">
+                <Text className="text-sm font-bold text-white">＋ Text</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Add sticker"
+                onPress={() => setStickerPickerVisible(true)}
+                className="mr-2 min-h-[44px] flex-1 items-center justify-center rounded-xl border border-neutral-300 px-2 dark:border-neutral-700">
+                <Text className="text-sm font-bold text-neutral-900 dark:text-white">😊 Sticker</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Add image layer"
+                onPress={onAddImageLayer}
+                className="min-h-[44px] flex-1 items-center justify-center rounded-xl border border-neutral-300 px-2 dark:border-neutral-700">
+                <Text className="text-sm font-bold text-neutral-900 dark:text-white">🖼 Image</Text>
+              </Pressable>
+            </View>
+
+            <View className="mb-3 flex-row justify-end">
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Undo"
+                onPress={() => dispatch(undo())}
+                disabled={!canUndo}
+                className="mr-2 min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-neutral-300 px-3 disabled:opacity-40 dark:border-neutral-700">
+                <Text className="text-base font-bold text-neutral-900 dark:text-white">↶</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Redo"
+                onPress={() => dispatch(redo())}
+                disabled={!canRedo}
+                className="min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-neutral-300 px-3 disabled:opacity-40 dark:border-neutral-700">
+                <Text className="text-base font-bold text-neutral-900 dark:text-white">↷</Text>
+              </Pressable>
+            </View>
+
+            <LayerInspector />
+
             <Text className="mb-3 text-xs text-neutral-400">
-              Drag the text on the image to reposition it.
+              Tap a layer to select it, then drag, pinch, or rotate. Use the panel to restyle, and
+              add text, stickers, or images for more layers.
             </Text>
 
             {captureError ? <Text className="mb-3 text-sm text-red-500">{captureError}</Text> : null}
@@ -368,6 +445,12 @@ export default function CreatorScreen() {
           </>
         )}
       </ScrollView>
+
+      <StickerPickerModal
+        visible={stickerPickerVisible}
+        onClose={() => setStickerPickerVisible(false)}
+        onSelect={onAddSticker}
+      />
     </SafeAreaView>
   );
 }

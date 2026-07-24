@@ -1,9 +1,24 @@
 import type { ReactElement } from 'react';
-import { ActivityIndicator, FlatList, RefreshControl, Text } from 'react-native';
+import { useCallback, useRef } from 'react';
+import { ActivityIndicator, FlatList, Platform, RefreshControl, Text, type ViewToken } from 'react-native';
 
 import { MemeCard } from '@/features/feed/components/MemeCard';
 import { ContainerCard } from '@/features/instagram-companion/ContainerCard';
 import type { MemeResponse, MergedFeedItem } from '@/services/memes';
+import { useRecordContainerViewMutation } from '@/services/useInstagram';
+import { useRecordMemeViewMutation } from '@/services/useMemes';
+
+// Two view-tracking paths, one per platform, deliberately not shared:
+//  - web: each card observes its own visibility via IntersectionObserver
+//    (features/feed/components/MemeCard.tsx / instagram-companion/ContainerCard.tsx +
+//    utils/useRecordViewOnVisible) — FlatList's onViewableItemsChanged/viewabilityConfig
+//    relies on VirtualizedList's native scroll-metrics tracking, which is unreliable on
+//    react-native-web (callbacks often never fire in the browser regardless of scroll
+//    position or card size).
+//  - native (iOS/Android): VirtualizedList's viewability tracking is the real, correct
+//    mechanism there, so this list still drives it directly (below), rather than trying to
+//    reuse the web-only per-card observer. Guarded to native-only so web doesn't double-fire.
+const VIEWABILITY_CONFIG = { itemVisiblePercentThreshold: 50, minimumViewTime: 1000 };
 
 interface MemeFeedListProps {
   memes: MemeResponse[];
@@ -32,6 +47,22 @@ export function MemeFeedList({
   emptyMessage,
   ListHeaderComponent,
 }: MemeFeedListProps) {
+  const recordMemeView = useRecordMemeViewMutation();
+  const seenMemeIds = useRef(new Set<string>());
+
+  const onViewableItemsChanged = useCallback(
+    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
+      for (const viewable of viewableItems) {
+        const meme = viewable.item as MemeResponse;
+        if (!seenMemeIds.current.has(meme.id)) {
+          seenMemeIds.current.add(meme.id);
+          recordMemeView.mutate(meme.id);
+        }
+      }
+    },
+    [recordMemeView]
+  );
+
   return (
     <FlatList
       data={memes}
@@ -42,6 +73,9 @@ export function MemeFeedList({
       onEndReached={() => {
         if (hasNextPage && !isFetchingNextPage) onEndReached();
       }}
+      {...(Platform.OS !== 'web'
+        ? { onViewableItemsChanged, viewabilityConfig: VIEWABILITY_CONFIG }
+        : {})}
       refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={onRefresh} />}
       ListFooterComponent={isFetchingNextPage ? <ActivityIndicator className="my-4" /> : null}
       ListEmptyComponent={
@@ -87,6 +121,24 @@ export function MergedFeedList({
   emptyMessage,
   ListHeaderComponent,
 }: MergedFeedListProps) {
+  const recordMemeView = useRecordMemeViewMutation();
+  const recordContainerView = useRecordContainerViewMutation();
+  const seenIds = useRef(new Set<string>());
+
+  const onViewableItemsChanged = useCallback(
+    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
+      for (const viewable of viewableItems) {
+        const item = viewable.item as MergedFeedItem;
+        const id = item.kind === 'meme' ? item.meme.id : item.container.id;
+        if (seenIds.current.has(id)) continue;
+        seenIds.current.add(id);
+        if (item.kind === 'meme') recordMemeView.mutate(id);
+        else recordContainerView.mutate(id);
+      }
+    },
+    [recordMemeView, recordContainerView]
+  );
+
   return (
     <FlatList
       data={items}
@@ -103,6 +155,9 @@ export function MergedFeedList({
       onEndReached={() => {
         if (hasNextPage && !isFetchingNextPage) onEndReached();
       }}
+      {...(Platform.OS !== 'web'
+        ? { onViewableItemsChanged, viewabilityConfig: VIEWABILITY_CONFIG }
+        : {})}
       refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={onRefresh} />}
       ListFooterComponent={isFetchingNextPage ? <ActivityIndicator className="my-4" /> : null}
       ListEmptyComponent={

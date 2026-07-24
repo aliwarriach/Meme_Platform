@@ -1,15 +1,13 @@
 import { Image } from 'expo-image';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
-import { useSelector } from 'react-redux';
 
 import { CommentsSection } from '@/features/feed/components/CommentsSection';
 import { SendMemeModal } from '@/features/meme-sending/SendMemeModal';
 import { shareMemeImage } from '@/features/sharing/shareMeme';
 import type { MemeResponse } from '@/services/memes';
-import { useCastVoteMutation } from '@/services/useCompetitions';
-import { useAddReactionMutation, useRemoveReactionMutation } from '@/services/useMemes';
-import type { RootState } from '@/store/store';
+import { useRecordMemeViewMutation, useCastVoteMutation } from '@/services/useMemes';
+import { useRecordViewOnVisible } from '@/utils/useRecordViewOnVisible';
 
 interface MemeCardProps {
   meme: MemeResponse;
@@ -20,19 +18,11 @@ export function MemeCard({ meme }: MemeCardProps) {
   const [sendModalOpen, setSendModalOpen] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
-  const currentUser = useSelector((state: RootState) => state.auth.user);
-  const addReaction = useAddReactionMutation();
-  const removeReaction = useRemoveReactionMutation();
-  // Meme of the Day competition vote — separate mechanic from reactions (§9): one vote
-  // per meme per day, cast right from the feed instead of only from the standings screen,
-  // since that screen has no way to surface a meme nobody has voted on yet.
-  const castVote = useCastVoteMutation('day');
+  const castVote = useCastVoteMutation();
+  const recordView = useRecordMemeViewMutation();
+  const cardRef = useRecordViewOnVisible(() => recordView.mutate(meme.id));
 
-  const isReacting = addReaction.isPending || removeReaction.isPending;
-  const isOwnMeme = meme.author.id === currentUser?.id;
-  // Voting is unlimited across different memes within a period — the only restriction is
-  // one vote per meme per period (DB-enforced server-side) — never for your own meme.
-  const isVotable = meme.audiences.includes('public') && !isOwnMeme;
+  const isVoting = castVote.isPending;
 
   const onShare = async () => {
     setIsSharing(true);
@@ -46,16 +36,10 @@ export function MemeCard({ meme }: MemeCardProps) {
     }
   };
 
-  const onToggleReaction = () => {
-    if (meme.viewer_has_reacted) {
-      removeReaction.mutate(meme.id);
-    } else {
-      addReaction.mutate(meme.id);
-    }
-  };
+  const onVote = (value: 1 | -1) => castVote.mutate({ memeId: meme.id, value });
 
   return (
-    <View className="mb-4 border-b border-neutral-100 pb-4 dark:border-neutral-800">
+    <View ref={cardRef} className="mb-4 border-b border-neutral-100 pb-4 dark:border-neutral-800">
       <View className="flex-row items-center px-4 py-2">
         <View
           accessibilityElementsHidden
@@ -93,26 +77,45 @@ export function MemeCard({ meme }: MemeCardProps) {
       ) : null}
 
       <View className="flex-row items-center px-4 pt-2">
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={meme.viewer_has_reacted ? 'Remove reaction' : 'React to this meme'}
-          accessibilityState={{ selected: meme.viewer_has_reacted, disabled: isReacting }}
-          onPress={onToggleReaction}
-          disabled={isReacting}
-          className="mr-4 min-h-[44px] flex-row items-center disabled:opacity-50">
-          {isReacting ? (
-            <ActivityIndicator size="small" />
-          ) : (
+        <View className="mr-4 flex-row items-center rounded-full bg-neutral-100 dark:bg-neutral-800">
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={meme.viewer_vote === 1 ? 'Remove upvote' : 'Upvote this meme'}
+            accessibilityState={{ selected: meme.viewer_vote === 1, disabled: isVoting }}
+            onPress={() => onVote(1)}
+            disabled={isVoting}
+            className="min-h-[44px] min-w-[44px] items-center justify-center disabled:opacity-50">
             <Text
               className={
-                meme.viewer_has_reacted
-                  ? 'text-orange-500'
-                  : 'text-neutral-500 dark:text-neutral-400'
+                meme.viewer_vote === 1 ? 'text-orange-500' : 'text-neutral-500 dark:text-neutral-400'
               }>
-              {meme.viewer_has_reacted ? '♥' : '♡'} {meme.reaction_count}
+              ▲
+            </Text>
+          </Pressable>
+
+          {isVoting ? (
+            <ActivityIndicator size="small" />
+          ) : (
+            <Text className="min-w-[24px] text-center font-semibold text-neutral-900 dark:text-white">
+              {meme.score}
             </Text>
           )}
-        </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={meme.viewer_vote === -1 ? 'Remove downvote' : 'Downvote this meme'}
+            accessibilityState={{ selected: meme.viewer_vote === -1, disabled: isVoting }}
+            onPress={() => onVote(-1)}
+            disabled={isVoting}
+            className="min-h-[44px] min-w-[44px] items-center justify-center disabled:opacity-50">
+            <Text
+              className={
+                meme.viewer_vote === -1 ? 'text-blue-500' : 'text-neutral-500 dark:text-neutral-400'
+              }>
+              ▼
+            </Text>
+          </Pressable>
+        </View>
 
         <Pressable
           accessibilityRole="button"
@@ -124,28 +127,15 @@ export function MemeCard({ meme }: MemeCardProps) {
           </Text>
         </Pressable>
 
-        {isVotable ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Vote for Meme of the Day"
-            accessibilityState={{
-              selected: castVote.isSuccess,
-              disabled: castVote.isPending || castVote.isSuccess,
-            }}
-            onPress={() => castVote.mutate(meme.id)}
-            disabled={castVote.isPending || castVote.isSuccess}
-            className="mr-4 min-h-[44px] flex-row items-center disabled:opacity-50">
-            {castVote.isPending ? (
-              <ActivityIndicator size="small" />
-            ) : (
-              <Text
-                className={
-                  castVote.isSuccess ? 'text-orange-500' : 'text-neutral-500 dark:text-neutral-400'
-                }>
-                🏆 {castVote.isSuccess ? 'Voted' : 'Vote'}
-              </Text>
-            )}
-          </Pressable>
+        {meme.view_count !== null ? (
+          // Visible only when the backend has authorized this viewer (the author, or a
+          // community post's community owner) — everyone else gets view_count: null and
+          // this is simply omitted, not hidden client-side.
+          <View className="mr-4 min-h-[44px] justify-center">
+            <Text className="text-neutral-500 dark:text-neutral-400">
+              👁 {meme.view_count} view{meme.view_count === 1 ? '' : 's'}
+            </Text>
+          </View>
         ) : null}
 
         <Pressable

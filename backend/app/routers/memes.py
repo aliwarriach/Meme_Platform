@@ -8,12 +8,12 @@ from app.core.rate_limit import limiter
 from app.models.post_audience import AudienceType
 from app.schemas.comments import CommentCreate, CommentOut
 from app.schemas.instagram import MergedFeedPage
-from app.schemas.memes import MemeOut
-from app.schemas.reactions import ReactionOut
+from app.schemas.memes import MemeOut, MemeViewOut
+from app.schemas.votes import VoteCast, VoteOut
 from app.services import comments as comments_service
 from app.services import instagram as instagram_service
 from app.services import memes as memes_service
-from app.services import reactions as reactions_service
+from app.services import votes as votes_service
 
 router = APIRouter(prefix="/memes", tags=["memes"])
 
@@ -35,26 +35,43 @@ async def create_meme(
 async def get_feed(
     current_user: CurrentUser,
     db: DbSession,
-    cursor: str | None = None,
+    offset: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=50)] = 20,
 ) -> MergedFeedPage:
     """Merges native memes with externally-shared `MemeContainer`s (Instagram Companion
-    Mode, Project_Requirements §13) into one feed — see `services/instagram.py::get_merged_feed`.
+    Mode, Project_Requirements §13) into one feed, ranked by Reddit-style Hot score
+    (vote score vs. age) — see `services/instagram.py::get_merged_feed`. Offset-paginated
+    since Hot score has no stable pagination cursor (it drifts continuously with age).
     """
-    return await instagram_service.get_merged_feed(db, current_user, cursor, limit)
+    return await instagram_service.get_merged_feed(db, current_user, offset, limit)
 
 
-@router.post("/{meme_id}/reactions", response_model=ReactionOut, status_code=201)
+@router.post("/{meme_id}/votes", response_model=VoteOut, status_code=201)
 @limiter.limit("60/minute")
-async def add_reaction(
-    request: Request, meme_id: uuid.UUID, current_user: CurrentUser, db: DbSession
-) -> ReactionOut:
-    return await reactions_service.add_reaction(db, current_user, meme_id)
+async def cast_vote(
+    request: Request,
+    meme_id: uuid.UUID,
+    data: VoteCast,
+    current_user: CurrentUser,
+    db: DbSession,
+) -> VoteOut:
+    """Reddit-style upvote/downvote. Casting the same value again removes the vote;
+    casting the opposite value flips it."""
+    return await votes_service.cast_vote(db, current_user, meme_id, data.value)
 
 
-@router.delete("/{meme_id}/reactions", status_code=204)
-async def remove_reaction(meme_id: uuid.UUID, current_user: CurrentUser, db: DbSession) -> None:
-    await reactions_service.remove_reaction(db, current_user, meme_id)
+@router.post("/{meme_id}/views", response_model=MemeViewOut, status_code=201)
+@limiter.limit("120/minute")
+async def record_view(
+    request: Request,
+    meme_id: uuid.UUID,
+    current_user: CurrentUser,
+    db: DbSession,
+) -> MemeViewOut:
+    """Records one impression on a meme — the reach signal behind its MemeScore. Gated to
+    memes the caller can actually see (404 otherwise). Deduped per (meme, user): a repeat
+    view from the same caller doesn't move the counter."""
+    return await memes_service.record_meme_view(db, current_user, meme_id)
 
 
 @router.post("/{meme_id}/comments", response_model=CommentOut, status_code=201)

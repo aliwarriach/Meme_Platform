@@ -17,9 +17,14 @@ export interface MemeResponse {
   caption: string | null;
   audiences: (AudienceType | 'community')[];
   community: CommunityBadge | null;
-  reaction_count: number;
+  upvote_count: number;
+  downvote_count: number;
+  score: number;
   comment_count: number;
-  viewer_has_reacted: boolean;
+  // Private engagement data — null unless the viewer is authorized (the meme's author, or
+  // a community post's community owner). See backend services/memes.py::build_meme_out.
+  view_count: number | null;
+  viewer_vote: 1 | -1 | null;
   created_at: string;
 }
 
@@ -38,7 +43,7 @@ export type MergedFeedItem =
 
 export interface MergedFeedPageResponse {
   items: MergedFeedItem[];
-  next_cursor: string | null;
+  has_more: boolean;
 }
 
 export interface CommentResponse {
@@ -48,7 +53,7 @@ export interface CommentResponse {
   created_at: string;
 }
 
-export function getFeedRequest(params: { cursor?: string; limit?: number }) {
+export function getFeedRequest(params: { offset?: number; limit?: number }) {
   return api.get<MergedFeedPageResponse>('/memes/feed', params);
 }
 
@@ -106,12 +111,28 @@ export function getCommunityFeedRequest(
   return api.get<FeedPageResponse>(`/communities/${communityId}/feed`, params);
 }
 
-export function addReactionRequest(memeId: string) {
-  return api.post(`/memes/${memeId}/reactions`);
+export interface VoteResponse {
+  meme_id: string;
+  upvote_count: number;
+  downvote_count: number;
+  score: number;
+  viewer_vote: 1 | -1 | null;
 }
 
-export function removeReactionRequest(memeId: string) {
-  return api.delete(`/memes/${memeId}/reactions`);
+export function castVoteRequest(memeId: string, value: 1 | -1) {
+  return api.post<VoteResponse>(`/memes/${memeId}/votes`, { value });
+}
+
+export interface MemeViewResponse {
+  meme_id: string;
+  view_count: number;
+}
+
+// Records one impression — the reach signal behind a meme's MemeScore. Fire-and-forget
+// from the UI's side (see useRecordMemeViewMutation); the backend dedups per (meme, user),
+// so calling this repeatedly for the same viewer is harmless/idempotent.
+export function recordMemeViewRequest(memeId: string) {
+  return api.post<MemeViewResponse>(`/memes/${memeId}/views`);
 }
 
 export function addCommentRequest(memeId: string, body: string) {

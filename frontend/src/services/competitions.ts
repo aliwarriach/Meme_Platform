@@ -5,7 +5,10 @@ import type { MemeResponse } from '@/services/memes';
 export type CompetitionPeriodType = 'day' | 'week' | 'month';
 
 // Native memes and MemeContainers (Instagram Companion Mode) compete together in one
-// ranking — see backend services/competitions.py::_standings_query.
+// ranking — see backend services/competitions.py::_standings_query. Standings are ranked
+// by net vote score (upvotes minus downvotes cast within the period window), derived
+// automatically from the same upvote/downvote votes cast via /memes/{id}/votes and
+// /instagram/containers/{id}/votes — there's no separate "cast a competition vote" action.
 export type StandingContent =
   | { kind: 'meme'; meme: MemeResponse }
   | { kind: 'container'; container: MemeContainerResponse };
@@ -13,7 +16,7 @@ export type StandingContent =
 export interface StandingEntryResponse {
   rank: number;
   content: StandingContent;
-  vote_count: number;
+  score: number;
 }
 
 export interface StandingsPageResponse {
@@ -23,35 +26,11 @@ export interface StandingsPageResponse {
   items: StandingEntryResponse[];
 }
 
-export interface VoteResponse {
-  id: string;
-  meme_id: string;
-  period_type: CompetitionPeriodType;
-  period_key: string;
-}
-
-export interface ContainerVoteResponse {
-  id: string;
-  meme_container_id: string;
-  period_type: CompetitionPeriodType;
-  period_key: string;
-}
-
 export interface WinnerResponse {
   period_type: CompetitionPeriodType;
   period_key: string;
   content: StandingContent | null;
-  vote_count: number;
-}
-
-export function castVoteRequest(periodType: CompetitionPeriodType, memeId: string) {
-  return api.post<VoteResponse>(`/competitions/${periodType}/votes/${memeId}`);
-}
-
-export function castContainerVoteRequest(periodType: CompetitionPeriodType, containerId: string) {
-  return api.post<ContainerVoteResponse>(
-    `/competitions/${periodType}/container-votes/${containerId}`
-  );
+  score: number;
 }
 
 export function getCurrentStandingsRequest(periodType: CompetitionPeriodType, limit = 20) {

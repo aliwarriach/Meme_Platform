@@ -5,11 +5,8 @@ import { WebView } from 'react-native-webview';
 
 import { ContainerCommentsSection } from '@/features/instagram-companion/ContainerCommentsSection';
 import type { MemeContainerResponse } from '@/services/instagram';
-import { useCastContainerVoteMutation } from '@/services/useCompetitions';
-import {
-  useAddContainerReactionMutation,
-  useRemoveContainerReactionMutation,
-} from '@/services/useInstagram';
+import { useCastContainerVoteMutation, useRecordContainerViewMutation } from '@/services/useInstagram';
+import { useRecordViewOnVisible } from '@/utils/useRecordViewOnVisible';
 
 interface ContainerCardProps {
   container: MemeContainerResponse;
@@ -21,22 +18,16 @@ interface ContainerCardProps {
 // cleanly once real oEmbed HTML is available server-side, per the pluggable-fetcher design.
 export function ContainerCard({ container }: ContainerCardProps) {
   const [commentsOpen, setCommentsOpen] = useState(false);
-  const addReaction = useAddContainerReactionMutation();
-  const removeReaction = useRemoveContainerReactionMutation();
-  const castVote = useCastContainerVoteMutation('day');
+  const castVote = useCastContainerVoteMutation();
+  const recordView = useRecordContainerViewMutation();
+  const cardRef = useRecordViewOnVisible(() => recordView.mutate(container.id));
 
-  const isReacting = addReaction.isPending || removeReaction.isPending;
+  const isVoting = castVote.isPending;
 
-  const onToggleReaction = () => {
-    if (container.viewer_has_reacted) {
-      removeReaction.mutate(container.id);
-    } else {
-      addReaction.mutate(container.id);
-    }
-  };
+  const onVote = (value: 1 | -1) => castVote.mutate({ containerId: container.id, value });
 
   return (
-    <View className="mb-4 border-b border-neutral-100 pb-4 dark:border-neutral-800">
+    <View ref={cardRef} className="mb-4 border-b border-neutral-100 pb-4 dark:border-neutral-800">
       <View className="flex-row items-center px-4 py-2">
         <View className="mr-2 h-8 w-8 items-center justify-center rounded-full bg-pink-500">
           <Text className="text-xs font-bold text-white">IG</Text>
@@ -79,25 +70,51 @@ export function ContainerCard({ container }: ContainerCardProps) {
       </Pressable>
 
       <View className="flex-row items-center px-4 pt-2">
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={container.viewer_has_reacted ? 'Remove reaction' : 'React to this content'}
-          onPress={onToggleReaction}
-          disabled={isReacting}
-          className="mr-4 min-h-[44px] flex-row items-center disabled:opacity-50">
-          {isReacting ? (
-            <ActivityIndicator size="small" />
-          ) : (
+        <View className="mr-4 flex-row items-center rounded-full bg-neutral-100 dark:bg-neutral-800">
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={container.viewer_vote === 1 ? 'Remove upvote' : 'Upvote this content'}
+            accessibilityState={{ selected: container.viewer_vote === 1, disabled: isVoting }}
+            onPress={() => onVote(1)}
+            disabled={isVoting}
+            className="min-h-[44px] min-w-[44px] items-center justify-center disabled:opacity-50">
             <Text
               className={
-                container.viewer_has_reacted
+                container.viewer_vote === 1
                   ? 'text-orange-500'
                   : 'text-neutral-500 dark:text-neutral-400'
               }>
-              {container.viewer_has_reacted ? '♥' : '♡'} {container.reaction_count}
+              ▲
+            </Text>
+          </Pressable>
+
+          {isVoting ? (
+            <ActivityIndicator size="small" />
+          ) : (
+            <Text className="min-w-[24px] text-center font-semibold text-neutral-900 dark:text-white">
+              {container.score}
             </Text>
           )}
-        </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={
+              container.viewer_vote === -1 ? 'Remove downvote' : 'Downvote this content'
+            }
+            accessibilityState={{ selected: container.viewer_vote === -1, disabled: isVoting }}
+            onPress={() => onVote(-1)}
+            disabled={isVoting}
+            className="min-h-[44px] min-w-[44px] items-center justify-center disabled:opacity-50">
+            <Text
+              className={
+                container.viewer_vote === -1
+                  ? 'text-blue-500'
+                  : 'text-neutral-500 dark:text-neutral-400'
+              }>
+              ▼
+            </Text>
+          </Pressable>
+        </View>
 
         <Pressable
           accessibilityRole="button"
@@ -109,23 +126,14 @@ export function ContainerCard({ container }: ContainerCardProps) {
           </Text>
         </Pressable>
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Vote for Meme of the Day"
-          onPress={() => castVote.mutate(container.id)}
-          disabled={castVote.isPending || castVote.isSuccess}
-          className="min-h-[44px] flex-row items-center disabled:opacity-50">
-          {castVote.isPending ? (
-            <ActivityIndicator size="small" />
-          ) : (
-            <Text
-              className={
-                castVote.isSuccess ? 'text-orange-500' : 'text-neutral-500 dark:text-neutral-400'
-              }>
-              🏆 {castVote.isSuccess ? 'Voted' : 'Vote'}
+        {container.view_count !== null ? (
+          // Visible only to the submitter — server-gated, see services/instagram.py.
+          <View className="mr-4 min-h-[44px] justify-center">
+            <Text className="text-neutral-500 dark:text-neutral-400">
+              👁 {container.view_count} view{container.view_count === 1 ? '' : 's'}
             </Text>
-          )}
-        </Pressable>
+          </View>
+        ) : null}
       </View>
 
       {castVote.isError ? (

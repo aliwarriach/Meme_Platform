@@ -26,3 +26,12 @@ class CommunityLeaderboardEntry(BaseModel):
 class CommunityLeaderboardPage(BaseModel):
     items: list[CommunityLeaderboardEntry]
     next_cursor: str | None
+
+
+class ProfileScoreOut(BaseModel):
+    """A user's lifetime, all-time cumulative MemeScore — the "Snapchat Score" surface,
+    distinct from the 30-day-windowed individual leaderboard. Not audience-gated: anyone
+    can see anyone's profile score, same as the public individual leaderboard."""
+
+    user: UserOut
+    score: int

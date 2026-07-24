@@ -1,7 +1,8 @@
 import uuid
 
 from fastapi import UploadFile
-from sqlalchemy import ColumnElement, and_, exists, func, or_, select
+from sqlalchemy import ColumnElement, and_, exists, func, or_, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import InvalidAudienceSelectionError, MemeNotFoundError
@@ -10,14 +11,16 @@ from app.models.community import CommunityPrivacy
 from app.models.community_membership import CommunityMembership, MembershipStatus
 from app.models.friendship import Friendship, FriendshipStatus
 from app.models.meme import Meme
+from app.models.meme_view import MemeView
+from app.models.meme_vote import MemeVote
 from app.models.post_audience import AudienceType, PostAudience
-from app.models.reaction import Reaction
 from app.models.comment import Comment
 from app.models.user import User
 from app.schemas.auth import UserOut
-from app.schemas.memes import CommunityBadge, FeedPage, MemeOut
+from app.schemas.memes import CommunityBadge, FeedPage, HotFeedPage, MemeOut, MemeViewOut
 from app.services.communities import require_active_membership
 from app.services.media import validate_and_upload_image
+from app.services.scoring import hot_score_expr
 
 
 def meme_visibility_clause(viewer_id: uuid.UUID):
@@ -53,10 +56,31 @@ def meme_visibility_clause(viewer_id: uuid.UUID):
     )
 
 
+def _can_view_meme_view_count(meme: Meme, community_row: PostAudience | None, viewer_id: uuid.UUID) -> bool:
+    """View counts are private engagement data, not a public vanity metric — visible only
+    to the meme's author, plus (for a community post) that community's owner ("admin";
+    `MembershipRole` has no separate admin tier, so the community owner is the only
+    privileged party that exists). Everyone else gets `view_count=None` in `MemeOut`."""
+    if meme.author_id == viewer_id:
+        return True
+    if community_row is not None and community_row.community.owner_id == viewer_id:
+        return True
+    return False
+
+
 def build_meme_out(
-    meme: Meme, reaction_count: int, comment_count: int, viewer_has_reacted: bool
+    meme: Meme,
+    upvote_count: int,
+    downvote_count: int,
+    comment_count: int,
+    viewer_vote: int | None,
+    viewer_id: uuid.UUID | None = None,
 ) -> MemeOut:
+    """`viewer_id=None` (challenge submissions, competition standings — viewer-agnostic
+    contexts) always yields `view_count=None`: those surfaces have no single "current
+    viewer" to authorize against, so they never leak the count."""
     community_row = next((a for a in meme.audiences if a.community_id is not None), None)
+    can_see_views = viewer_id is not None and _can_view_meme_view_count(meme, community_row, viewer_id)
     return MemeOut(
         id=meme.id,
         author=UserOut.model_validate(meme.author),
@@ -64,9 +88,12 @@ def build_meme_out(
         caption=meme.caption,
         audiences=list(dict.fromkeys(a.audience_type for a in meme.audiences)),
         community=CommunityBadge.model_validate(community_row.community) if community_row else None,
-        reaction_count=reaction_count,
+        upvote_count=upvote_count,
+        downvote_count=downvote_count,
+        score=upvote_count - downvote_count,
         comment_count=comment_count,
-        viewer_has_reacted=viewer_has_reacted,
+        view_count=meme.view_count if can_see_views else None,
+        viewer_vote=viewer_vote,
         created_at=meme.created_at,
     )
 
@@ -106,7 +133,10 @@ async def create_meme(
     # meme is already identity-mapped in this session — db.get() would return it as-is
     # without loading relationships, so refresh() is required to populate author/audiences.
     await db.refresh(meme)
-    return build_meme_out(meme, reaction_count=0, comment_count=0, viewer_has_reacted=False)
+    return build_meme_out(
+        meme, upvote_count=0, downvote_count=0, comment_count=0, viewer_vote=None,
+        viewer_id=current_user.id,
+    )
 
 
 async def create_community_meme(
@@ -145,35 +175,41 @@ async def create_community_meme(
 
     await db.commit()
     await db.refresh(meme)
-    return build_meme_out(meme, reaction_count=0, comment_count=0, viewer_has_reacted=False)
+    return build_meme_out(
+        meme, upvote_count=0, downvote_count=0, comment_count=0, viewer_vote=None,
+        viewer_id=current_user.id,
+    )
 
 
 async def get_meme_out_for_viewer(
     db: AsyncSession, meme_id: uuid.UUID, viewer_id: uuid.UUID
 ) -> MemeOut | None:
-    """Builds a MemeOut for a single meme with real reaction/comment counts — the shared
+    """Builds a MemeOut for a single meme with real vote/comment counts — the shared
     query behind both the feed and meme-sending, so a send's embedded meme is never a
     stale/zeroed-out snapshot."""
     meme = await db.get(Meme, meme_id)
     if meme is None:
         return None
 
-    reaction_count = await db.scalar(
-        select(func.count(Reaction.id)).where(Reaction.meme_id == meme_id)
+    upvote_count = await db.scalar(
+        select(func.count(MemeVote.id)).where(MemeVote.meme_id == meme_id, MemeVote.value == 1)
+    )
+    downvote_count = await db.scalar(
+        select(func.count(MemeVote.id)).where(MemeVote.meme_id == meme_id, MemeVote.value == -1)
     )
     comment_count = await db.scalar(
         select(func.count(Comment.id)).where(Comment.meme_id == meme_id)
     )
-    viewer_reacted_count = await db.scalar(
-        select(func.count(Reaction.id)).where(
-            Reaction.meme_id == meme_id, Reaction.user_id == viewer_id
-        )
+    viewer_vote = await db.scalar(
+        select(MemeVote.value).where(MemeVote.meme_id == meme_id, MemeVote.user_id == viewer_id)
     )
     return build_meme_out(
         meme,
-        reaction_count=reaction_count or 0,
+        upvote_count=upvote_count or 0,
+        downvote_count=downvote_count or 0,
         comment_count=comment_count or 0,
-        viewer_has_reacted=(viewer_reacted_count or 0) > 0,
+        viewer_vote=viewer_vote,
+        viewer_id=viewer_id,
     )
 
 
@@ -184,9 +220,15 @@ async def _paginated_feed(
     cursor: str | None,
     limit: int,
 ) -> FeedPage:
-    reaction_count_subq = (
-        select(func.count(Reaction.id))
-        .where(Reaction.meme_id == Meme.id)
+    upvote_count_subq = (
+        select(func.count(MemeVote.id))
+        .where(MemeVote.meme_id == Meme.id, MemeVote.value == 1)
+        .correlate(Meme)
+        .scalar_subquery()
+    )
+    downvote_count_subq = (
+        select(func.count(MemeVote.id))
+        .where(MemeVote.meme_id == Meme.id, MemeVote.value == -1)
         .correlate(Meme)
         .scalar_subquery()
     )
@@ -196,15 +238,15 @@ async def _paginated_feed(
         .correlate(Meme)
         .scalar_subquery()
     )
-    viewer_reacted_subq = (
-        select(func.count(Reaction.id))
-        .where(Reaction.meme_id == Meme.id, Reaction.user_id == current_user.id)
+    viewer_vote_subq = (
+        select(MemeVote.value)
+        .where(MemeVote.meme_id == Meme.id, MemeVote.user_id == current_user.id)
         .correlate(Meme)
         .scalar_subquery()
     )
 
     stmt = (
-        select(Meme, reaction_count_subq, comment_count_subq, viewer_reacted_subq)
+        select(Meme, upvote_count_subq, downvote_count_subq, comment_count_subq, viewer_vote_subq)
         .where(visibility_clause)
         .order_by(Meme.created_at.desc(), Meme.id.desc())
         .limit(limit + 1)
@@ -226,18 +268,91 @@ async def _paginated_feed(
     rows = rows[:limit]
 
     items = [
-        build_meme_out(meme, reaction_count, comment_count, viewer_reacted_count > 0)
-        for meme, reaction_count, comment_count, viewer_reacted_count in rows
+        build_meme_out(
+            meme, upvote_count, downvote_count, comment_count, viewer_vote,
+            viewer_id=current_user.id,
+        )
+        for meme, upvote_count, downvote_count, comment_count, viewer_vote in rows
     ]
     next_cursor = encode_cursor(rows[-1][0].created_at, rows[-1][0].id) if has_more and rows else None
 
     return FeedPage(items=items, next_cursor=next_cursor)
 
 
+async def get_hot_ranked_memes(
+    db: AsyncSession,
+    current_user: User,
+    visibility_clause: ColumnElement[bool],
+    offset: int,
+    limit: int,
+) -> HotFeedPage:
+    """Main-feed ranking: Reddit's "Hot" algorithm (vote score vs. age), not recency.
+    Offset-paginated rather than keyset — a Hot score drifts continuously with time
+    (the age term ticks every second) so it has no stable cursor to page against,
+    unlike the plain `created_at DESC` feeds `_paginated_feed` still serves.
+    """
+    upvote_count_subq = (
+        select(func.count(MemeVote.id))
+        .where(MemeVote.meme_id == Meme.id, MemeVote.value == 1)
+        .correlate(Meme)
+        .scalar_subquery()
+    )
+    downvote_count_subq = (
+        select(func.count(MemeVote.id))
+        .where(MemeVote.meme_id == Meme.id, MemeVote.value == -1)
+        .correlate(Meme)
+        .scalar_subquery()
+    )
+    comment_count_subq = (
+        select(func.count(Comment.id))
+        .where(Comment.meme_id == Meme.id)
+        .correlate(Meme)
+        .scalar_subquery()
+    )
+    viewer_vote_subq = (
+        select(MemeVote.value)
+        .where(MemeVote.meme_id == Meme.id, MemeVote.user_id == current_user.id)
+        .correlate(Meme)
+        .scalar_subquery()
+    )
+    net_score_subq = (
+        select(func.coalesce(func.sum(MemeVote.value), 0))
+        .where(MemeVote.meme_id == Meme.id)
+        .correlate(Meme)
+        .scalar_subquery()
+    )
+    hot_score = hot_score_expr(Meme.created_at, net_score_subq)
+
+    stmt = (
+        select(Meme, upvote_count_subq, downvote_count_subq, comment_count_subq, viewer_vote_subq)
+        .where(visibility_clause)
+        .order_by(hot_score.desc(), Meme.created_at.desc(), Meme.id.desc())
+        .offset(offset)
+        .limit(limit + 1)
+    )
+
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    has_more = len(rows) > limit
+    rows = rows[:limit]
+
+    items = [
+        build_meme_out(
+            meme, upvote_count, downvote_count, comment_count, viewer_vote,
+            viewer_id=current_user.id,
+        )
+        for meme, upvote_count, downvote_count, comment_count, viewer_vote in rows
+    ]
+    return HotFeedPage(items=items, has_more=has_more)
+
+
 async def get_feed(
-    db: AsyncSession, current_user: User, cursor: str | None, limit: int
-) -> FeedPage:
-    return await _paginated_feed(db, current_user, meme_visibility_clause(current_user.id), cursor, limit)
+    db: AsyncSession, current_user: User, offset: int, limit: int
+) -> HotFeedPage:
+    return await get_hot_ranked_memes(
+        db, current_user, meme_visibility_clause(current_user.id), offset, limit
+    )
 
 
 async def get_community_feed(
@@ -263,3 +378,35 @@ async def get_visible_meme(db: AsyncSession, current_user: User, meme_id: uuid.U
     if meme is None:
         raise MemeNotFoundError("Meme not found")
     return meme
+
+
+async def record_meme_view(
+    db: AsyncSession, current_user: User, meme_id: uuid.UUID
+) -> MemeViewOut:
+    """Registers one impression from this user on this meme — **at most once per (meme,
+    user), ever** (per-user dedup, confirmed with user): a repeat view from the same viewer
+    doesn't move the counter. Gated by `get_visible_meme` — you can't inflate views on
+    content you can't even see (404, not 403, same as votes/comments).
+
+    `ON CONFLICT DO NOTHING` on the `meme_views` unique constraint makes the dedup check and
+    insert a single atomic statement (no separate SELECT-then-INSERT race window between
+    concurrent requests from the same user); `Meme.view_count` is only bumped when a row was
+    actually inserted (`rowcount == 1`), keeping the denormalized counter exactly in sync
+    with the ledger without a recount aggregation on every call.
+    """
+    meme = await get_visible_meme(db, current_user, meme_id)
+
+    insert_stmt = (
+        pg_insert(MemeView)
+        .values(meme_id=meme.id, user_id=current_user.id)
+        .on_conflict_do_nothing(index_elements=["meme_id", "user_id"])
+    )
+    result = await db.execute(insert_stmt)
+    if result.rowcount:
+        await db.execute(
+            update(Meme).where(Meme.id == meme.id).values(view_count=Meme.view_count + 1)
+        )
+    await db.commit()
+
+    new_count = await db.scalar(select(Meme.view_count).where(Meme.id == meme.id))
+    return MemeViewOut(meme_id=meme.id, view_count=new_count or 0)

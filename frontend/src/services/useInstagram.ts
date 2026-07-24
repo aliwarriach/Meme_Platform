@@ -3,12 +3,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { throwApiError } from '@/services/api';
 import {
   addContainerCommentRequest,
-  addContainerReactionRequest,
+  castContainerVoteRequest,
   createContainerRequest,
   getContainerRequest,
   listContainerCommentsRequest,
-  removeContainerReactionRequest,
+  recordContainerViewRequest,
   type ContainerCommentResponse,
+  type ContainerViewResponse,
   type MemeContainerResponse,
 } from '@/services/instagram';
 
@@ -44,30 +45,29 @@ export function useContainer(containerId: string, enabled: boolean) {
   });
 }
 
-export function useAddContainerReactionMutation() {
+export function useCastContainerVoteMutation() {
   const queryClient = useQueryClient();
-  return useMutation<void, Error, string>({
-    mutationFn: async (containerId) => {
-      const response = await addContainerReactionRequest(containerId);
-      if (!response.ok) throwApiError(response, 'react to this content');
+  return useMutation<MemeContainerResponse, Error, { containerId: string; value: 1 | -1 }>({
+    mutationFn: async ({ containerId, value }) => {
+      const response = await castContainerVoteRequest(containerId, value);
+      if (!response.ok || !response.data) throwApiError(response, 'vote on this content');
+      return response.data;
     },
-    onSuccess: (_data, containerId) => {
+    onSuccess: (_data, { containerId }) => {
       queryClient.invalidateQueries({ queryKey: feedKey });
       queryClient.invalidateQueries({ queryKey: containerKey(containerId) });
     },
   });
 }
 
-export function useRemoveContainerReactionMutation() {
-  const queryClient = useQueryClient();
-  return useMutation<void, Error, string>({
+// Fire-and-forget, same rationale as useRecordMemeViewMutation — no cache invalidation, or
+// the merged feed would refetch on every container impression.
+export function useRecordContainerViewMutation() {
+  return useMutation<ContainerViewResponse, Error, string>({
     mutationFn: async (containerId) => {
-      const response = await removeContainerReactionRequest(containerId);
-      if (!response.ok) throwApiError(response, 'remove reaction');
-    },
-    onSuccess: (_data, containerId) => {
-      queryClient.invalidateQueries({ queryKey: feedKey });
-      queryClient.invalidateQueries({ queryKey: containerKey(containerId) });
+      const response = await recordContainerViewRequest(containerId);
+      if (!response.ok || !response.data) throwApiError(response, 'record view');
+      return response.data;
     },
   });
 }

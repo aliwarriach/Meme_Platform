@@ -50,7 +50,7 @@ export function WinnerBanner({ winner, isLoading, isError, label }: WinnerBanner
               {authorName}
             </Text>
             <Text className="text-xs text-neutral-500 dark:text-neutral-400">
-              {winner.vote_count} vote{winner.vote_count === 1 ? '' : 's'}
+              score {winner.score}
             </Text>
           </View>
         </View>

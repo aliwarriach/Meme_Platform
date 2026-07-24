@@ -49,16 +49,16 @@ One file per backend feature/module. Purpose: let a new session (or the frontend
 ## Index
 - [auth-profile.md](auth-profile.md) — User model, JWT auth, register/login/me.
 - [friends.md](friends.md) — Friendship model (request/accept/remove), `/friends` endpoints, friends screen.
-- [meme-feed.md](meme-feed.md) — Meme/PostAudience/Reaction/Comment models, `/memes` endpoints, Cloudinary upload, feed screen, multi-audience posting (Public/Friends/Community) + community feed.
-- [meme-creator.md](meme-creator.md) — Template model, `/templates` endpoints, shared media/pagination helpers, creator screen (overlay editor + view-shot flatten + template picker).
+- [meme-feed.md](meme-feed.md) — Meme/PostAudience/Comment models, `/memes` endpoints, Cloudinary upload, feed screen, multi-audience posting (Public/Friends/Community) + community feed. Likes replaced by upvote/downvote — see voting-system.md.
+- [meme-creator.md](meme-creator.md) — Template model, `/templates` endpoints, shared media/pagination helpers, creator screen. **Editor rebuilt on Skia (Phases 1–3, 2026-07-24)**: `MemeDocument` (discriminated `Layer` union) + `creatorDraftSlice` (undo/redo) + Skia `drawAsImage` 1080² flatten (replaced view-shot); **multi-layer text + image layers + emoji stickers** with drag/pinch/rotate + `LayerInspector`. First JS unit tests (jest-expo, 32). Needs a native dev-client rebuild to run.
 - [communities.md](communities.md) — Community/CommunityMembership models, `/communities` endpoints (create/discover/mine/join/leave/members/join-requests), Communities tab + detail screen.
-- [scoring-engine.md](scoring-engine.md) — `services/scoring.py` placeholder score (reactions + comments), live SQL, no stored table/worker yet.
+- [scoring-engine.md](scoring-engine.md) — `services/scoring.py` placeholder score (net vote score + comments), live SQL, no stored table/worker yet.
 - [leaderboards.md](leaderboards.md) — individual/global-community/internal-community leaderboards, `/leaderboards/*` + `/communities/{id}/leaderboard` endpoints, Leaderboards tab + community leaderboard tab.
-- [voting-system.md](voting-system.md) — Vote model (day/week/month periods), `/competitions/*` vote/standings/winner endpoints, live period-close computation, Voting screen.
+- [voting-system.md](voting-system.md) — **Reddit-style upvote/downvote** (`MemeVote`/`ContainerVote`, replaced likes + old per-period Vote 2026-07-24), `POST /memes/{id}/votes` + `POST /instagram/containers/{id}/votes`, read-only `/competitions/*` standings/winner ranked by net score per period, Voting screen + feed-card vote controls.
 - [challenges.md](challenges.md) — Challenge/ChallengeSide/ChallengeParticipant/ChallengeSubmission/Badge models, `/communities/{id}/challenges/*` endpoints, scheduled window-close worker, setup wizard + active/results screens.
 - [meme-sending.md](meme-sending.md) — MemeSend model, `/meme-sending/*` REST + `WS /meme-sending/ws` real-time delivery, in-memory connection manager, inbox screen + socket-status slice.
 - [ai-caption.md](ai-caption.md) — `integrations/llm_client.py` (Groq, timeout+retry), `POST /ai-caption/generate`, caption generator button wired into the existing creator screen.
 - [sharing.md](sharing.md) — frontend-only native share sheet (`expo-sharing` + `expo-file-system`), Share button wired into MemeCard, image-only (no video meme pipeline exists).
-- [instagram-companion.md](instagram-companion.md) — MemeContainer + parallel Container{Reaction,Comment,Vote} tables, stubbed oEmbed fetch, merged `/memes/feed`, container voting, WebView feed cards + share-intake modal.
+- [instagram-companion.md](instagram-companion.md) — MemeContainer + parallel Container{Comment,Vote} tables (upvote/downvote, see voting-system.md), stubbed oEmbed fetch, merged `/memes/feed`, WebView feed cards + share-intake modal.
 - [hardening.md](hardening.md) — Phase 16: rate limiting (slowapi + Redis, first real Redis usage in the repo), CORS allow-list, one real IDOR fix in meme-sending.
 - [redis-arq-infra.md](redis-arq-infra.md) — post-Phase-16: arq task queue + Redis caching added for scoring/leaderboards/challenge-close/ai-caption/instagram-metadata, replacing live-SQL/in-process-asyncio stopgaps. Read this before touching any of those five features' background-work paths.

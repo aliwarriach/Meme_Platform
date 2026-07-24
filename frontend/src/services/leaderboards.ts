@@ -41,3 +41,14 @@ export function getInternalCommunityLeaderboardRequest(
     params
   );
 }
+
+// A user's lifetime, all-time cumulative MemeScore (the "Snapchat Score") — distinct from
+// the 30-day-windowed individual leaderboard above. See backend services/scoring.py.
+export interface ProfileScoreResponse {
+  user: AuthUserResponse;
+  score: number;
+}
+
+export function getProfileScoreRequest(userId: string) {
+  return api.get<ProfileScoreResponse>(`/leaderboards/profile/${userId}`);
+}

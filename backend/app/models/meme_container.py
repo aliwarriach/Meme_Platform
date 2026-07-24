@@ -1,7 +1,7 @@
 import enum
 import uuid
 
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import ForeignKey, String, text
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -41,5 +41,9 @@ class MemeContainer(UUIDPKMixin, TimestampMixin, Base):
         SAEnum(ContainerMetadataStatus, name="container_metadata_status"),
         default=ContainerMetadataStatus.pending,
     )
+    # Same impression counter as Meme.view_count — feeds the container's scoring atom
+    # (services/scoring.py::container_score_expr). Incremented via
+    # POST /instagram/containers/{id}/views.
+    view_count: Mapped[int] = mapped_column(default=0, server_default=text("0"))
 
     submitter: Mapped[User] = relationship(lazy="selectin")

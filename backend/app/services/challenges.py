@@ -445,7 +445,9 @@ async def submit_to_challenge(
         id=submission.id,
         side_id=side_id,
         submitter=UserOut.model_validate(submitter),
-        meme=build_meme_out(submission.meme, reaction_count=0, comment_count=0, viewer_has_reacted=False),
+        meme=build_meme_out(
+            submission.meme, upvote_count=0, downvote_count=0, comment_count=0, viewer_vote=None
+        ),
         created_at=submission.created_at,
     )
 
@@ -553,7 +555,11 @@ async def get_results(
                 side_id=submission.side_id,
                 submitter=UserOut.model_validate(submitter),
                 meme=build_meme_out(
-                    submission.meme, reaction_count=0, comment_count=0, viewer_has_reacted=False
+                    submission.meme,
+                    upvote_count=0,
+                    downvote_count=0,
+                    comment_count=0,
+                    viewer_vote=None,
                 ),
                 created_at=submission.created_at,
             )

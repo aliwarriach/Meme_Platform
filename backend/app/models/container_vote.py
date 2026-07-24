@@ -1,40 +1,30 @@
 import uuid
 
-from sqlalchemy import ForeignKey, String, UniqueConstraint
-from sqlalchemy import Enum as SAEnum
+from sqlalchemy import CheckConstraint, ForeignKey, SmallInteger, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin, UUIDPKMixin
-from app.models.vote import CompetitionPeriod
 
 
 class ContainerVote(UUIDPKMixin, TimestampMixin, Base):
-    """Mirrors `Vote`, scoped to `meme_container_id` — a `MemeContainer` is competition-
-    eligible (Project_Requirements §9/§13) but never challenge-eligible (enforced at the
-    challenge-submission service layer, which only ever accepts a native `Meme`)."""
+    """Reddit-style upvote/downvote on a `MemeContainer` — replaces the old like-only
+    `ContainerReaction` table entirely (and the old period-based container vote). Mirrors
+    `MemeVote`, scoped to `meme_container_id` instead of `meme_id`.
+    """
 
     __tablename__ = "container_votes"
 
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), index=True
-    )
     meme_container_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("meme_containers.id", ondelete="CASCADE"), index=True
     )
-    # Reuses the existing `competition_period_type` Postgres enum (same name as `Vote`'s
-    # column) via `create_type=False` — one DB enum type shared by both tables, and
-    # Alembic autogenerate won't try to create it a second time.
-    period_type: Mapped[CompetitionPeriod] = mapped_column(
-        SAEnum(CompetitionPeriod, name="competition_period_type", create_type=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
-    period_key: Mapped[str] = mapped_column(String(16), index=True)
+    value: Mapped[int] = mapped_column(SmallInteger)
 
     __table_args__ = (
         UniqueConstraint(
-            "user_id",
-            "meme_container_id",
-            "period_type",
-            "period_key",
-            name="uq_container_votes_user_container_period",
+            "meme_container_id", "user_id", name="uq_container_votes_container_user"
         ),
+        CheckConstraint("value IN (-1, 1)", name="ck_container_votes_value"),
     )

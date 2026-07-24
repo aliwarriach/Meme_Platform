@@ -2,18 +2,11 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useSelector } from 'react-redux';
 
 import { StandingRow } from '@/features/voting/components/StandingRow';
 import { WinnerBanner } from '@/features/voting/components/WinnerBanner';
 import type { CompetitionPeriodType } from '@/services/competitions';
-import {
-  useCastContainerVoteMutation,
-  useCastVoteMutation,
-  useCurrentStandings,
-  useWinner,
-} from '@/services/useCompetitions';
-import type { RootState } from '@/store/store';
+import { useCurrentStandings, useWinner } from '@/services/useCompetitions';
 import { previousPeriodKey } from '@/utils/competitionPeriods';
 
 const TABS: { type: CompetitionPeriodType; label: string; winnerLabel: string }[] = [
@@ -24,12 +17,9 @@ const TABS: { type: CompetitionPeriodType; label: string; winnerLabel: string }[
 
 export default function VotingScreen() {
   const router = useRouter();
-  const currentUser = useSelector((state: RootState) => state.auth.user);
   const [activeTab, setActiveTab] = useState<CompetitionPeriodType>('day');
 
   const standingsQuery = useCurrentStandings(activeTab);
-  const castVote = useCastVoteMutation(activeTab);
-  const castContainerVote = useCastContainerVoteMutation(activeTab);
   const winnerQuery = useWinner(activeTab, previousPeriodKey(activeTab), true);
 
   const activeTabMeta = TABS.find((tab) => tab.type === activeTab)!;
@@ -87,19 +77,7 @@ export default function VotingScreen() {
         keyExtractor={(item) =>
           item.content.kind === 'meme' ? item.content.meme.id : item.content.container.id
         }
-        renderItem={({ item }) => {
-          const { content } = item;
-          const contentId = content.kind === 'container' ? content.container.id : content.meme.id;
-          const activeMutation = content.kind === 'container' ? castContainerVote : castVote;
-          return (
-            <StandingRow
-              entry={item}
-              onVote={() => activeMutation.mutate(contentId)}
-              isVoting={activeMutation.isPending && activeMutation.variables === contentId}
-              isOwnMeme={content.kind === 'meme' && content.meme.author.id === currentUser?.id}
-            />
-          );
-        }}
+        renderItem={({ item }) => <StandingRow entry={item} />}
         ListHeaderComponent={header}
         refreshControl={
           <RefreshControl
@@ -119,11 +97,6 @@ export default function VotingScreen() {
           )
         }
       />
-      {castVote.isError || castContainerVote.isError ? (
-        <Text className="mx-6 mb-2 text-center text-sm text-red-500">
-          {castVote.error?.message ?? castContainerVote.error?.message}
-        </Text>
-      ) : null}
     </SafeAreaView>
   );
 }

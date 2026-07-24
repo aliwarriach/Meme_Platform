@@ -61,37 +61,93 @@ async def test_get_nonexistent_container_404(client: AsyncClient):
     assert response.status_code == 404
 
 
+async def _vote_container(
+    client: AsyncClient, user: dict, container_id: str, value: int
+) -> object:
+    return await client.post(
+        f"/instagram/containers/{container_id}/votes",
+        json={"value": value},
+        headers=auth_header(user),
+    )
+
+
 @pytest.mark.asyncio
-async def test_container_reaction_add_remove_and_duplicate_rejected(client: AsyncClient):
+async def test_container_upvote(client: AsyncClient):
     alice = await create_user(client, "alice")
     bob = await create_user(client, "bob")
     container_id = (await _create_container(client, alice)).json()["id"]
 
-    response = await client.post(
-        f"/instagram/containers/{container_id}/reactions", headers=auth_header(bob)
-    )
+    response = await _vote_container(client, bob, container_id, 1)
     assert response.status_code == 201
-
-    duplicate = await client.post(
-        f"/instagram/containers/{container_id}/reactions", headers=auth_header(bob)
-    )
-    assert duplicate.status_code == 409
+    body = response.json()
+    assert body["upvote_count"] == 1
+    assert body["downvote_count"] == 0
+    assert body["score"] == 1
+    assert body["viewer_vote"] == 1
 
     get_response = await client.get(
         f"/instagram/containers/{container_id}", headers=auth_header(bob)
     )
-    assert get_response.json()["reaction_count"] == 1
-    assert get_response.json()["viewer_has_reacted"] is True
+    assert get_response.json()["upvote_count"] == 1
+    assert get_response.json()["viewer_vote"] == 1
 
-    remove_response = await client.delete(
-        f"/instagram/containers/{container_id}/reactions", headers=auth_header(bob)
-    )
-    assert remove_response.status_code == 204
 
-    remove_again = await client.delete(
-        f"/instagram/containers/{container_id}/reactions", headers=auth_header(bob)
-    )
-    assert remove_again.status_code == 404
+@pytest.mark.asyncio
+async def test_container_downvote(client: AsyncClient):
+    alice = await create_user(client, "alice")
+    bob = await create_user(client, "bob")
+    container_id = (await _create_container(client, alice)).json()["id"]
+
+    response = await _vote_container(client, bob, container_id, -1)
+    assert response.status_code == 201
+    body = response.json()
+    assert body["upvote_count"] == 0
+    assert body["downvote_count"] == 1
+    assert body["score"] == -1
+    assert body["viewer_vote"] == -1
+
+
+@pytest.mark.asyncio
+async def test_container_upvote_twice_removes_the_vote(client: AsyncClient):
+    alice = await create_user(client, "alice")
+    bob = await create_user(client, "bob")
+    container_id = (await _create_container(client, alice)).json()["id"]
+
+    await _vote_container(client, bob, container_id, 1)
+    second = await _vote_container(client, bob, container_id, 1)
+    assert second.status_code == 201
+    body = second.json()
+    assert body["upvote_count"] == 0
+    assert body["downvote_count"] == 0
+    assert body["score"] == 0
+    assert body["viewer_vote"] is None
+
+
+@pytest.mark.asyncio
+async def test_container_upvote_then_downvote_flips_the_vote(client: AsyncClient):
+    alice = await create_user(client, "alice")
+    bob = await create_user(client, "bob")
+    container_id = (await _create_container(client, alice)).json()["id"]
+
+    await _vote_container(client, bob, container_id, 1)
+    flipped = await _vote_container(client, bob, container_id, -1)
+    assert flipped.status_code == 201
+    body = flipped.json()
+    assert body["upvote_count"] == 0
+    assert body["downvote_count"] == 1
+    assert body["score"] == -1
+    assert body["viewer_vote"] == -1
+
+
+@pytest.mark.asyncio
+async def test_container_vote_for_own_submission_allowed(client: AsyncClient):
+    """A container has no self-vote restriction — confirmed in
+    services/instagram.py::cast_container_vote's docstring."""
+    alice = await create_user(client, "alice")
+    container_id = (await _create_container(client, alice)).json()["id"]
+
+    response = await _vote_container(client, alice, container_id, 1)
+    assert response.status_code == 201
 
 
 @pytest.mark.asyncio
@@ -129,35 +185,6 @@ async def test_feed_includes_both_memes_and_containers(client: AsyncClient):
     body = response.json()
     kinds = {item["kind"] for item in body["items"]}
     assert kinds == {"meme", "container"}
-
-
-@pytest.mark.asyncio
-async def test_container_votable_and_second_vote_same_period_rejected(client: AsyncClient):
-    alice = await create_user(client, "alice")
-    container_id = (await _create_container(client, alice)).json()["id"]
-
-    response = await client.post(
-        f"/competitions/day/container-votes/{container_id}", headers=auth_header(alice)
-    )
-    assert response.status_code == 201
-
-    duplicate = await client.post(
-        f"/competitions/day/container-votes/{container_id}", headers=auth_header(alice)
-    )
-    assert duplicate.status_code == 409
-
-
-@pytest.mark.asyncio
-async def test_container_vote_for_own_submission_allowed(client: AsyncClient):
-    """Unlike a native meme, a container has no self-vote restriction — confirmed in
-    services/competitions.py::cast_container_vote's docstring."""
-    alice = await create_user(client, "alice")
-    container_id = (await _create_container(client, alice)).json()["id"]
-
-    response = await client.post(
-        f"/competitions/day/container-votes/{container_id}", headers=auth_header(alice)
-    )
-    assert response.status_code == 201
 
 
 @pytest.mark.asyncio

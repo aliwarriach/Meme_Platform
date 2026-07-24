@@ -234,14 +234,16 @@ async def test_full_vs_lifecycle_evaluates_and_awards_both_communities_members(c
         headers=auth_header(bob),
     )
 
-    # Home community submits a meme and gets an extra reaction to out-score Opponent.
+    # Home community submits a meme and gets an extra upvote to out-score Opponent.
     home_meme = await _post_community_meme(client, alice, home["id"])
     await client.post(
         f"/communities/{home['id']}/challenges/{challenge['id']}/submissions",
         params={"meme_id": home_meme["id"]},
         headers=auth_header(alice),
     )
-    await client.post(f"/memes/{home_meme['id']}/reactions", headers=auth_header(bob))
+    await client.post(
+        f"/memes/{home_meme['id']}/votes", json={"value": 1}, headers=auth_header(bob)
+    )
 
     opponent_meme = await _post_community_meme(client, bob, opponent["id"])
     await client.post(

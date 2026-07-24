@@ -1,18 +1,21 @@
-import { useInfiniteQuery, type InfiniteData } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, type InfiniteData } from '@tanstack/react-query';
 
 import { throwApiError } from '@/services/api';
 import {
   getGlobalCommunityLeaderboardRequest,
   getIndividualLeaderboardRequest,
   getInternalCommunityLeaderboardRequest,
+  getProfileScoreRequest,
   type CommunityLeaderboardPageResponse,
   type IndividualLeaderboardPageResponse,
+  type ProfileScoreResponse,
 } from '@/services/leaderboards';
 
 const individualKey = ['leaderboards', 'individual'] as const;
 const globalCommunityKey = ['leaderboards', 'communities'] as const;
 const internalCommunityKey = (communityId: string) =>
   ['leaderboards', 'communities', communityId] as const;
+const profileScoreKey = (userId: string) => ['leaderboards', 'profile', userId] as const;
 
 // `next_cursor` here is a page number as a string (offset pagination, not the
 // keyset cursor scheme feed/communities use — see backend services/leaderboards.py).
@@ -55,6 +58,20 @@ export function useGlobalCommunityLeaderboard() {
       return response.data;
     },
     getNextPageParam: (lastPage) => nextPage(lastPage.next_cursor),
+  });
+}
+
+// A user's lifetime cumulative MemeScore (the "Snapchat Score") — for a profile header.
+// All-time, not windowed, distinct from the 30-day individual leaderboard above.
+export function useProfileScore(userId: string, enabled = true) {
+  return useQuery<ProfileScoreResponse, Error>({
+    queryKey: profileScoreKey(userId),
+    queryFn: async () => {
+      const response = await getProfileScoreRequest(userId);
+      if (!response.ok || !response.data) throwApiError(response, 'load profile score');
+      return response.data;
+    },
+    enabled,
   });
 }
 

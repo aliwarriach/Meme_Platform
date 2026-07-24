@@ -7,10 +7,11 @@ from app.core.rate_limit import limiter
 from app.schemas.instagram import (
     ContainerCommentCreate,
     ContainerCommentOut,
-    ContainerReactionOut,
+    ContainerViewOut,
     MemeContainerCreate,
     MemeContainerOut,
 )
+from app.schemas.votes import VoteCast
 from app.services import instagram as instagram_service
 
 router = APIRouter(prefix="/instagram", tags=["instagram"])
@@ -33,20 +34,29 @@ async def get_container(
     return await instagram_service.get_container(db, current_user, container_id)
 
 
-@router.post(
-    "/containers/{container_id}/reactions", response_model=ContainerReactionOut, status_code=201
-)
-async def add_container_reaction(
-    container_id: uuid.UUID, current_user: CurrentUser, db: DbSession
-) -> ContainerReactionOut:
-    return await instagram_service.add_container_reaction(db, current_user, container_id)
+@router.post("/containers/{container_id}/votes", response_model=MemeContainerOut, status_code=201)
+@limiter.limit("60/minute")
+async def cast_container_vote(
+    request: Request,
+    container_id: uuid.UUID,
+    data: VoteCast,
+    current_user: CurrentUser,
+    db: DbSession,
+) -> MemeContainerOut:
+    return await instagram_service.cast_container_vote(db, current_user, container_id, data.value)
 
 
-@router.delete("/containers/{container_id}/reactions", status_code=204)
-async def remove_container_reaction(
-    container_id: uuid.UUID, current_user: CurrentUser, db: DbSession
-) -> None:
-    await instagram_service.remove_container_reaction(db, current_user, container_id)
+@router.post("/containers/{container_id}/views", response_model=ContainerViewOut, status_code=201)
+@limiter.limit("120/minute")
+async def record_container_view(
+    request: Request,
+    container_id: uuid.UUID,
+    current_user: CurrentUser,
+    db: DbSession,
+) -> ContainerViewOut:
+    """Records one impression on a container — the reach signal behind its MemeScore.
+    Deduped per (container, user), same as native memes."""
+    return await instagram_service.record_container_view(db, current_user, container_id)
 
 
 @router.post(

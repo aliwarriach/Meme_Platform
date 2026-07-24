@@ -57,9 +57,11 @@ async def test_create_meme_returns_meme_with_chosen_audiences(client: AsyncClien
     body = response.json()
     assert body["author"]["username"] == "alice"
     assert set(body["audiences"]) == {"public", "friends"}
-    assert body["reaction_count"] == 0
+    assert body["upvote_count"] == 0
+    assert body["downvote_count"] == 0
+    assert body["score"] == 0
     assert body["comment_count"] == 0
-    assert body["viewer_has_reacted"] is False
+    assert body["viewer_vote"] is None
 
 
 async def test_create_meme_rejects_non_image_content_type(client: AsyncClient):
@@ -252,7 +254,7 @@ async def test_author_can_always_see_own_meme_regardless_of_audience(client: Asy
     assert len(_meme_items(alice_feed.json())) == 1
 
 
-async def test_feed_pagination_returns_next_cursor_and_respects_it(client: AsyncClient):
+async def test_feed_pagination_returns_has_more_and_respects_offset(client: AsyncClient):
     alice = await create_user(client, "alice")
     for i in range(3):
         await _post_meme(client, alice, audiences=["public"], caption=f"meme {i}")
@@ -262,73 +264,113 @@ async def test_feed_pagination_returns_next_cursor_and_respects_it(client: Async
     )
     first_body = first_page.json()
     assert len(first_body["items"]) == 2
-    assert first_body["next_cursor"] is not None
+    assert first_body["has_more"] is True
 
     second_page = await client.get(
         "/memes/feed",
-        params={"limit": 2, "cursor": first_body["next_cursor"]},
+        params={"limit": 2, "offset": 2},
         headers=auth_header(alice),
     )
     second_body = second_page.json()
     assert len(second_body["items"]) == 1
-    assert second_body["next_cursor"] is None
+    assert second_body["has_more"] is False
 
     first_ids = {item["meme"]["id"] for item in first_body["items"]}
     second_ids = {item["meme"]["id"] for item in second_body["items"]}
     assert first_ids.isdisjoint(second_ids)
 
 
-async def test_feed_rejects_invalid_cursor(client: AsyncClient):
+async def test_feed_rejects_negative_offset(client: AsyncClient):
     alice = await create_user(client, "alice")
     response = await client.get(
-        "/memes/feed", params={"cursor": "not-a-real-cursor"}, headers=auth_header(alice)
+        "/memes/feed", params={"offset": -1}, headers=auth_header(alice)
     )
-    assert response.status_code == 400
+    assert response.status_code == 422
 
 
-async def test_add_and_remove_reaction_round_trip(client: AsyncClient):
+async def _vote(client: AsyncClient, user: dict, meme_id: str, value: int) -> object:
+    return await client.post(
+        f"/memes/{meme_id}/votes", json={"value": value}, headers=auth_header(user)
+    )
+
+
+async def test_upvote_meme(client: AsyncClient):
     alice = await create_user(client, "alice")
     bob = await create_user(client, "bob")
     meme_response = await _post_meme(client, alice, audiences=["public"])
     meme_id = meme_response.json()["id"]
 
-    react_response = await client.post(
-        f"/memes/{meme_id}/reactions", headers=auth_header(bob)
-    )
-    assert react_response.status_code == 201
+    response = await _vote(client, bob, meme_id, 1)
+    assert response.status_code == 201
+    body = response.json()
+    assert body["meme_id"] == meme_id
+    assert body["upvote_count"] == 1
+    assert body["downvote_count"] == 0
+    assert body["score"] == 1
+    assert body["viewer_vote"] == 1
 
     feed = await client.get("/memes/feed", headers=auth_header(bob))
     meme_in_feed = next(item for item in _meme_items(feed.json()) if item["id"] == meme_id)
-    assert meme_in_feed["reaction_count"] == 1
-    assert meme_in_feed["viewer_has_reacted"] is True
-
-    remove_response = await client.delete(
-        f"/memes/{meme_id}/reactions", headers=auth_header(bob)
-    )
-    assert remove_response.status_code == 204
-
-    feed_after = await client.get("/memes/feed", headers=auth_header(bob))
-    meme_after = next(item for item in _meme_items(feed_after.json()) if item["id"] == meme_id)
-    assert meme_after["reaction_count"] == 0
-    assert meme_after["viewer_has_reacted"] is False
+    assert meme_in_feed["upvote_count"] == 1
+    assert meme_in_feed["downvote_count"] == 0
+    assert meme_in_feed["score"] == 1
+    assert meme_in_feed["viewer_vote"] == 1
 
 
-async def test_duplicate_reaction_rejected(client: AsyncClient):
+async def test_downvote_meme(client: AsyncClient):
     alice = await create_user(client, "alice")
+    bob = await create_user(client, "bob")
     meme_response = await _post_meme(client, alice, audiences=["public"])
     meme_id = meme_response.json()["id"]
 
-    await client.post(f"/memes/{meme_id}/reactions", headers=auth_header(alice))
-    second = await client.post(f"/memes/{meme_id}/reactions", headers=auth_header(alice))
-    assert second.status_code == 409
+    response = await _vote(client, bob, meme_id, -1)
+    assert response.status_code == 201
+    body = response.json()
+    assert body["upvote_count"] == 0
+    assert body["downvote_count"] == 1
+    assert body["score"] == -1
+    assert body["viewer_vote"] == -1
 
 
-async def test_remove_nonexistent_reaction_rejected(client: AsyncClient):
+async def test_upvote_twice_removes_the_vote(client: AsyncClient):
     alice = await create_user(client, "alice")
+    bob = await create_user(client, "bob")
     meme_response = await _post_meme(client, alice, audiences=["public"])
     meme_id = meme_response.json()["id"]
 
-    response = await client.delete(f"/memes/{meme_id}/reactions", headers=auth_header(alice))
+    await _vote(client, bob, meme_id, 1)
+    second = await _vote(client, bob, meme_id, 1)
+    assert second.status_code == 201
+    body = second.json()
+    assert body["upvote_count"] == 0
+    assert body["downvote_count"] == 0
+    assert body["score"] == 0
+    assert body["viewer_vote"] is None
+
+
+async def test_upvote_then_downvote_flips_the_vote(client: AsyncClient):
+    alice = await create_user(client, "alice")
+    bob = await create_user(client, "bob")
+    meme_response = await _post_meme(client, alice, audiences=["public"])
+    meme_id = meme_response.json()["id"]
+
+    await _vote(client, bob, meme_id, 1)
+    flipped = await _vote(client, bob, meme_id, -1)
+    assert flipped.status_code == 201
+    body = flipped.json()
+    assert body["upvote_count"] == 0
+    assert body["downvote_count"] == 1
+    assert body["score"] == -1
+    assert body["viewer_vote"] == -1
+
+
+async def test_vote_requires_meme_to_be_visible(client: AsyncClient):
+    alice = await create_user(client, "alice")
+    carol = await create_user(client, "carol")
+    meme_response = await _post_meme(client, alice, audiences=["friends"])
+    meme_id = meme_response.json()["id"]
+
+    response = await _vote(client, carol, meme_id, 1)
     assert response.status_code == 404
 
 
@@ -351,14 +393,11 @@ async def test_add_and_list_comments_round_trip(client: AsyncClient):
     assert bodies == ["lol nice"]
 
 
-async def test_reaction_and_comment_rejected_for_non_visible_meme(client: AsyncClient):
+async def test_comment_rejected_for_non_visible_meme(client: AsyncClient):
     alice = await create_user(client, "alice")
     carol = await create_user(client, "carol")
     meme_response = await _post_meme(client, alice, audiences=["friends"])
     meme_id = meme_response.json()["id"]
-
-    react_response = await client.post(f"/memes/{meme_id}/reactions", headers=auth_header(carol))
-    assert react_response.status_code == 404
 
     comment_response = await client.post(
         f"/memes/{meme_id}/comments", json={"body": "hey"}, headers=auth_header(carol)
@@ -374,4 +413,10 @@ async def test_memes_endpoints_require_authentication(client: AsyncClient):
     response = await client.post(
         "/memes", files=files, data={"caption": "hi", "audiences": ["public"]}
     )
+    assert response.status_code == 401
+
+    alice = await create_user(client, "alice")
+    meme_response = await _post_meme(client, alice, audiences=["public"])
+    meme_id = meme_response.json()["id"]
+    response = await client.post(f"/memes/{meme_id}/votes", json={"value": 1})
     assert response.status_code == 401

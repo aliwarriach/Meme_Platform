@@ -70,12 +70,8 @@ class InvalidCursorError(DomainError):
     status_code = status.HTTP_400_BAD_REQUEST
 
 
-class AlreadyReactedError(DomainError):
-    status_code = status.HTTP_409_CONFLICT
-
-
-class ReactionNotFoundError(DomainError):
-    status_code = status.HTTP_404_NOT_FOUND
+class InvalidVoteValueError(DomainError):
+    status_code = status.HTTP_400_BAD_REQUEST
 
 
 class CommunityNotFoundError(DomainError):
@@ -103,18 +99,6 @@ class CannotLeaveAsOwnerError(DomainError):
 
 
 class InvalidAudienceSelectionError(DomainError):
-    status_code = status.HTTP_400_BAD_REQUEST
-
-
-class AlreadyVotedError(DomainError):
-    status_code = status.HTTP_409_CONFLICT
-
-
-class MemeNotVotableError(DomainError):
-    status_code = status.HTTP_400_BAD_REQUEST
-
-
-class SelfVoteNotAllowedError(DomainError):
     status_code = status.HTTP_400_BAD_REQUEST
 
 
@@ -184,14 +168,6 @@ class MemeContainerNotFoundError(DomainError):
 
 class InvalidSourceUrlError(DomainError):
     status_code = status.HTTP_400_BAD_REQUEST
-
-
-class AlreadyReactedToContainerError(DomainError):
-    status_code = status.HTTP_409_CONFLICT
-
-
-class ContainerReactionNotFoundError(DomainError):
-    status_code = status.HTTP_404_NOT_FOUND
 
 
 def register_exception_handlers(app: FastAPI) -> None:

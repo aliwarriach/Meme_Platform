@@ -8,7 +8,7 @@ from app.models.user import User
 
 
 class ContainerComment(UUIDPKMixin, TimestampMixin, Base):
-    """Mirrors `Comment`, scoped to `meme_container_id` — see `ContainerReaction` for why
+    """Mirrors `Comment`, scoped to `meme_container_id` — see `ContainerVote` for why
     this is a parallel table rather than a shared/polymorphic one."""
 
     __tablename__ = "container_comments"

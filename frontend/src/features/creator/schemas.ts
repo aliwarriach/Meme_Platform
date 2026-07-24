@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
+// Overlay text (top/bottom) is edited on the Skia canvas and lives in the creatorDraft
+// Redux slice, not this form — the form only owns publish metadata (caption + audience).
 const baseCreatorFields = {
-  topText: z.string().max(80, 'Keep top text under 80 characters').optional(),
-  bottomText: z.string().max(80, 'Keep bottom text under 80 characters').optional(),
   caption: z.string().max(500, 'At most 500 characters').optional(),
   audiences: z.array(z.enum(['public', 'friends'])),
 };

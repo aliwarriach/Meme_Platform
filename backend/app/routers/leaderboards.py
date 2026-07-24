@@ -1,9 +1,14 @@
+import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Query
 
 from app.core.deps import CurrentUser, DbSession
-from app.schemas.leaderboards import CommunityLeaderboardPage, IndividualLeaderboardPage
+from app.schemas.leaderboards import (
+    CommunityLeaderboardPage,
+    IndividualLeaderboardPage,
+    ProfileScoreOut,
+)
 from app.services import leaderboards as leaderboards_service
 
 router = APIRouter(prefix="/leaderboards", tags=["leaderboards"])
@@ -30,3 +35,12 @@ async def get_global_community_leaderboard(
     limit: LimitParam = 20,
 ) -> CommunityLeaderboardPage:
     return await leaderboards_service.get_global_community_leaderboard(db, page, limit)
+
+
+@router.get("/profile/{user_id}", response_model=ProfileScoreOut)
+async def get_profile_score(
+    user_id: uuid.UUID, current_user: CurrentUser, db: DbSession
+) -> ProfileScoreOut:
+    """A user's lifetime cumulative MemeScore (Snapchat-style profile number) — all-time,
+    not windowed, and public (any authed user can view any profile's score)."""
+    return await leaderboards_service.get_profile_score(db, user_id)

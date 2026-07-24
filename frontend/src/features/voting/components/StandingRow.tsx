@@ -1,16 +1,13 @@
 import { Image } from 'expo-image';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
 import type { StandingEntryResponse } from '@/services/competitions';
 
 interface StandingRowProps {
   entry: StandingEntryResponse;
-  onVote: () => void;
-  isVoting: boolean;
-  isOwnMeme: boolean;
 }
 
-export function StandingRow({ entry, onVote, isVoting, isOwnMeme }: StandingRowProps) {
+export function StandingRow({ entry }: StandingRowProps) {
   const { content } = entry;
   const isContainer = content.kind === 'container';
   const imageUrl = isContainer ? content.container.thumbnail_url : content.meme.image_url;
@@ -42,26 +39,8 @@ export function StandingRow({ entry, onVote, isVoting, isOwnMeme }: StandingRowP
             {caption}
           </Text>
         ) : null}
-        <Text className="text-xs text-neutral-400">
-          {entry.vote_count} vote{entry.vote_count === 1 ? '' : 's'}
-        </Text>
       </View>
-      {isOwnMeme ? (
-        <Text className="text-xs text-neutral-400">Your meme</Text>
-      ) : (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Vote for this content"
-          onPress={onVote}
-          disabled={isVoting}
-          className="min-h-[44px] min-w-[44px] items-center justify-center rounded-xl bg-orange-500 px-4 disabled:opacity-50">
-          {isVoting ? (
-            <ActivityIndicator size="small" color="white" />
-          ) : (
-            <Text className="font-bold text-white">Vote</Text>
-          )}
-        </Pressable>
-      )}
+      <Text className="text-sm font-bold text-orange-500">{entry.score}</Text>
     </View>
   );
 }

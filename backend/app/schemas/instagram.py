@@ -5,7 +5,6 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.meme_container import ContainerMetadataStatus, ContainerPlatform
-from app.models.vote import CompetitionPeriod
 from app.schemas.auth import UserOut
 from app.schemas.memes import MemeOut
 
@@ -24,19 +23,20 @@ class MemeContainerOut(BaseModel):
     title: str | None
     thumbnail_url: str | None
     metadata_status: ContainerMetadataStatus
-    reaction_count: int
+    upvote_count: int
+    downvote_count: int
+    score: int
     comment_count: int
-    viewer_has_reacted: bool
+    # Private engagement data — null unless the caller is the submitter. See
+    # services/instagram.py::_build_container_out.
+    view_count: int | None
+    viewer_vote: Literal[1, -1] | None
     created_at: datetime.datetime
 
 
-class ContainerReactionOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: uuid.UUID
+class ContainerViewOut(BaseModel):
     meme_container_id: uuid.UUID
-    user_id: uuid.UUID
-    created_at: datetime.datetime
+    view_count: int
 
 
 class ContainerCommentCreate(BaseModel):
@@ -62,21 +62,14 @@ class ContainerFeedItem(BaseModel):
     container: MemeContainerOut
 
 
-class ContainerVoteOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: uuid.UUID
-    meme_container_id: uuid.UUID
-    period_type: CompetitionPeriod
-    period_key: str
-
-
 class MergedFeedPage(BaseModel):
     """The public feed's actual response shape: native `Meme`s and `MemeContainer`s
-    (externally-shared Reels/posts) merged and sorted together by recency — the two
-    content types share one feed by design (confirmed with user), even though they're
-    backed by entirely separate tables/reactions/comments/votes under the hood.
+    (externally-shared Reels/posts) merged and sorted together — the two content types
+    share one feed by design (confirmed with user), even though they're backed by
+    entirely separate tables/reactions/comments/votes under the hood. Ranked by Reddit-
+    style Hot score (vote score vs. age), not recency — offset-paginated (`has_more`),
+    since Hot score drifts continuously with time and has no stable keyset cursor.
     """
 
     items: list[MemeFeedItem | ContainerFeedItem]
-    next_cursor: str | None
+    has_more: bool
