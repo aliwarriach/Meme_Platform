@@ -3,7 +3,9 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "dependencies": {
+    "@expo-google-fonts/be-vietnam-pro": "^0.4.1",
     "@expo/ui": "~57.0.7",
+    "@expo/vector-icons": "^15.0.2",
     "@hookform/resolvers": "^5.4.0",
     "@reduxjs/toolkit": "^2.12.0",
     "@shopify/react-native-skia": "2.6.2",
@@ -11,13 +13,17 @@
     "apisauce": "^3.2.2",
     "date-fns": "^4.4.0",
     "expo": "~57.0.7",
+    "expo-blur": "~57.0.2",
+    "expo-build-properties": "~57.0.7",
     "expo-constants": "~57.0.6",
+    "expo-dev-client": "~57.0.9",
     "expo-device": "~57.0.1",
     "expo-file-system": "~57.0.1",
     "expo-font": "~57.0.1",
     "expo-glass-effect": "~57.0.1",
     "expo-image": "~57.0.1",
     "expo-image-picker": "~57.0.5",
+    "expo-linear-gradient": "~57.0.1",
     "expo-linking": "~57.0.3",
     "expo-router": "~57.0.7",
     "expo-secure-store": "^57.0.1",
@@ -45,6 +51,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@expo/ngrok": "^4.1.3",
     "@types/react": "~19.2.2",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~57.0.0",
@@ -54,6 +61,7 @@
   },
   "scripts": {
     "start": "expo start",
+    "dev:tunnel": "node ./scripts/dev-tunnel.mjs",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo start --android",
     "ios": "expo start --ios",

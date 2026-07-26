@@ -1,8 +1,12 @@
+import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import Chip from '@/components/Chip';
+import FloatingBottomNav from '@/components/FloatingBottomNav';
+import TopBar from '@/components/TopBar';
 import { CommunityCard } from '@/features/communities/components/CommunityCard';
 import type { CommunityResponse } from '@/services/communities';
 import { useDiscoverCommunities, useMyCommunities } from '@/services/useCommunities';
@@ -23,56 +27,40 @@ export default function CommunitiesScreen() {
     router.push({ pathname: '/communities/[id]', params: { id } });
 
   return (
-    <SafeAreaView className="flex-1 bg-white dark:bg-neutral-950">
-      <View className="flex-row items-center justify-between px-4 py-3">
-        <Text className="text-xl font-extrabold text-neutral-900 dark:text-white">
-          Communities
-        </Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Create a community"
-          onPress={() => router.push('/communities/new')}
-          className="min-h-[44px] items-center justify-center rounded-xl bg-orange-500 px-4">
-          <Text className="text-sm font-bold text-white">Create</Text>
-        </Pressable>
-      </View>
-
-      <View className="mb-2 flex-row px-4">
-        {(['mine', 'discover'] as Tab[]).map((value) => (
+    <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
+      <TopBar
+        title="Communities"
+        rightActions={
           <Pressable
-            key={value}
-            accessibilityRole="tab"
-            accessibilityLabel={value === 'mine' ? 'My Communities tab' : 'Discover tab'}
-            accessibilityState={{ selected: tab === value }}
-            onPress={() => setTab(value)}
-            className={`mr-2 min-h-[40px] items-center justify-center rounded-xl px-4 ${
-              tab === value ? 'bg-orange-500' : 'bg-neutral-100 dark:bg-neutral-900'
-            }`}>
-            <Text
-              className={
-                tab === value ? 'font-bold text-white' : 'text-neutral-900 dark:text-white'
-              }>
-              {value === 'mine' ? 'My Communities' : 'Discover'}
-            </Text>
+            accessibilityRole="button"
+            accessibilityLabel="Create a community"
+            onPress={() => router.push('/communities/new')}
+            className="h-11 w-11 items-center justify-center">
+            <MaterialIcons name="add-circle-outline" size={24} color="#ffffff" />
           </Pressable>
-        ))}
+        }
+      />
+
+      <View className="mb-2 flex-row gap-2 px-4 pt-3">
+        <Chip label="My Communities" selected={tab === 'mine'} onPress={() => setTab('mine')} />
+        <Chip label="Discover" selected={tab === 'discover'} onPress={() => setTab('discover')} />
       </View>
 
       {tab === 'mine' ? (
         <FlatList
           data={mineQuery.data ?? []}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ padding: 16, paddingTop: 4 }}
+          contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: 100 }}
           renderItem={({ item }) => (
             <CommunityCard community={item} onPress={() => goToCommunity(item.id)} />
           )}
           ListEmptyComponent={
             mineQuery.isLoading ? (
-              <ActivityIndicator className="mt-8" />
+              <ActivityIndicator className="mt-8" color="#e3bdc5" />
             ) : mineQuery.isError ? (
-              <Text className="text-sm text-red-500">{mineQuery.error?.message}</Text>
+              <Text className="font-body text-sm text-error">{mineQuery.error?.message}</Text>
             ) : (
-              <Text className="mt-8 text-center text-sm text-neutral-400">
+              <Text className="mt-8 text-center font-body text-sm text-ink-muted">
                 You haven&apos;t joined any communities yet
               </Text>
             )
@@ -82,7 +70,7 @@ export default function CommunitiesScreen() {
         <FlatList
           data={discoverCommunities}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ padding: 16, paddingTop: 4 }}
+          contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: 100 }}
           onEndReachedThreshold={0.5}
           onEndReached={() => {
             if (discoverQuery.hasNextPage && !discoverQuery.isFetchingNextPage) {
@@ -93,21 +81,23 @@ export default function CommunitiesScreen() {
             <CommunityCard community={item} onPress={() => goToCommunity(item.id)} />
           )}
           ListFooterComponent={
-            discoverQuery.isFetchingNextPage ? <ActivityIndicator className="my-4" /> : null
+            discoverQuery.isFetchingNextPage ? <ActivityIndicator className="my-4" color="#e3bdc5" /> : null
           }
           ListEmptyComponent={
             discoverQuery.isLoading ? (
-              <ActivityIndicator className="mt-8" />
+              <ActivityIndicator className="mt-8" color="#e3bdc5" />
             ) : discoverQuery.isError ? (
-              <Text className="text-sm text-red-500">{discoverQuery.error?.message}</Text>
+              <Text className="font-body text-sm text-error">{discoverQuery.error?.message}</Text>
             ) : (
-              <Text className="mt-8 text-center text-sm text-neutral-400">
+              <Text className="mt-8 text-center font-body text-sm text-ink-muted">
                 No communities yet — be the first to create one
               </Text>
             )
           }
         />
       )}
+
+      <FloatingBottomNav active="communities" />
     </SafeAreaView>
   );
 }

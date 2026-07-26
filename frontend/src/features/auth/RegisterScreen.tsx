@@ -1,10 +1,11 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useRouter } from 'expo-router';
 import { Controller, useForm } from 'react-hook-form';
-import { Pressable, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch } from 'react-redux';
 
+import PillButton from '@/components/PillButton';
 import { TextField } from '@/components/TextField';
 import { registerSchema, type RegisterFormValues } from '@/features/auth/schemas';
 import { useRegisterMutation } from '@/services/useAuth';
@@ -40,12 +41,10 @@ export default function RegisterScreen() {
   });
 
   return (
-    <SafeAreaView className="flex-1 bg-white dark:bg-neutral-950">
+    <SafeAreaView className="flex-1 bg-bg">
       <View className="flex-1 justify-center px-6">
-        <Text className="mb-1 text-3xl font-extrabold text-neutral-900 dark:text-white">
-          Create your account
-        </Text>
-        <Text className="mb-8 text-base text-neutral-500 dark:text-neutral-400">
+        <Text className="mb-1 text-center font-heading text-3xl text-heading">Create Your Account</Text>
+        <Text className="mb-8 text-center font-body text-base text-ink-muted">
           Join communities and start posting memes.
         </Text>
 
@@ -89,21 +88,18 @@ export default function RegisterScreen() {
         />
 
         {registerMutation.isError ? (
-          <Text className="mb-4 text-sm text-red-500">{registerMutation.error.message}</Text>
+          <Text className="mb-4 font-body text-sm text-error">{registerMutation.error.message}</Text>
         ) : null}
 
-        <Pressable
+        <PillButton
+          label={registerMutation.isPending ? 'Creating account…' : 'Create Account'}
           onPress={onSubmit}
-          disabled={registerMutation.isPending}
-          className="items-center rounded-xl bg-orange-500 py-3.5 disabled:opacity-50">
-          <Text className="text-base font-bold text-white">
-            {registerMutation.isPending ? 'Creating account…' : 'Create account'}
-          </Text>
-        </Pressable>
+          loading={registerMutation.isPending}
+        />
 
         <View className="mt-6 flex-row justify-center">
-          <Text className="text-neutral-500 dark:text-neutral-400">Already have an account? </Text>
-          <Link href="/login" className="font-semibold text-orange-500">
+          <Text className="font-body text-ink-muted">Already have an account? </Text>
+          <Link href="/login" className="font-title text-primary-dim">
             Log in
           </Link>
         </View>

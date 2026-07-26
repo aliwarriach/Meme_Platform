@@ -21,11 +21,11 @@ export function SubmissionPicker({
   submittedMemeIds,
   onSubmit,
 }: SubmissionPickerProps) {
-  if (isLoading) return <ActivityIndicator className="my-4" />;
+  if (isLoading) return <ActivityIndicator className="my-4" color="#e3bdc5" />;
 
   if (memes.length === 0) {
     return (
-      <Text className="mb-4 text-sm text-neutral-400">
+      <Text className="mb-4 font-body text-sm text-ink-muted">
         Post a meme in this community first, then come back here to submit it.
       </Text>
     );
@@ -45,10 +45,10 @@ export function SubmissionPicker({
             className="mr-3 items-center disabled:opacity-40">
             <Image
               source={{ uri: meme.image_url }}
-              style={{ width: 88, height: 88, borderRadius: 12 }}
+              style={{ width: 88, height: 88, borderRadius: 16 }}
               contentFit="cover"
             />
-            <Text className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+            <Text className="mt-1 font-body text-xs text-ink-muted">
               {alreadySubmitted ? 'Submitted' : 'Submit'}
             </Text>
           </Pressable>

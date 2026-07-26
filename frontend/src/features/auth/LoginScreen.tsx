@@ -1,10 +1,11 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useRouter } from 'expo-router';
 import { Controller, useForm } from 'react-hook-form';
-import { Pressable, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch } from 'react-redux';
 
+import PillButton from '@/components/PillButton';
 import { TextField } from '@/components/TextField';
 import { loginSchema, type LoginFormValues } from '@/features/auth/schemas';
 import { useLoginMutation } from '@/services/useAuth';
@@ -40,12 +41,10 @@ export default function LoginScreen() {
   });
 
   return (
-    <SafeAreaView className="flex-1 bg-white dark:bg-neutral-950">
+    <SafeAreaView className="flex-1 bg-bg">
       <View className="flex-1 justify-center px-6">
-        <Text className="mb-1 text-3xl font-extrabold text-neutral-900 dark:text-white">
-          Welcome back
-        </Text>
-        <Text className="mb-8 text-base text-neutral-500 dark:text-neutral-400">
+        <Text className="mb-1 text-center font-heading text-3xl text-heading">MemeVerse</Text>
+        <Text className="mb-8 text-center font-body text-base text-ink-muted">
           Log in to keep posting to your communities.
         </Text>
 
@@ -77,22 +76,19 @@ export default function LoginScreen() {
         />
 
         {loginMutation.isError ? (
-          <Text className="mb-4 text-sm text-red-500">{loginMutation.error.message}</Text>
+          <Text className="mb-4 font-body text-sm text-error">{loginMutation.error.message}</Text>
         ) : null}
 
-        <Pressable
+        <PillButton
+          label={loginMutation.isPending ? 'Logging in…' : 'Log In'}
           onPress={onSubmit}
-          disabled={loginMutation.isPending}
-          className="items-center rounded-xl bg-orange-500 py-3.5 disabled:opacity-50">
-          <Text className="text-base font-bold text-white">
-            {loginMutation.isPending ? 'Logging in…' : 'Log in'}
-          </Text>
-        </Pressable>
+          loading={loginMutation.isPending}
+        />
 
         <View className="mt-6 flex-row justify-center">
-          <Text className="text-neutral-500 dark:text-neutral-400">Don&apos;t have an account? </Text>
-          <Link href="/register" className="font-semibold text-orange-500">
-            Sign up
+          <Text className="font-body text-ink-muted">Don&apos;t have an account? </Text>
+          <Link href="/register" className="font-title text-primary-dim">
+            Register
           </Link>
         </View>
       </View>

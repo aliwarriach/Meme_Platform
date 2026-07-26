@@ -1,6 +1,8 @@
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
+import Avatar from '@/components/Avatar';
 import type { FriendshipResponse } from '@/services/friends';
+import { timeAgo } from '@/utils/timeAgo';
 
 interface FriendRequestRowProps {
   request: FriendshipResponse;
@@ -10,20 +12,24 @@ interface FriendRequestRowProps {
 
 export function FriendRequestRow({ request, onAccept, isAccepting }: FriendRequestRowProps) {
   return (
-    <View className="flex-row items-center justify-between border-b border-neutral-100 px-4 py-3 dark:border-neutral-800">
-      <Text className="text-base font-semibold text-neutral-900 dark:text-white">
-        {request.requester.username}
-      </Text>
+    <View className="flex-row items-center justify-between border-b border-outline-variant/20 px-4 py-3">
+      <View className="flex-row items-center gap-3">
+        <Avatar username={request.requester.username} size="md" />
+        <View>
+          <Text className="font-title text-heading">{request.requester.username}</Text>
+          <Text className="font-body text-xs text-ink-muted">Requested {timeAgo(request.created_at)} ago</Text>
+        </View>
+      </View>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Accept friend request from ${request.requester.username}`}
         onPress={() => onAccept(request.id)}
         disabled={isAccepting}
-        className="min-h-[44px] min-w-[44px] items-center justify-center rounded-lg bg-orange-500 px-4 disabled:opacity-50">
+        className="min-h-[44px] min-w-[44px] items-center justify-center rounded-full bg-primary px-4 disabled:opacity-50">
         {isAccepting ? (
           <ActivityIndicator size="small" color="#fff" />
         ) : (
-          <Text className="text-sm font-bold text-white">Accept</Text>
+          <Text className="font-title text-sm text-white">Accept</Text>
         )}
       </Pressable>
     </View>

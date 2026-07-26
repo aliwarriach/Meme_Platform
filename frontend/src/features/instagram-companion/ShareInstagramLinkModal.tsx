@@ -4,6 +4,7 @@ import { Modal, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { z } from 'zod';
 
+import PillButton from '@/components/PillButton';
 import { TextField } from '@/components/TextField';
 import { useCreateContainerMutation } from '@/services/useInstagram';
 
@@ -45,22 +46,20 @@ export function ShareInstagramLinkModal({ visible, onClose }: ShareInstagramLink
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView className="flex-1 bg-white dark:bg-neutral-950">
+      <SafeAreaView className="flex-1 bg-bg">
         <View className="flex-1 px-6 py-4">
           <View className="mb-6 flex-row items-center justify-between">
-            <Text className="text-xl font-extrabold text-neutral-900 dark:text-white">
-              Share an Instagram Reel
-            </Text>
+            <Text className="font-heading text-xl text-heading">Share an Instagram Reel</Text>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Close"
               onPress={onClose}
-              className="min-h-[44px] min-w-[44px] items-center justify-center">
-              <Text className="text-2xl text-neutral-900 dark:text-white">×</Text>
+              className="h-11 w-11 items-center justify-center">
+              <Text className="text-2xl text-heading">×</Text>
             </Pressable>
           </View>
 
-          <Text className="mb-4 text-sm text-neutral-500 dark:text-neutral-400">
+          <Text className="mb-4 font-body text-sm text-ink-muted">
             Paste a link to an Instagram Reel or post — it&apos;ll show up in your feed with its
             own reactions and comments, and it&apos;s eligible for Meme of the Day/Week/Month.
           </Text>
@@ -82,19 +81,15 @@ export function ShareInstagramLinkModal({ visible, onClose }: ShareInstagramLink
           />
 
           {createContainer.isError ? (
-            <Text className="mb-3 text-sm text-red-500">{createContainer.error.message}</Text>
+            <Text className="mb-3 font-body text-sm text-error">{createContainer.error.message}</Text>
           ) : null}
 
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Share link"
+          <PillButton
+            label={createContainer.isPending ? 'Sharing…' : 'Add to Feed'}
             onPress={onSubmit}
-            disabled={createContainer.isPending}
-            className="mt-2 items-center rounded-xl bg-orange-500 py-3.5 disabled:opacity-50">
-            <Text className="text-base font-bold text-white">
-              {createContainer.isPending ? 'Sharing…' : 'Share'}
-            </Text>
-          </Pressable>
+            loading={createContainer.isPending}
+            className="mt-2"
+          />
         </View>
       </SafeAreaView>
     </Modal>

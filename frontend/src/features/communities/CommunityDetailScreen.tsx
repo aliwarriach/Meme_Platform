@@ -1,10 +1,13 @@
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
 
+import Chip from '@/components/Chip';
+import PillButton from '@/components/PillButton';
+import TopBar from '@/components/TopBar';
 import { ChallengeRow } from '@/features/challenges/components/ChallengeRow';
 import { JoinRequestRow } from '@/features/communities/components/JoinRequestRow';
 import { MemberRow } from '@/features/communities/components/MemberRow';
@@ -62,13 +65,13 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
 
   if (communityQuery.isLoading || !community) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-white dark:bg-neutral-950">
+      <SafeAreaView className="flex-1 items-center justify-center bg-bg">
         {communityQuery.isError ? (
-          <Text className="px-6 text-center text-sm text-red-500">
+          <Text className="px-6 text-center font-body text-sm text-error">
             {communityQuery.error?.message}
           </Text>
         ) : (
-          <ActivityIndicator />
+          <ActivityIndicator color="#e3bdc5" />
         )}
       </SafeAreaView>
     );
@@ -77,94 +80,69 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
   const renderActionButton = () => {
     if (isOwner) {
       return (
-        <View className="rounded-xl border border-neutral-300 py-3 dark:border-neutral-700">
-          <Text className="text-center font-bold text-neutral-900 dark:text-white">
-            You own this community
-          </Text>
+        <View className="items-center rounded-full border border-outline py-3">
+          <Text className="font-title text-heading">You own this community</Text>
         </View>
       );
     }
 
     if (community.viewer_membership_status === 'active') {
       return (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Leave community"
+        <PillButton
+          label={leaveCommunity.isPending ? 'Leaving…' : 'Leave Community'}
+          variant="outline"
           onPress={() => leaveCommunity.mutate()}
-          disabled={leaveCommunity.isPending}
-          className="items-center rounded-xl border border-red-500 py-3 disabled:opacity-50">
-          <Text className="font-bold text-red-500">
-            {leaveCommunity.isPending ? 'Leaving…' : 'Leave community'}
-          </Text>
-        </Pressable>
+          loading={leaveCommunity.isPending}
+        />
       );
     }
 
     if (community.viewer_membership_status === 'pending') {
       return (
-        <View className="items-center rounded-xl bg-neutral-100 py-3 dark:bg-neutral-900">
-          <Text className="font-bold text-neutral-500 dark:text-neutral-400">
-            Request pending owner approval
-          </Text>
+        <View className="items-center rounded-full bg-surface-high py-3">
+          <Text className="font-title text-ink-muted">Request Pending</Text>
         </View>
       );
     }
 
     return (
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={community.privacy === 'open' ? 'Join community' : 'Request to join'}
+      <PillButton
+        label={community.privacy === 'open' ? 'Join Community' : 'Request to Join'}
         onPress={() => joinCommunity.mutate()}
-        disabled={joinCommunity.isPending}
-        className="items-center rounded-xl bg-orange-500 py-3 disabled:opacity-50">
-        <Text className="font-bold text-white">
-          {joinCommunity.isPending
-            ? 'Sending…'
-            : community.privacy === 'open'
-              ? 'Join community'
-              : 'Request to join'}
-        </Text>
-      </Pressable>
+        loading={joinCommunity.isPending}
+      />
     );
   };
 
   const header = (
     <View className="px-6 pt-4">
-      <View className="mb-4 flex-row items-center">
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-          onPress={() => router.back()}
-          className="min-h-[44px] min-w-[44px] items-center justify-center">
-          <Text className="text-2xl text-neutral-900 dark:text-white">‹</Text>
-        </Pressable>
-      </View>
-
       <View className="mb-4 items-center">
         {community.icon_url ? (
           <Image
             source={{ uri: community.icon_url }}
-            style={{ width: 80, height: 80, borderRadius: 20 }}
+            style={{ width: 80, height: 80, borderRadius: 24 }}
             contentFit="cover"
           />
         ) : (
-          <View className="h-20 w-20 items-center justify-center rounded-2xl bg-orange-500">
-            <Text className="text-2xl font-extrabold text-white">
+          <View className="h-20 w-20 items-center justify-center rounded-3xl bg-primary-container">
+            <Text className="font-heading text-2xl text-white">
               {community.name.slice(0, 2).toUpperCase()}
             </Text>
           </View>
         )}
-        <Text className="mt-3 text-xl font-extrabold text-neutral-900 dark:text-white">
-          {community.name}
-        </Text>
-        <Text className="text-sm text-neutral-500 dark:text-neutral-400">
-          {community.member_count} member{community.member_count === 1 ? '' : 's'} ·{' '}
-          {community.privacy === 'open' ? 'Open' : 'Invite only'}
-        </Text>
-        {community.description ? (
-          <Text className="mt-2 text-center text-neutral-700 dark:text-neutral-300">
-            {community.description}
+        <Text className="mt-3 font-heading text-xl text-heading">{community.name}</Text>
+        <View className="mt-1 flex-row items-center gap-2">
+          <View className="rounded-full bg-surface-high px-3 py-1">
+            <Text className="font-label text-xs text-ink-muted">
+              {community.privacy === 'open' ? 'Open' : 'Invite only'}
+            </Text>
+          </View>
+          <Text className="font-body text-sm text-ink-muted">
+            {community.member_count} member{community.member_count === 1 ? '' : 's'}
           </Text>
+        </View>
+        {community.description ? (
+          <Text className="mt-2 text-center font-body text-ink">{community.description}</Text>
         ) : null}
       </View>
 
@@ -172,15 +150,24 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
 
       {isOwner ? (
         <View className="mb-6">
-          <Text className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
-            Join requests
-          </Text>
+          <View className="mb-2 flex-row items-center gap-2">
+            <Text className="font-label text-xs uppercase tracking-wide text-ink-muted">
+              Join requests
+            </Text>
+            {(joinRequestsQuery.data ?? []).length > 0 ? (
+              <View className="rounded-full bg-primary/20 px-2 py-0.5">
+                <Text className="font-label text-xs text-primary-dim">
+                  {joinRequestsQuery.data?.length} Pending
+                </Text>
+              </View>
+            ) : null}
+          </View>
           {joinRequestsQuery.isLoading ? (
-            <ActivityIndicator />
+            <ActivityIndicator color="#e3bdc5" />
           ) : joinRequestsQuery.isError ? (
-            <Text className="text-sm text-red-500">{joinRequestsQuery.error?.message}</Text>
+            <Text className="font-body text-sm text-error">{joinRequestsQuery.error?.message}</Text>
           ) : (joinRequestsQuery.data ?? []).length === 0 ? (
-            <Text className="text-sm text-neutral-400">No pending requests</Text>
+            <Text className="font-body text-sm text-ink-muted">No pending requests</Text>
           ) : (
             joinRequestsQuery.data?.map((request) => (
               <JoinRequestRow
@@ -197,115 +184,63 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
 
       {isMember ? (
         <View className="mb-4 flex-row items-center justify-between">
-          <View className="flex-row">
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Show community feed"
-              onPress={() => setActiveTab('feed')}
-              className={`mr-2 min-h-[44px] items-center justify-center rounded-xl border px-4 ${
-                activeTab === 'feed'
-                  ? 'border-orange-500 bg-orange-500'
-                  : 'border-neutral-300 dark:border-neutral-700'
-              }`}>
-              <Text className={activeTab === 'feed' ? 'font-bold text-white' : 'text-neutral-900 dark:text-white'}>
-                Feed
-              </Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Show members"
+          <View className="flex-1 flex-row flex-wrap gap-2">
+            <Chip label="Feed" selected={activeTab === 'feed'} onPress={() => setActiveTab('feed')} />
+            <Chip
+              label="Members"
+              selected={activeTab === 'members'}
               onPress={() => setActiveTab('members')}
-              className={`mr-2 min-h-[44px] items-center justify-center rounded-xl border px-4 ${
-                activeTab === 'members'
-                  ? 'border-orange-500 bg-orange-500'
-                  : 'border-neutral-300 dark:border-neutral-700'
-              }`}>
-              <Text
-                className={
-                  activeTab === 'members' ? 'font-bold text-white' : 'text-neutral-900 dark:text-white'
-                }>
-                Members
-              </Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Show community leaderboard"
+            />
+            <Chip
+              label="Leaderboard"
+              selected={activeTab === 'leaderboard'}
               onPress={() => setActiveTab('leaderboard')}
-              className={`min-h-[44px] items-center justify-center rounded-xl border px-4 ${
-                activeTab === 'leaderboard'
-                  ? 'border-orange-500 bg-orange-500'
-                  : 'border-neutral-300 dark:border-neutral-700'
-              }`}>
-              <Text
-                className={
-                  activeTab === 'leaderboard'
-                    ? 'font-bold text-white'
-                    : 'text-neutral-900 dark:text-white'
-                }>
-                Leaderboard
-              </Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Show challenges"
+            />
+            <Chip
+              label="Challenges"
+              selected={activeTab === 'challenges'}
               onPress={() => setActiveTab('challenges')}
-              className={`ml-2 min-h-[44px] items-center justify-center rounded-xl border px-4 ${
-                activeTab === 'challenges'
-                  ? 'border-orange-500 bg-orange-500'
-                  : 'border-neutral-300 dark:border-neutral-700'
-              }`}>
-              <Text
-                className={
-                  activeTab === 'challenges'
-                    ? 'font-bold text-white'
-                    : 'text-neutral-900 dark:text-white'
-                }>
-                Challenges
-              </Text>
-            </Pressable>
+            />
           </View>
-
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Post to ${community.name}`}
-            onPress={() =>
-              router.push({
-                pathname: '/new-post',
-                params: { communityId: community.id, communityName: community.name },
-              })
-            }
-            className="min-h-[44px] items-center justify-center rounded-xl bg-orange-500 px-4">
-            <Text className="text-sm font-bold text-white">+ Post</Text>
-          </Pressable>
         </View>
       ) : null}
 
+      {isMember && activeTab === 'feed' ? (
+        <PillButton
+          label="+ Post"
+          onPress={() =>
+            router.push({
+              pathname: '/new-post',
+              params: { communityId: community.id, communityName: community.name },
+            })
+          }
+          className="mb-4 self-start"
+        />
+      ) : null}
+
       {isMember && activeTab === 'challenges' && isOwner ? (
-        <View className="mb-4 flex-row">
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Set up a new team challenge"
+        <View className="mb-4 flex-row gap-3">
+          <PillButton
+            label="+ Team Challenge"
+            className="flex-1"
             onPress={() =>
               router.push({
                 pathname: '/communities/[id]/challenges/new',
                 params: { id: community.id },
               })
             }
-            className="mr-2 flex-1 items-center rounded-xl bg-orange-500 py-3">
-            <Text className="font-bold text-white">+ Team Challenge</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Challenge another community"
+          />
+          <PillButton
+            label="Challenge a Community"
+            variant="outline"
+            className="flex-1"
             onPress={() =>
               router.push({
                 pathname: '/communities/[id]/challenges/vs',
                 params: { id: community.id },
               })
             }
-            className="flex-1 items-center rounded-xl border border-orange-500 py-3">
-            <Text className="font-bold text-orange-500">Challenge a Community</Text>
-          </Pressable>
+          />
         </View>
       ) : null}
     </View>
@@ -313,7 +248,8 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
 
   if (isMember && activeTab === 'feed') {
     return (
-      <SafeAreaView className="flex-1 bg-white dark:bg-neutral-950">
+      <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
+        <TopBar title={community.name} showBack />
         <MemeFeedList
           memes={memes}
           isLoading={feedQuery.isLoading}
@@ -333,7 +269,8 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
 
   if (isMember && activeTab === 'leaderboard') {
     return (
-      <SafeAreaView className="flex-1 bg-white dark:bg-neutral-950">
+      <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
+        <TopBar title={community.name} showBack />
         <FlatList
           data={leaderboardEntries}
           keyExtractor={(item) => item.user.id}
@@ -341,6 +278,7 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
             <IndividualLeaderboardRow entry={item} isViewer={item.user.id === currentUser?.id} />
           )}
           ListHeaderComponent={header}
+          contentContainerStyle={{ paddingBottom: 40 }}
           onEndReachedThreshold={0.5}
           onEndReached={() => {
             if (leaderboardQuery.hasNextPage && !leaderboardQuery.isFetchingNextPage) {
@@ -354,15 +292,15 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
             />
           }
           ListFooterComponent={
-            leaderboardQuery.isFetchingNextPage ? <ActivityIndicator className="my-4" /> : null
+            leaderboardQuery.isFetchingNextPage ? <ActivityIndicator className="my-4" color="#e3bdc5" /> : null
           }
           ListEmptyComponent={
             leaderboardQuery.isLoading ? (
-              <ActivityIndicator className="my-8" />
+              <ActivityIndicator className="my-8" color="#e3bdc5" />
             ) : leaderboardQuery.isError ? (
-              <Text className="mx-6 text-sm text-red-500">{leaderboardQuery.error?.message}</Text>
+              <Text className="mx-6 font-body text-sm text-error">{leaderboardQuery.error?.message}</Text>
             ) : (
-              <Text className="mx-6 mt-8 text-center text-sm text-neutral-400">
+              <Text className="mx-6 mt-8 text-center font-body text-sm text-ink-muted">
                 No scores yet in this community
               </Text>
             )
@@ -374,16 +312,17 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
 
   if (isMember && activeTab === 'challenges') {
     return (
-      <SafeAreaView className="flex-1 bg-white dark:bg-neutral-950">
+      <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
+        <TopBar title={community.name} showBack />
         <ScrollView className="flex-1">
           {header}
           <View className="px-6 pb-6">
             {challengesQuery.isLoading ? (
-              <ActivityIndicator className="my-4" />
+              <ActivityIndicator className="my-4" color="#e3bdc5" />
             ) : challengesQuery.isError ? (
-              <Text className="text-sm text-red-500">{challengesQuery.error?.message}</Text>
+              <Text className="font-body text-sm text-error">{challengesQuery.error?.message}</Text>
             ) : (challengesQuery.data ?? []).length === 0 ? (
-              <Text className="text-sm text-neutral-400">No challenges yet</Text>
+              <Text className="font-body text-sm text-ink-muted">No challenges yet</Text>
             ) : (
               challengesQuery.data?.map((challenge) => (
                 <ChallengeRow
@@ -405,17 +344,16 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-white dark:bg-neutral-950">
+    <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
+      <TopBar title={community.name} showBack />
       <ScrollView className="flex-1">
         {header}
         <View className="px-6 pb-6">
-          <Text className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
-            Members
-          </Text>
+          <Text className="mb-2 font-label text-xs uppercase tracking-wide text-ink-muted">Members</Text>
           {membersQuery.isLoading ? (
-            <ActivityIndicator />
+            <ActivityIndicator color="#e3bdc5" />
           ) : membersQuery.isError ? (
-            <Text className="text-sm text-neutral-400">{membersQuery.error?.message}</Text>
+            <Text className="font-body text-sm text-ink-muted">{membersQuery.error?.message}</Text>
           ) : (
             membersQuery.data?.map((member) => <MemberRow key={member.id} membership={member} />)
           )}

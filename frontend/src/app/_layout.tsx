@@ -1,10 +1,17 @@
 import '@/global.css';
 
+import {
+  BeVietnamPro_400Regular,
+  BeVietnamPro_500Medium,
+  BeVietnamPro_600SemiBold,
+  BeVietnamPro_700Bold,
+  useFonts,
+} from '@expo-google-fonts/be-vietnam-pro';
+import { MaterialIcons } from '@expo/vector-icons';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
-import { useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Provider as ReduxProvider, useDispatch, useSelector } from 'react-redux';
 
@@ -17,7 +24,7 @@ SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
-function AuthBoundary() {
+function AuthBoundary({ fontsLoaded }: { fontsLoaded: boolean }) {
   const dispatch = useDispatch<AppDispatch>();
   const isBootstrapped = useSelector((state: RootState) => state.auth.isBootstrapped);
   const token = useSelector((state: RootState) => state.auth.token);
@@ -27,8 +34,8 @@ function AuthBoundary() {
   }, [dispatch]);
 
   useEffect(() => {
-    if (isBootstrapped) SplashScreen.hideAsync();
-  }, [isBootstrapped]);
+    if (isBootstrapped && fontsLoaded) SplashScreen.hideAsync();
+  }, [isBootstrapped, fontsLoaded]);
 
   // The socket connection tracks the auth token directly — connect once logged in,
   // disconnect on logout, so an unauthenticated client never opens the WS. No cleanup
@@ -48,13 +55,14 @@ function AuthBoundary() {
 
   useMemeSendingSocketSync();
 
-  if (!isBootstrapped) return null;
+  if (!isBootstrapped || !fontsLoaded) return null;
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="login" />
       <Stack.Screen name="register" />
+      <Stack.Screen name="profile" />
       <Stack.Screen name="friends" />
       <Stack.Screen name="feed" />
       <Stack.Screen name="new-post" />
@@ -72,14 +80,21 @@ function AuthBoundary() {
 }
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
+  const [fontsLoaded] = useFonts({
+    BeVietnamPro_400Regular,
+    BeVietnamPro_500Medium,
+    BeVietnamPro_600SemiBold,
+    BeVietnamPro_700Bold,
+    ...MaterialIcons.font,
+  });
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ReduxProvider store={store}>
         <QueryClientProvider client={queryClient}>
-          <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-            <AuthBoundary />
+          {/* MemeVerse Studio design system is dark-mode-only ("Vivid Meme Culture") — never follow system light mode */}
+          <ThemeProvider value={DarkTheme}>
+            <AuthBoundary fontsLoaded={fontsLoaded} />
           </ThemeProvider>
         </QueryClientProvider>
       </ReduxProvider>

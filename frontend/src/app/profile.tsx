@@ -1,10 +1,11 @@
 import { Redirect } from 'expo-router';
 import { useSelector } from 'react-redux';
 
+import SessionScreen from '@/features/auth/SessionScreen';
 import type { RootState } from '@/store/store';
 
-/** Pure gate: `/` never renders a screen itself, it just routes to feed (logged in) or login. */
-export default function Index() {
+export default function Profile() {
   const token = useSelector((state: RootState) => state.auth.token);
-  return <Redirect href={token ? '/feed' : '/login'} />;
+  if (!token) return <Redirect href="/login" />;
+  return <SessionScreen />;
 }

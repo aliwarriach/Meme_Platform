@@ -2,6 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Controller, useForm } from 'react-hook-form';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
+import Avatar from '@/components/Avatar';
 import { TextField } from '@/components/TextField';
 import { commentSchema, type CommentFormValues } from '@/features/feed/schemas';
 import { useAddCommentMutation, useComments } from '@/services/useMemes';
@@ -34,16 +35,18 @@ export function CommentsSection({ memeId }: CommentsSectionProps) {
   });
 
   return (
-    <View className="mt-2 px-4">
+    <View className="mt-2 border-t border-outline-variant/30 px-4 pt-3">
       {commentsQuery.isLoading ? (
-        <ActivityIndicator className="my-2" />
+        <ActivityIndicator className="my-2" color="#e3bdc5" />
       ) : commentsQuery.isError ? (
-        <Text className="text-sm text-red-500">{commentsQuery.error.message}</Text>
+        <Text className="font-body text-sm text-error">{commentsQuery.error.message}</Text>
       ) : (
         commentsQuery.data?.map((comment) => (
-          <View key={comment.id} className="mb-1.5">
-            <Text className="text-sm text-neutral-900 dark:text-neutral-100">
-              <Text className="font-semibold">{comment.author.username}</Text> {comment.body}
+          <View key={comment.id} className="mb-3 flex-row items-start gap-2">
+            <Avatar username={comment.author.username} size="sm" />
+            <Text className="flex-1 font-body text-sm text-ink">
+              <Text className="font-title text-heading">{comment.author.username} </Text>
+              {comment.body}
             </Text>
           </View>
         ))
@@ -69,14 +72,14 @@ export function CommentsSection({ memeId }: CommentsSectionProps) {
           accessibilityLabel="Post comment"
           onPress={onSubmit}
           disabled={addComment.isPending}
-          className="mb-6 min-h-[44px] items-center justify-center rounded-xl bg-orange-500 px-4 disabled:opacity-50">
-          <Text className="text-sm font-bold text-white">
+          className="mb-6 min-h-[44px] items-center justify-center rounded-full bg-primary px-5 disabled:opacity-50">
+          <Text className="font-title text-sm text-white">
             {addComment.isPending ? 'Posting…' : 'Post'}
           </Text>
         </Pressable>
       </View>
       {addComment.isError ? (
-        <Text className="mb-2 text-sm text-red-500">{addComment.error.message}</Text>
+        <Text className="mb-2 font-body text-sm text-error">{addComment.error.message}</Text>
       ) : null}
     </View>
   );

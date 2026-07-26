@@ -1,9 +1,11 @@
-import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, RefreshControl, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
 
+import Chip from '@/components/Chip';
+import FloatingBottomNav from '@/components/FloatingBottomNav';
+import TopBar from '@/components/TopBar';
 import { CommunityLeaderboardRow } from '@/features/leaderboards/components/CommunityLeaderboardRow';
 import { IndividualLeaderboardRow } from '@/features/leaderboards/components/IndividualLeaderboardRow';
 import { useGlobalCommunityLeaderboard, useIndividualLeaderboard } from '@/services/useLeaderboards';
@@ -12,7 +14,6 @@ import type { RootState } from '@/store/store';
 type Tab = 'individual' | 'communities';
 
 export default function LeaderboardsScreen() {
-  const router = useRouter();
   const currentUser = useSelector((state: RootState) => state.auth.user);
   const [activeTab, setActiveTab] = useState<Tab>('individual');
 
@@ -23,61 +24,16 @@ export default function LeaderboardsScreen() {
   const communityEntries = communityQuery.data?.pages.flatMap((page) => page.items) ?? [];
 
   const header = (
-    <View className="px-6 pt-4">
-      <View className="mb-4 flex-row items-center">
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-          onPress={() => router.back()}
-          className="min-h-[44px] min-w-[44px] items-center justify-center">
-          <Text className="text-2xl text-neutral-900 dark:text-white">‹</Text>
-        </Pressable>
-        <Text className="ml-2 text-xl font-extrabold text-neutral-900 dark:text-white">
-          Leaderboards
-        </Text>
-      </View>
-
-      <View className="mb-2 flex-row">
-        <Pressable
-          accessibilityRole="tab"
-          accessibilityLabel="Show individual leaderboard"
-          accessibilityState={{ selected: activeTab === 'individual' }}
-          onPress={() => setActiveTab('individual')}
-          className={`mr-2 min-h-[44px] items-center justify-center rounded-xl border px-4 ${
-            activeTab === 'individual'
-              ? 'border-orange-500 bg-orange-500'
-              : 'border-neutral-300 dark:border-neutral-700'
-          }`}>
-          <Text
-            className={
-              activeTab === 'individual' ? 'font-bold text-white' : 'text-neutral-900 dark:text-white'
-            }>
-            Individual
-          </Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="tab"
-          accessibilityLabel="Show community leaderboard"
-          accessibilityState={{ selected: activeTab === 'communities' }}
-          onPress={() => setActiveTab('communities')}
-          className={`min-h-[44px] items-center justify-center rounded-xl border px-4 ${
-            activeTab === 'communities'
-              ? 'border-orange-500 bg-orange-500'
-              : 'border-neutral-300 dark:border-neutral-700'
-          }`}>
-          <Text
-            className={
-              activeTab === 'communities' ? 'font-bold text-white' : 'text-neutral-900 dark:text-white'
-            }>
-            Communities
-          </Text>
-        </Pressable>
-      </View>
+    <View className="mb-2 flex-row gap-2 px-6 pt-4">
+      <Chip label="Individual" selected={activeTab === 'individual'} onPress={() => setActiveTab('individual')} />
+      <Chip label="Communities" selected={activeTab === 'communities'} onPress={() => setActiveTab('communities')} />
     </View>
   );
 
   return (
-    <SafeAreaView className="flex-1 bg-white dark:bg-neutral-950">
+    <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
+      <TopBar title="Leaderboards" showBack />
+
       {activeTab === 'individual' ? (
         <FlatList
           data={individualEntries}
@@ -86,6 +42,7 @@ export default function LeaderboardsScreen() {
             <IndividualLeaderboardRow entry={item} isViewer={item.user.id === currentUser?.id} />
           )}
           ListHeaderComponent={header}
+          contentContainerStyle={{ paddingBottom: 100 }}
           onEndReachedThreshold={0.5}
           onEndReached={() => {
             if (individualQuery.hasNextPage && !individualQuery.isFetchingNextPage) {
@@ -99,15 +56,15 @@ export default function LeaderboardsScreen() {
             />
           }
           ListFooterComponent={
-            individualQuery.isFetchingNextPage ? <ActivityIndicator className="my-4" /> : null
+            individualQuery.isFetchingNextPage ? <ActivityIndicator className="my-4" color="#e3bdc5" /> : null
           }
           ListEmptyComponent={
             individualQuery.isLoading ? (
-              <ActivityIndicator className="my-8" />
+              <ActivityIndicator className="my-8" color="#e3bdc5" />
             ) : individualQuery.isError ? (
-              <Text className="mx-6 text-sm text-red-500">{individualQuery.error?.message}</Text>
+              <Text className="mx-6 font-body text-sm text-error">{individualQuery.error?.message}</Text>
             ) : (
-              <Text className="mx-6 mt-8 text-center text-sm text-neutral-400">
+              <Text className="mx-6 mt-8 text-center font-body text-sm text-ink-muted">
                 No scores yet — be the first to post
               </Text>
             )
@@ -119,6 +76,7 @@ export default function LeaderboardsScreen() {
           keyExtractor={(item) => item.community_id}
           renderItem={({ item }) => <CommunityLeaderboardRow entry={item} />}
           ListHeaderComponent={header}
+          contentContainerStyle={{ paddingBottom: 100 }}
           onEndReachedThreshold={0.5}
           onEndReached={() => {
             if (communityQuery.hasNextPage && !communityQuery.isFetchingNextPage) {
@@ -132,21 +90,21 @@ export default function LeaderboardsScreen() {
             />
           }
           ListFooterComponent={
-            communityQuery.isFetchingNextPage ? <ActivityIndicator className="my-4" /> : null
+            communityQuery.isFetchingNextPage ? <ActivityIndicator className="my-4" color="#e3bdc5" /> : null
           }
           ListEmptyComponent={
             communityQuery.isLoading ? (
-              <ActivityIndicator className="my-8" />
+              <ActivityIndicator className="my-8" color="#e3bdc5" />
             ) : communityQuery.isError ? (
-              <Text className="mx-6 text-sm text-red-500">{communityQuery.error?.message}</Text>
+              <Text className="mx-6 font-body text-sm text-error">{communityQuery.error?.message}</Text>
             ) : (
-              <Text className="mx-6 mt-8 text-center text-sm text-neutral-400">
-                No communities yet
-              </Text>
+              <Text className="mx-6 mt-8 text-center font-body text-sm text-ink-muted">No communities yet</Text>
             )
           }
         />
       )}
+
+      <FloatingBottomNav active="leaderboards" />
     </SafeAreaView>
   );
 }

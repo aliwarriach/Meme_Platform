@@ -8,9 +8,9 @@ interface ChallengeRowProps {
 }
 
 const STATUS_STYLES: Record<ChallengeResponse['status'], string> = {
-  active: 'bg-green-500',
-  evaluated: 'bg-orange-500',
-  setup: 'bg-neutral-300 dark:bg-neutral-700',
+  active: 'bg-tertiary',
+  evaluated: 'bg-primary',
+  setup: 'bg-surface-high',
 };
 
 export function ChallengeRow({ challenge, onPress }: ChallengeRowProps) {
@@ -19,15 +19,15 @@ export function ChallengeRow({ challenge, onPress }: ChallengeRowProps) {
       accessibilityRole="button"
       accessibilityLabel={`Open challenge ${challenge.title}`}
       onPress={onPress}
-      className="mb-2 flex-row items-center justify-between rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">
+      className="mb-2 flex-row items-center justify-between rounded-card border border-outline-variant/30 bg-surface p-3">
       <View className="flex-1">
-        <Text className="font-bold text-neutral-900 dark:text-white">{challenge.title}</Text>
-        <Text className="text-xs text-neutral-500 dark:text-neutral-400">
+        <Text className="font-title text-heading">{challenge.title}</Text>
+        <Text className="font-body text-xs text-ink-muted">
           {challenge.sides.map((s) => s.name).join(' vs ')}
         </Text>
       </View>
-      <View className={`rounded-full px-2 py-1 ${STATUS_STYLES[challenge.status]}`}>
-        <Text className="text-xs font-bold uppercase text-white">
+      <View className={`rounded-full px-3 py-1 ${STATUS_STYLES[challenge.status]}`}>
+        <Text className="font-label text-xs uppercase text-white">
           {challenge.status === 'setup' ? 'Pending' : challenge.status}
         </Text>
       </View>

@@ -1,11 +1,14 @@
+import { MaterialIcons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 
+import VotePill from '@/components/VotePill';
 import { ContainerCommentsSection } from '@/features/instagram-companion/ContainerCommentsSection';
 import type { MemeContainerResponse } from '@/services/instagram';
 import { useCastContainerVoteMutation, useRecordContainerViewMutation } from '@/services/useInstagram';
+import { timeAgo } from '@/utils/timeAgo';
 import { useRecordViewOnVisible } from '@/utils/useRecordViewOnVisible';
 
 interface ContainerCardProps {
@@ -27,117 +30,87 @@ export function ContainerCard({ container }: ContainerCardProps) {
   const onVote = (value: 1 | -1) => castVote.mutate({ containerId: container.id, value });
 
   return (
-    <View ref={cardRef} className="mb-4 border-b border-neutral-100 pb-4 dark:border-neutral-800">
-      <View className="flex-row items-center px-4 py-2">
-        <View className="mr-2 h-8 w-8 items-center justify-center rounded-full bg-pink-500">
-          <Text className="text-xs font-bold text-white">IG</Text>
+    <View ref={cardRef} className="mb-3 border-b border-outline-variant/30 bg-bg pb-3">
+      <View className="flex-row items-center px-4 py-3">
+        <View className="mr-3 h-8 w-8 items-center justify-center rounded-full bg-secondary">
+          <MaterialIcons name="camera-alt" size={16} color="#ffffff" />
         </View>
-        <View>
-          <Text className="font-semibold text-neutral-900 dark:text-white">
-            {container.submitter.username}
-          </Text>
-          <Text className="text-xs text-neutral-500 dark:text-neutral-400">
-            shared from Instagram
-          </Text>
+        <View className="flex-1 flex-row items-center justify-between">
+          <View>
+            <Text className="font-title text-sm text-heading">{container.submitter.username}</Text>
+            <Text className="font-body text-xs text-ink-muted">shared from Instagram</Text>
+          </View>
+          <Text className="font-body text-xs text-ink-muted">{timeAgo(container.created_at)}</Text>
         </View>
       </View>
 
-      <View style={{ width: '100%', aspectRatio: 1 }} className="bg-black">
-        <WebView
-          source={{ uri: container.source_url }}
-          style={{ flex: 1 }}
-          startInLoadingState
-          renderLoading={() => (
-            <View className="flex-1 items-center justify-center bg-black">
-              <ActivityIndicator color="white" />
+      <View style={{ width: '100%', aspectRatio: 4 / 5 }} className="bg-black">
+        {container.metadata_status === 'pending' ? (
+          <View className="flex-1 items-center justify-center bg-surface-high">
+            <ActivityIndicator color="#e3bdc5" />
+            <Text className="mt-2 font-body text-xs text-ink-muted">Fetching preview…</Text>
+          </View>
+        ) : (
+          <>
+            <WebView
+              source={{ uri: container.source_url }}
+              style={{ flex: 1 }}
+              startInLoadingState
+              renderLoading={() => (
+                <View className="flex-1 items-center justify-center bg-black">
+                  <ActivityIndicator color="#e3bdc5" />
+                </View>
+              )}
+            />
+            <View className="absolute right-3 top-3 rounded-full bg-black/60 p-1.5">
+              <MaterialIcons name="camera-alt" size={16} color="#ffffff" />
             </View>
-          )}
+          </>
+        )}
+      </View>
+
+      <View className="flex-row items-center justify-between px-4 pt-3">
+        <VotePill
+          score={container.score}
+          viewerVote={container.viewer_vote}
+          isVoting={isVoting}
+          onUpvote={() => onVote(1)}
+          onDownvote={() => onVote(-1)}
         />
+
+        <View className="flex-row items-center gap-4">
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Open original post on Instagram"
+            onPress={() => WebBrowser.openBrowserAsync(container.source_url)}
+            className="h-11 flex-row items-center gap-1 rounded-full border border-outline-variant px-3">
+            <Text className="font-title text-xs text-heading">Open Original ↗</Text>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Toggle comments"
+            onPress={() => setCommentsOpen((open) => !open)}
+            className="h-11 flex-row items-center gap-1">
+            <MaterialIcons name="chat-bubble-outline" size={20} color="#e3bdc5" />
+            <Text className="font-body text-sm text-ink-muted">{container.comment_count}</Text>
+          </Pressable>
+        </View>
       </View>
 
       {container.title ? (
-        <Text className="px-4 pt-2 text-neutral-900 dark:text-neutral-100">{container.title}</Text>
-      ) : container.metadata_status === 'pending' ? (
-        <Text className="px-4 pt-2 text-xs text-neutral-400">Loading details…</Text>
+        <Text className="px-4 pt-2 font-body text-sm text-ink">{container.title}</Text>
       ) : null}
 
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Open original post on Instagram"
-        onPress={() => WebBrowser.openBrowserAsync(container.source_url)}
-        className="px-4 pt-1">
-        <Text className="text-xs font-semibold text-orange-500">Open Original ↗</Text>
-      </Pressable>
-
-      <View className="flex-row items-center px-4 pt-2">
-        <View className="mr-4 flex-row items-center rounded-full bg-neutral-100 dark:bg-neutral-800">
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={container.viewer_vote === 1 ? 'Remove upvote' : 'Upvote this content'}
-            accessibilityState={{ selected: container.viewer_vote === 1, disabled: isVoting }}
-            onPress={() => onVote(1)}
-            disabled={isVoting}
-            className="min-h-[44px] min-w-[44px] items-center justify-center disabled:opacity-50">
-            <Text
-              className={
-                container.viewer_vote === 1
-                  ? 'text-orange-500'
-                  : 'text-neutral-500 dark:text-neutral-400'
-              }>
-              ▲
-            </Text>
-          </Pressable>
-
-          {isVoting ? (
-            <ActivityIndicator size="small" />
-          ) : (
-            <Text className="min-w-[24px] text-center font-semibold text-neutral-900 dark:text-white">
-              {container.score}
-            </Text>
-          )}
-
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={
-              container.viewer_vote === -1 ? 'Remove downvote' : 'Downvote this content'
-            }
-            accessibilityState={{ selected: container.viewer_vote === -1, disabled: isVoting }}
-            onPress={() => onVote(-1)}
-            disabled={isVoting}
-            className="min-h-[44px] min-w-[44px] items-center justify-center disabled:opacity-50">
-            <Text
-              className={
-                container.viewer_vote === -1
-                  ? 'text-blue-500'
-                  : 'text-neutral-500 dark:text-neutral-400'
-              }>
-              ▼
-            </Text>
-          </Pressable>
-        </View>
-
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Toggle comments"
-          onPress={() => setCommentsOpen((open) => !open)}
-          className="mr-4 min-h-[44px] justify-center">
-          <Text className="text-neutral-500 dark:text-neutral-400">
-            {container.comment_count} comment{container.comment_count === 1 ? '' : 's'}
-          </Text>
-        </Pressable>
-
-        {container.view_count !== null ? (
-          // Visible only to the submitter — server-gated, see services/instagram.py.
-          <View className="mr-4 min-h-[44px] justify-center">
-            <Text className="text-neutral-500 dark:text-neutral-400">
-              👁 {container.view_count} view{container.view_count === 1 ? '' : 's'}
-            </Text>
-          </View>
-        ) : null}
-      </View>
+      {container.view_count !== null ? (
+        // Visible only to the submitter — server-gated, see services/instagram.py.
+        <Text className="px-4 pt-1 font-body text-xs text-ink-muted">
+          👁 {container.view_count} view{container.view_count === 1 ? '' : 's'}
+        </Text>
+      ) : null}
 
       {castVote.isError ? (
-        <Text className="px-4 pt-1 text-xs text-red-500">{castVote.error?.message}</Text>
+        <Text className="px-4 pt-1 font-body text-xs text-error">{castVote.error?.message}</Text>
       ) : null}
 
       {commentsOpen ? <ContainerCommentsSection containerId={container.id} /> : null}

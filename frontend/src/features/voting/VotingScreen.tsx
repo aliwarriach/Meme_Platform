@@ -1,8 +1,9 @@
-import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, RefreshControl, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import Chip from '@/components/Chip';
+import TopBar from '@/components/TopBar';
 import { StandingRow } from '@/features/voting/components/StandingRow';
 import { WinnerBanner } from '@/features/voting/components/WinnerBanner';
 import type { CompetitionPeriodType } from '@/services/competitions';
@@ -16,7 +17,6 @@ const TABS: { type: CompetitionPeriodType; label: string; winnerLabel: string }[
 ];
 
 export default function VotingScreen() {
-  const router = useRouter();
   const [activeTab, setActiveTab] = useState<CompetitionPeriodType>('day');
 
   const standingsQuery = useCurrentStandings(activeTab);
@@ -25,39 +25,15 @@ export default function VotingScreen() {
   const activeTabMeta = TABS.find((tab) => tab.type === activeTab)!;
 
   const header = (
-    <View className="px-4 pt-4">
-      <View className="mb-4 flex-row items-center px-2">
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-          onPress={() => router.back()}
-          className="min-h-[44px] min-w-[44px] items-center justify-center">
-          <Text className="text-2xl text-neutral-900 dark:text-white">‹</Text>
-        </Pressable>
-        <Text className="ml-2 text-xl font-extrabold text-neutral-900 dark:text-white">
-          Meme of the Day/Week/Month
-        </Text>
-      </View>
-
-      <View className="mb-4 flex-row px-2">
+    <View className="pt-4">
+      <View className="mb-4 flex-row gap-2 px-4">
         {TABS.map((tab) => (
-          <Pressable
+          <Chip
             key={tab.type}
-            accessibilityRole="button"
-            accessibilityLabel={`Show ${tab.label} competition`}
+            label={tab.label}
+            selected={activeTab === tab.type}
             onPress={() => setActiveTab(tab.type)}
-            className={`mr-2 min-h-[44px] items-center justify-center rounded-xl border px-4 ${
-              activeTab === tab.type
-                ? 'border-orange-500 bg-orange-500'
-                : 'border-neutral-300 dark:border-neutral-700'
-            }`}>
-            <Text
-              className={
-                activeTab === tab.type ? 'font-bold text-white' : 'text-neutral-900 dark:text-white'
-              }>
-              {tab.label}
-            </Text>
-          </Pressable>
+          />
         ))}
       </View>
 
@@ -67,11 +43,16 @@ export default function VotingScreen() {
         isError={winnerQuery.isError}
         label={activeTabMeta.winnerLabel}
       />
+
+      <Text className="mb-2 mt-2 px-2 font-label text-xs uppercase tracking-wide text-ink-muted">
+        Top Contenders
+      </Text>
     </View>
   );
 
   return (
-    <SafeAreaView className="flex-1 bg-white dark:bg-neutral-950">
+    <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
+      <TopBar title="Competitions" showBack />
       <FlatList
         data={standingsQuery.data?.items ?? []}
         keyExtractor={(item) =>
@@ -87,11 +68,11 @@ export default function VotingScreen() {
         }
         ListEmptyComponent={
           standingsQuery.isLoading ? (
-            <ActivityIndicator className="my-8" />
+            <ActivityIndicator className="my-8" color="#e3bdc5" />
           ) : standingsQuery.isError ? (
-            <Text className="mx-6 text-sm text-red-500">{standingsQuery.error?.message}</Text>
+            <Text className="mx-6 font-body text-sm text-error">{standingsQuery.error?.message}</Text>
           ) : (
-            <Text className="mx-6 mt-8 text-center text-sm text-neutral-400">
+            <Text className="mx-6 mt-8 text-center font-body text-sm text-ink-muted">
               No votes yet in this period — be the first
             </Text>
           )

@@ -1,8 +1,11 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import PillButton from '@/components/PillButton';
+import { TextField } from '@/components/TextField';
+import TopBar from '@/components/TopBar';
 import { useDiscoverCommunities } from '@/services/useCommunities';
 import { useProposeVsChallengeMutation } from '@/services/useChallenges';
 
@@ -64,56 +67,32 @@ export default function ProposeVsChallengeScreen({ communityId }: ProposeVsChall
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-white dark:bg-neutral-950">
+    <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
+      <TopBar title="Challenge a Community" showBack />
       <ScrollView className="flex-1 px-6 pt-4">
-        <View className="mb-4 flex-row items-center">
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-            onPress={() => router.back()}
-            className="min-h-[44px] min-w-[44px] items-center justify-center">
-            <Text className="text-2xl text-neutral-900 dark:text-white">‹</Text>
-          </Pressable>
-          <Text className="ml-2 text-xl font-extrabold text-neutral-900 dark:text-white">
-            Challenge a Community
-          </Text>
-        </View>
-
-        <Text className="mb-4 text-sm text-neutral-500 dark:text-neutral-400">
+        <Text className="mb-4 font-body text-sm text-ink-muted">
           The other community&apos;s owner must accept before the challenge starts.
         </Text>
 
-        <Text className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-400">
-          Title
-        </Text>
-        <TextInput
-          value={title}
-          onChangeText={setTitle}
-          placeholder="Community Showdown"
-          accessibilityLabel="Challenge title"
-          className="mb-4 min-h-[44px] rounded-xl border border-neutral-300 px-3 text-neutral-900 dark:border-neutral-700 dark:text-white"
-        />
-
-        <Text className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-400">
-          Duration (minutes)
-        </Text>
-        <TextInput
+        <TextField label="Title" value={title} onChangeText={setTitle} placeholder="Community Showdown" />
+        <TextField
+          label="Duration (minutes)"
           value={durationMinutes}
           onChangeText={setDurationMinutes}
           keyboardType="number-pad"
-          accessibilityLabel="Challenge duration in minutes"
-          className="mb-4 min-h-[44px] rounded-xl border border-neutral-300 px-3 text-neutral-900 dark:border-neutral-700 dark:text-white"
         />
 
-        <Text className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
-          Opponent community
+        <Text className="mb-2 font-label text-xs uppercase tracking-wide text-ink-muted">
+          Select Opponent
         </Text>
         {discoverQuery.isLoading ? (
-          <ActivityIndicator className="my-4" />
+          <ActivityIndicator className="my-4" color="#e3bdc5" />
         ) : discoverQuery.isError ? (
-          <Text className="text-sm text-red-500">{discoverQuery.error?.message}</Text>
+          <Text className="font-body text-sm text-error">{discoverQuery.error?.message}</Text>
         ) : opponents.length === 0 ? (
-          <Text className="mb-4 text-sm text-neutral-400">No other communities to challenge yet</Text>
+          <Text className="mb-4 font-body text-sm text-ink-muted">
+            No other communities to challenge yet
+          </Text>
         ) : (
           <View className="mb-4">
             {opponents.map((community) => {
@@ -125,35 +104,35 @@ export default function ProposeVsChallengeScreen({ communityId }: ProposeVsChall
                   accessibilityState={{ checked: selected }}
                   accessibilityLabel={`Challenge ${community.name}`}
                   onPress={() => setOpponentId(community.id)}
-                  className={`mb-2 min-h-[44px] flex-row items-center rounded-xl border px-3 ${
-                    selected
-                      ? 'border-orange-500 bg-orange-500'
-                      : 'border-neutral-300 dark:border-neutral-700'
+                  className={`mb-2 min-h-[44px] flex-row items-center justify-between rounded-card border px-4 py-2 ${
+                    selected ? 'border-primary bg-primary/15' : 'border-outline-variant bg-surface-high/40'
                   }`}>
-                  <Text className={selected ? 'font-bold text-white' : 'text-neutral-900 dark:text-white'}>
-                    {community.name}
-                  </Text>
+                  <View>
+                    <Text className={`font-title ${selected ? 'text-primary-dim' : 'text-heading'}`}>
+                      {community.name}
+                    </Text>
+                    <Text className="font-body text-xs text-ink-muted">
+                      {community.member_count} member{community.member_count === 1 ? '' : 's'}
+                    </Text>
+                  </View>
                 </Pressable>
               );
             })}
           </View>
         )}
 
-        {formError ? <Text className="mb-2 text-sm text-red-500">{formError}</Text> : null}
+        {formError ? <Text className="mb-2 font-body text-sm text-error">{formError}</Text> : null}
         {proposeChallenge.isError ? (
-          <Text className="mb-2 text-sm text-red-500">{proposeChallenge.error?.message}</Text>
+          <Text className="mb-2 font-body text-sm text-error">{proposeChallenge.error?.message}</Text>
         ) : null}
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Send challenge proposal"
-          onPress={handleSubmit}
-          disabled={proposeChallenge.isPending}
-          className="mb-8 items-center rounded-xl bg-orange-500 py-3 disabled:opacity-50">
-          <Text className="font-bold text-white">
-            {proposeChallenge.isPending ? 'Sending…' : 'Send challenge'}
-          </Text>
-        </Pressable>
+        <View className="mb-8">
+          <PillButton
+            label={proposeChallenge.isPending ? 'Sending…' : 'Send Challenge'}
+            onPress={handleSubmit}
+            loading={proposeChallenge.isPending}
+          />
+        </View>
       </ScrollView>
     </SafeAreaView>
   );

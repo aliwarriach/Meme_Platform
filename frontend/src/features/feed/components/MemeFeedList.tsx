@@ -69,6 +69,7 @@ export function MemeFeedList({
       keyExtractor={(item) => item.id}
       renderItem={({ item }) => <MemeCard meme={item} />}
       ListHeaderComponent={ListHeaderComponent}
+      contentContainerStyle={{ paddingBottom: 100 }}
       onEndReachedThreshold={0.5}
       onEndReached={() => {
         if (hasNextPage && !isFetchingNextPage) onEndReached();
@@ -77,14 +78,14 @@ export function MemeFeedList({
         ? { onViewableItemsChanged, viewabilityConfig: VIEWABILITY_CONFIG }
         : {})}
       refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={onRefresh} />}
-      ListFooterComponent={isFetchingNextPage ? <ActivityIndicator className="my-4" /> : null}
+      ListFooterComponent={isFetchingNextPage ? <ActivityIndicator className="my-4" color="#e3bdc5" /> : null}
       ListEmptyComponent={
         isLoading ? (
-          <ActivityIndicator className="my-8" />
+          <ActivityIndicator className="my-8" color="#e3bdc5" />
         ) : isError ? (
-          <Text className="mx-4 text-sm text-red-500">{errorMessage}</Text>
+          <Text className="mx-4 font-body text-sm text-error">{errorMessage}</Text>
         ) : (
-          <Text className="mx-4 mt-8 text-center text-sm text-neutral-400">{emptyMessage}</Text>
+          <Text className="mx-4 mt-8 text-center font-body text-sm text-ink-muted">{emptyMessage}</Text>
         )
       }
     />
@@ -151,6 +152,7 @@ export function MergedFeedList({
         )
       }
       ListHeaderComponent={ListHeaderComponent}
+      contentContainerStyle={{ paddingBottom: 100 }}
       onEndReachedThreshold={0.5}
       onEndReached={() => {
         if (hasNextPage && !isFetchingNextPage) onEndReached();
@@ -159,14 +161,14 @@ export function MergedFeedList({
         ? { onViewableItemsChanged, viewabilityConfig: VIEWABILITY_CONFIG }
         : {})}
       refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={onRefresh} />}
-      ListFooterComponent={isFetchingNextPage ? <ActivityIndicator className="my-4" /> : null}
+      ListFooterComponent={isFetchingNextPage ? <ActivityIndicator className="my-4" color="#e3bdc5" /> : null}
       ListEmptyComponent={
         isLoading ? (
-          <ActivityIndicator className="my-8" />
+          <ActivityIndicator className="my-8" color="#e3bdc5" />
         ) : isError ? (
-          <Text className="mx-4 text-sm text-red-500">{errorMessage}</Text>
+          <Text className="mx-4 font-body text-sm text-error">{errorMessage}</Text>
         ) : (
-          <Text className="mx-4 mt-8 text-center text-sm text-neutral-400">{emptyMessage}</Text>
+          <Text className="mx-4 mt-8 text-center font-body text-sm text-ink-muted">{emptyMessage}</Text>
         )
       }
     />

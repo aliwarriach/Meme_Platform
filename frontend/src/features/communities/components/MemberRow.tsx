@@ -1,5 +1,6 @@
 import { Text, View } from 'react-native';
 
+import Avatar from '@/components/Avatar';
 import type { MembershipResponse } from '@/services/communities';
 
 interface MemberRowProps {
@@ -8,17 +9,15 @@ interface MemberRowProps {
 
 export function MemberRow({ membership }: MemberRowProps) {
   return (
-    <View className="flex-row items-center border-b border-neutral-100 py-3 dark:border-neutral-800">
-      <View className="mr-3 h-9 w-9 items-center justify-center rounded-full bg-orange-500">
-        <Text className="text-xs font-bold text-white">
-          {membership.user.username.slice(0, 2).toUpperCase()}
-        </Text>
+    <View className="flex-row items-center border-b border-outline-variant/30 py-3">
+      <View className="mr-3">
+        <Avatar username={membership.user.username} size="sm" />
       </View>
-      <Text className="flex-1 text-neutral-900 dark:text-white">{membership.user.username}</Text>
+      <Text className="flex-1 font-body text-heading">{membership.user.username}</Text>
       {membership.role === 'owner' ? (
-        <Text className="text-xs font-semibold uppercase tracking-wide text-orange-500">
-          Owner
-        </Text>
+        <View className="rounded-full bg-primary/20 px-3 py-1">
+          <Text className="font-label text-xs uppercase tracking-wide text-primary-dim">Owner</Text>
+        </View>
       ) : null}
     </View>
   );

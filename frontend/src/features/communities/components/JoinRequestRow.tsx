@@ -1,5 +1,6 @@
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
+import Avatar from '@/components/Avatar';
 import type { MembershipResponse } from '@/services/communities';
 
 interface JoinRequestRowProps {
@@ -11,25 +12,28 @@ interface JoinRequestRowProps {
 
 export function JoinRequestRow({ request, onApprove, onReject, isPending }: JoinRequestRowProps) {
   return (
-    <View className="flex-row items-center border-b border-neutral-100 py-3 dark:border-neutral-800">
-      <Text className="flex-1 text-neutral-900 dark:text-white">{request.user.username}</Text>
+    <View className="flex-row items-center border-b border-outline-variant/30 py-3">
+      <View className="mr-3">
+        <Avatar username={request.user.username} size="sm" />
+      </View>
+      <Text className="flex-1 font-body text-heading">{request.user.username}</Text>
       {isPending ? (
-        <ActivityIndicator size="small" />
+        <ActivityIndicator size="small" color="#e3bdc5" />
       ) : (
-        <View className="flex-row">
+        <View className="flex-row gap-2">
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Approve ${request.user.username}`}
             onPress={onApprove}
-            className="mr-2 min-h-[36px] items-center justify-center rounded-lg bg-orange-500 px-3">
-            <Text className="text-xs font-bold text-white">Approve</Text>
+            className="min-h-[36px] items-center justify-center rounded-full bg-primary px-3">
+            <Text className="font-title text-xs text-white">Approve</Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Reject ${request.user.username}`}
             onPress={onReject}
-            className="min-h-[36px] items-center justify-center rounded-lg border border-neutral-300 px-3 dark:border-neutral-700">
-            <Text className="text-xs font-bold text-neutral-900 dark:text-white">Reject</Text>
+            className="min-h-[36px] items-center justify-center rounded-full border border-outline px-3">
+            <Text className="font-title text-xs text-heading">Decline</Text>
           </Pressable>
         </View>
       )}

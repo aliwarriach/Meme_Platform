@@ -14,17 +14,15 @@ interface StickerPickerModalProps {
 export function StickerPickerModal({ visible, onClose, onSelect }: StickerPickerModalProps) {
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView className="flex-1 bg-white dark:bg-neutral-950">
+      <SafeAreaView className="flex-1 bg-bg">
         <View className="flex-row items-center justify-between px-6 py-4">
-          <Text className="text-xl font-extrabold text-neutral-900 dark:text-white">
-            Add a sticker
-          </Text>
+          <Text className="font-heading text-xl text-heading">Pick a Sticker</Text>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Close sticker picker"
             onPress={onClose}
             className="min-h-[44px] min-w-[44px] items-center justify-center">
-            <Text className="text-base font-semibold text-orange-500">Done</Text>
+            <Text className="font-title text-base text-primary-dim">Done</Text>
           </Pressable>
         </View>
 
@@ -35,7 +33,7 @@ export function StickerPickerModal({ visible, onClose, onSelect }: StickerPicker
               accessibilityRole="button"
               accessibilityLabel={`Add ${emoji} sticker`}
               onPress={() => onSelect(emoji)}
-              className="m-1 h-16 w-16 items-center justify-center rounded-2xl bg-neutral-100 dark:bg-neutral-900">
+              className="m-1 h-16 w-16 items-center justify-center rounded-2xl bg-surface-high">
               <Text style={{ fontSize: 34 }}>{emoji}</Text>
             </Pressable>
           ))}

@@ -1,10 +1,11 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useRouter } from 'expo-router';
 import { Controller, useForm } from 'react-hook-form';
-import { ActivityIndicator, FlatList, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import PillButton from '@/components/PillButton';
 import { TextField } from '@/components/TextField';
+import TopBar from '@/components/TopBar';
 import { FriendRequestRow } from '@/features/friends/components/FriendRequestRow';
 import { FriendRow } from '@/features/friends/components/FriendRow';
 import {
@@ -21,8 +22,6 @@ import {
 } from '@/services/useFriends';
 
 export default function FriendsScreen() {
-  const router = useRouter();
-
   const friendsQuery = useFriendsList();
   const requestsQuery = useIncomingFriendRequests();
   const sendMutation = useSendFriendRequestMutation();
@@ -57,31 +56,20 @@ export default function FriendsScreen() {
   );
 
   return (
-    <SafeAreaView className="flex-1 bg-white dark:bg-neutral-950">
-      <View className="flex-row items-center px-4 py-3">
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-          onPress={() => router.back()}
-          className="min-h-[44px] min-w-[44px] items-center justify-center">
-          <Text className="text-2xl text-neutral-900 dark:text-white">‹</Text>
-        </Pressable>
-        <Text className="ml-1 text-xl font-extrabold text-neutral-900 dark:text-white">
-          Friends
-        </Text>
-      </View>
+    <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
+      <TopBar title="Friends" showBack />
 
       <FlatList
         data={friendsQuery.data ?? []}
         keyExtractor={(item) => item.friendship_id}
         renderItem={renderFriend}
         ListHeaderComponent={
-          <View className="px-4">
-            <Text className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
+          <View className="px-4 pt-4">
+            <Text className="mb-2 font-label text-xs uppercase tracking-wide text-ink-muted">
               Add a friend
             </Text>
-            <View className="mb-2 flex-row items-start">
-              <View className="mr-2 flex-1">
+            <View className="mb-2 flex-row items-start gap-2">
+              <View className="flex-1">
                 <Controller
                   control={control}
                   name="username"
@@ -95,28 +83,24 @@ export default function FriendsScreen() {
                   )}
                 />
               </View>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Send friend request"
+              <PillButton
+                label={sendMutation.isPending ? 'Sending…' : 'Send'}
                 onPress={onSubmit}
-                disabled={sendMutation.isPending}
-                className="mt-6 min-h-[44px] items-center justify-center rounded-xl bg-orange-500 px-4 disabled:opacity-50">
-                <Text className="text-sm font-bold text-white">
-                  {sendMutation.isPending ? 'Sending…' : 'Send'}
-                </Text>
-              </Pressable>
+                loading={sendMutation.isPending}
+                className="mt-1"
+              />
             </View>
             {sendMutation.isError ? (
-              <Text className="mb-4 text-sm text-red-500">{sendMutation.error.message}</Text>
+              <Text className="mb-4 font-body text-sm text-error">{sendMutation.error.message}</Text>
             ) : null}
 
-            <Text className="mb-2 mt-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
+            <Text className="mb-2 mt-2 font-label text-xs uppercase tracking-wide text-ink-muted">
               Friend requests
             </Text>
             {requestsQuery.isLoading ? (
-              <ActivityIndicator className="my-4" />
+              <ActivityIndicator className="my-4" color="#e3bdc5" />
             ) : requestsQuery.isError ? (
-              <Text className="mb-4 text-sm text-red-500">{requestsQuery.error.message}</Text>
+              <Text className="mb-4 font-body text-sm text-error">{requestsQuery.error.message}</Text>
             ) : requestsQuery.data && requestsQuery.data.length > 0 ? (
               requestsQuery.data.map((request) => (
                 <FriendRequestRow
@@ -127,21 +111,21 @@ export default function FriendsScreen() {
                 />
               ))
             ) : (
-              <Text className="mb-4 text-sm text-neutral-400">No pending requests</Text>
+              <Text className="mb-4 font-body text-sm text-ink-muted">No pending requests</Text>
             )}
 
-            <Text className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-neutral-400">
+            <Text className="mb-2 mt-4 font-label text-xs uppercase tracking-wide text-ink-muted">
               Your friends
             </Text>
           </View>
         }
         ListEmptyComponent={
           friendsQuery.isLoading ? (
-            <ActivityIndicator className="my-4" />
+            <ActivityIndicator className="my-4" color="#e3bdc5" />
           ) : friendsQuery.isError ? (
-            <Text className="mx-4 text-sm text-red-500">{friendsQuery.error.message}</Text>
+            <Text className="mx-4 font-body text-sm text-error">{friendsQuery.error.message}</Text>
           ) : (
-            <Text className="mx-4 text-sm text-neutral-400">No friends yet</Text>
+            <Text className="mx-4 font-body text-sm text-ink-muted">No friends yet</Text>
           )
         }
       />

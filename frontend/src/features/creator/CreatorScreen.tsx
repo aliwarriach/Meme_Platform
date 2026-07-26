@@ -8,7 +8,10 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 
+import Chip from '@/components/Chip';
+import PillButton from '@/components/PillButton';
 import { TextField } from '@/components/TextField';
+import TopBar from '@/components/TopBar';
 import { CanvasBar } from '@/features/creator/components/CanvasBar';
 import { EditorCanvas, type EditorCanvasHandle } from '@/features/creator/components/EditorCanvas';
 import { LayerInspector } from '@/features/creator/components/LayerInspector';
@@ -202,40 +205,17 @@ export default function CreatorScreen() {
 
   if (!baseImageUri) {
     return (
-      <SafeAreaView className="flex-1 bg-white dark:bg-neutral-950">
+      <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
+        <TopBar title={isCommunityPost ? `New Post to ${communityName}` : 'New Meme'} showBack />
         <View className="flex-1 px-6 py-4">
-          <View className="mb-6 flex-row items-center">
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Go back"
-              onPress={() => router.back()}
-              className="min-h-[44px] min-w-[44px] items-center justify-center">
-              <Text className="text-2xl text-neutral-900 dark:text-white">‹</Text>
-            </Pressable>
-            <Text className="ml-1 text-xl font-extrabold text-neutral-900 dark:text-white">
-              {isCommunityPost ? `New Post to ${communityName}` : 'New Meme'}
-            </Text>
-          </View>
-
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Upload from gallery"
-            onPress={onPickOwnImage}
-            className="mb-3 items-center rounded-xl bg-orange-500 py-3.5">
-            <Text className="text-base font-bold text-white">Upload from gallery</Text>
-          </Pressable>
-
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Choose a template"
+          <PillButton label="Upload from Gallery" onPress={onPickOwnImage} className="mb-3" />
+          <PillButton
+            label="Choose a Template"
+            variant="outline"
             onPress={() => setTemplatePickerVisible(true)}
-            className="items-center rounded-xl border border-neutral-300 py-3.5 dark:border-neutral-700">
-            <Text className="text-base font-bold text-neutral-900 dark:text-white">
-              Choose a template
-            </Text>
-          </Pressable>
+          />
 
-          {pickerError ? <Text className="mt-3 text-sm text-red-500">{pickerError}</Text> : null}
+          {pickerError ? <Text className="mt-3 font-body text-sm text-error">{pickerError}</Text> : null}
         </View>
 
         <TemplatePickerModal
@@ -248,32 +228,30 @@ export default function CreatorScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-white dark:bg-neutral-950">
-      <ScrollView className="flex-1 px-6 py-4" keyboardShouldPersistTaps="handled">
-        <View className="mb-4 flex-row items-center justify-between">
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={capturedUri ? 'Edit meme' : 'Start over'}
-            onPress={() => (capturedUri ? setCapturedUri(null) : onStartOver())}
-            className="min-h-[44px] items-center justify-center">
-            <Text className="text-base font-semibold text-neutral-900 dark:text-white">
-              {capturedUri ? '‹ Edit' : '‹ Start over'}
-            </Text>
-          </Pressable>
-          <Text className="text-xl font-extrabold text-neutral-900 dark:text-white">
-            {capturedUri ? 'Preview' : isCommunityPost ? `New Post to ${communityName}` : 'New Meme'}
-          </Text>
-          <View
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-            className="min-h-[44px] min-w-[44px]"
-          />
-        </View>
+    <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
+      <View className="flex-row items-center justify-between border-b border-outline-variant/30 px-4 pb-3 pt-2">
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={capturedUri ? 'Edit meme' : 'Start over'}
+          onPress={() => (capturedUri ? setCapturedUri(null) : onStartOver())}
+          className="min-h-[44px] items-center justify-center">
+          <Text className="font-title text-base text-heading">{capturedUri ? '‹ Edit' : '‹ Start over'}</Text>
+        </Pressable>
+        <Text className="font-heading text-lg text-heading">
+          {capturedUri ? 'Preview' : isCommunityPost ? `New Post to ${communityName}` : 'New Meme'}
+        </Text>
+        <View
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          className="min-h-[44px] min-w-[44px]"
+        />
+      </View>
 
+      <ScrollView className="flex-1 px-6 py-4" keyboardShouldPersistTaps="handled">
         {capturedUri ? (
           <Image
             source={{ uri: capturedUri }}
-            style={{ width: '100%', aspectRatio: canvasRatio, borderRadius: 12 }}
+            style={{ width: '100%', aspectRatio: canvasRatio, borderRadius: 24 }}
             contentFit="contain"
             accessible
             accessibilityRole="image"
@@ -288,65 +266,46 @@ export default function CreatorScreen() {
 
         {!capturedUri ? (
           <>
-            <View className="mb-2 mt-3 flex-row">
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Add text layer"
-                onPress={() => dispatch(addTextLayer())}
-                className="mr-2 min-h-[44px] flex-1 items-center justify-center rounded-xl bg-orange-500 px-2">
-                <Text className="text-sm font-bold text-white">＋ Text</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Add sticker"
+            <View className="mb-2 mt-3 flex-row gap-2">
+              <PillButton label="＋ Text" className="flex-1" onPress={() => dispatch(addTextLayer())} />
+              <PillButton
+                label="😊 Sticker"
+                variant="outline"
+                className="flex-1"
                 onPress={() => setStickerPickerVisible(true)}
-                className="mr-2 min-h-[44px] flex-1 items-center justify-center rounded-xl border border-neutral-300 px-2 dark:border-neutral-700">
-                <Text className="text-sm font-bold text-neutral-900 dark:text-white">😊 Sticker</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Add image layer"
-                onPress={onAddImageLayer}
-                className="min-h-[44px] flex-1 items-center justify-center rounded-xl border border-neutral-300 px-2 dark:border-neutral-700">
-                <Text className="text-sm font-bold text-neutral-900 dark:text-white">🖼 Image</Text>
-              </Pressable>
+              />
+              <PillButton label="🖼 Image" variant="outline" className="flex-1" onPress={onAddImageLayer} />
             </View>
 
-            <View className="mb-3 flex-row justify-end">
+            <View className="mb-3 flex-row justify-end gap-2">
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Undo"
                 onPress={() => dispatch(undo())}
                 disabled={!canUndo}
-                className="mr-2 min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-neutral-300 px-3 disabled:opacity-40 dark:border-neutral-700">
-                <Text className="text-base font-bold text-neutral-900 dark:text-white">↶</Text>
+                className="min-h-[44px] min-w-[44px] items-center justify-center rounded-full border border-outline-variant px-3 disabled:opacity-40">
+                <Text className="font-title text-base text-heading">↶</Text>
               </Pressable>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Redo"
                 onPress={() => dispatch(redo())}
                 disabled={!canRedo}
-                className="min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-neutral-300 px-3 disabled:opacity-40 dark:border-neutral-700">
-                <Text className="text-base font-bold text-neutral-900 dark:text-white">↷</Text>
+                className="min-h-[44px] min-w-[44px] items-center justify-center rounded-full border border-outline-variant px-3 disabled:opacity-40">
+                <Text className="font-title text-base text-heading">↷</Text>
               </Pressable>
             </View>
 
             <LayerInspector />
 
-            <Text className="mb-3 text-xs text-neutral-400">
+            <Text className="mb-3 font-body text-xs text-ink-muted">
               Tap a layer to select it, then drag, pinch, or rotate. Use the panel to restyle, and
               add text, stickers, or images for more layers.
             </Text>
 
-            {captureError ? <Text className="mb-3 text-sm text-red-500">{captureError}</Text> : null}
+            {captureError ? <Text className="mb-3 font-body text-sm text-error">{captureError}</Text> : null}
 
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Preview meme"
-              onPress={onPreview}
-              className="mb-6 items-center rounded-xl bg-orange-500 py-3.5">
-              <Text className="text-base font-bold text-white">Preview</Text>
-            </Pressable>
+            <PillButton label="Preview" onPress={onPreview} className="mb-6" />
           </>
         ) : (
           <>
@@ -363,85 +322,67 @@ export default function CreatorScreen() {
               )}
             />
 
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={caption ? 'Make caption funnier' : 'Generate a caption'}
-              onPress={onGenerateCaption}
-              disabled={generateCaption.isPending}
-              className="mb-2 min-h-[44px] items-center justify-center rounded-xl border border-orange-500 py-2.5 disabled:opacity-50">
-              <Text className="text-sm font-bold text-orange-500">
-                {generateCaption.isPending
+            <PillButton
+              label={
+                generateCaption.isPending
                   ? 'Thinking…'
                   : caption
                     ? '✨ Make it funnier'
-                    : '✨ Generate a caption'}
-              </Text>
-            </Pressable>
+                    : '✨ Generate a caption'
+              }
+              variant="outline"
+              onPress={onGenerateCaption}
+              loading={generateCaption.isPending}
+              className="mb-2"
+            />
             {generateCaption.isError ? (
-              <Text className="mb-3 text-sm text-red-500">
+              <Text className="mb-3 font-body text-sm text-error">
                 Couldn&apos;t generate a caption right now — write your own or try again.
               </Text>
             ) : null}
 
             {isCommunityPost ? (
-              <View className="mb-4 rounded-xl bg-neutral-100 px-4 py-3 dark:bg-neutral-900">
-                <Text className="text-sm text-neutral-700 dark:text-neutral-300">
-                  Posting to <Text className="font-bold">{communityName}</Text>
+              <View className="mb-4 rounded-card bg-surface-high/60 px-4 py-3">
+                <Text className="font-body text-sm text-ink">
+                  Posting to <Text className="font-title text-heading">{communityName}</Text>
                 </Text>
-                <Text className="mt-1 text-xs text-neutral-400">
+                <Text className="mt-1 font-body text-xs text-ink-muted">
                   Visible to this community&apos;s members. If the community is open, it also
                   appears in the public feed with a &quot;{communityName}&quot; badge.
                 </Text>
               </View>
             ) : (
               <>
-                <Text className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
+                <Text className="mb-2 font-label text-xs uppercase tracking-wide text-ink-muted">
                   Audience
                 </Text>
-                <View className="mb-2 flex-row">
-                  {AUDIENCE_OPTIONS.map((option) => {
-                    const selected = selectedAudiences.includes(option.value);
-                    return (
-                      <Pressable
-                        key={option.value}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Toggle ${option.label} audience`}
-                        onPress={() => toggleAudience(option.value)}
-                        className={`mr-2 min-h-[44px] items-center justify-center rounded-xl border px-4 ${
-                          selected
-                            ? 'border-orange-500 bg-orange-500'
-                            : 'border-neutral-300 dark:border-neutral-700'
-                        }`}>
-                        <Text
-                          className={
-                            selected ? 'font-bold text-white' : 'text-neutral-900 dark:text-white'
-                          }>
-                          {option.label}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
+                <View className="mb-2 flex-row gap-2">
+                  {AUDIENCE_OPTIONS.map((option) => (
+                    <Chip
+                      key={option.value}
+                      label={option.label}
+                      selected={selectedAudiences.includes(option.value)}
+                      accessibilityLabel={`Toggle ${option.label} audience`}
+                      onPress={() => toggleAudience(option.value)}
+                    />
+                  ))}
                 </View>
                 {errors.audiences ? (
-                  <Text className="mb-2 text-sm text-red-500">{errors.audiences.message}</Text>
+                  <Text className="mb-2 font-body text-sm text-error">{errors.audiences.message}</Text>
                 ) : null}
               </>
             )}
 
             {activeMutation.isError ? (
-              <Text className="mb-4 text-sm text-red-500">{activeMutation.error.message}</Text>
+              <Text className="mb-4 font-body text-sm text-error">{activeMutation.error.message}</Text>
             ) : null}
 
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Publish post"
+            <PillButton
+              label={activeMutation.isPending ? 'Publishing…' : 'Publish'}
               onPress={onSubmit}
-              disabled={activeMutation.isPending}
-              className="mb-6 items-center rounded-xl bg-orange-500 py-3.5 disabled:opacity-50">
-              <Text className="text-base font-bold text-white">
-                {activeMutation.isPending ? 'Publishing…' : 'Publish'}
-              </Text>
-            </Pressable>
+              loading={activeMutation.isPending}
+              className="mb-6"
+            />
           </>
         )}
       </ScrollView>

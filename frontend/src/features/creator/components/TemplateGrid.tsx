@@ -37,7 +37,7 @@ export function TemplateGrid({
           accessibilityRole="button"
           accessibilityLabel={`Use template ${item.name}`}
           onPress={() => onSelect(item)}
-          className="m-1 aspect-square flex-1 overflow-hidden rounded-lg border border-neutral-200 dark:border-neutral-800">
+          className="m-1 aspect-square flex-1 overflow-hidden rounded-card border border-outline-variant/30">
           <Image
             source={{ uri: item.image_url }}
             style={{ width: '100%', height: '100%' }}
@@ -45,12 +45,12 @@ export function TemplateGrid({
           />
         </Pressable>
       )}
-      ListFooterComponent={isFetchingNextPage ? <ActivityIndicator className="my-4" /> : null}
+      ListFooterComponent={isFetchingNextPage ? <ActivityIndicator className="my-4" color="#e3bdc5" /> : null}
       ListEmptyComponent={
         isLoading ? (
-          <ActivityIndicator className="mt-8" />
+          <ActivityIndicator className="mt-8" color="#e3bdc5" />
         ) : (
-          <Text className="mt-8 text-center text-sm text-neutral-400">{emptyMessage}</Text>
+          <Text className="mt-8 text-center font-body text-sm text-ink-muted">{emptyMessage}</Text>
         )
       }
     />

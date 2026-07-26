@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import Chip from '@/components/Chip';
+import PillButton from '@/components/PillButton';
 import { TextField } from '@/components/TextField';
 import { TemplateGrid } from '@/features/creator/components/TemplateGrid';
 import type { TemplateResponse } from '@/services/templates';
@@ -109,25 +111,23 @@ export function TemplatePickerModal({ visible, onClose, onSelect }: TemplatePick
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView className="flex-1 bg-white dark:bg-neutral-950">
+      <SafeAreaView className="flex-1 bg-bg">
         <View className="flex-row items-center justify-between px-4 py-3">
-          <Text className="text-xl font-extrabold text-neutral-900 dark:text-white">
-            Choose a template
-          </Text>
-          <View className="flex-row">
+          <Text className="font-heading text-xl text-heading">Choose a Template</Text>
+          <View className="flex-row items-center gap-1">
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={uploadOpen ? 'Cancel template upload' : 'Add a new template'}
               onPress={() => setUploadOpen((open) => !open)}
-              className="mr-2 min-h-[44px] min-w-[44px] items-center justify-center">
-              <Text className="text-2xl text-orange-500">{uploadOpen ? '×' : '+'}</Text>
+              className="min-h-[44px] min-w-[44px] items-center justify-center">
+              <Text className="text-2xl text-primary-dim">{uploadOpen ? '×' : '+'}</Text>
             </Pressable>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Close template picker"
               onPress={onClose}
-              className="min-h-[44px] min-w-[44px] items-center justify-center">
-              <Text className="text-2xl text-neutral-900 dark:text-white">Done</Text>
+              className="min-h-[44px] items-center justify-center">
+              <Text className="font-title text-heading">Done</Text>
             </Pressable>
           </View>
         </View>
@@ -138,44 +138,24 @@ export function TemplatePickerModal({ visible, onClose, onSelect }: TemplatePick
           contentContainerStyle={{ paddingHorizontal: 16 }}
           className="mb-2 flex-row"
           style={{ flexGrow: 0 }}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Show global templates"
-            onPress={() => setScope({ type: 'global' })}
-            className={`mr-2 min-h-[36px] items-center justify-center rounded-xl px-4 ${
-              scope.type === 'global' ? 'bg-orange-500' : 'bg-neutral-100 dark:bg-neutral-900'
-            }`}>
-            <Text
-              className={
-                scope.type === 'global' ? 'font-bold text-white' : 'text-neutral-900 dark:text-white'
-              }>
-              Global
-            </Text>
-          </Pressable>
-          {myCommunities.map((community) => {
-            const selected = scope.type === 'community' && scope.communityId === community.id;
-            return (
-              <Pressable
+          <View className="flex-row gap-2">
+            <Chip label="Global" selected={scope.type === 'global'} onPress={() => setScope({ type: 'global' })} />
+            {myCommunities.map((community) => (
+              <Chip
                 key={community.id}
-                accessibilityRole="button"
-                accessibilityLabel={`Show ${community.name} templates`}
+                label={community.name}
+                selected={scope.type === 'community' && scope.communityId === community.id}
                 onPress={() =>
                   setScope({ type: 'community', communityId: community.id, communityName: community.name })
                 }
-                className={`mr-2 min-h-[36px] items-center justify-center rounded-xl px-4 ${
-                  selected ? 'bg-orange-500' : 'bg-neutral-100 dark:bg-neutral-900'
-                }`}>
-                <Text className={selected ? 'font-bold text-white' : 'text-neutral-900 dark:text-white'}>
-                  {community.name}
-                </Text>
-              </Pressable>
-            );
-          })}
+              />
+            ))}
+          </View>
         </ScrollView>
 
         {uploadOpen ? (
-          <View className="border-b border-neutral-100 px-4 pb-4 dark:border-neutral-800">
-            <Text className="mb-2 text-xs text-neutral-400">
+          <View className="border-b border-outline-variant/30 px-4 pb-4">
+            <Text className="mb-2 font-body text-xs text-ink-muted">
               {scope.type === 'community'
                 ? `Uploading to ${scope.communityName}'s private library`
                 : 'Uploading to the global library'}
@@ -184,29 +164,20 @@ export function TemplatePickerModal({ visible, onClose, onSelect }: TemplatePick
               accessibilityRole="button"
               accessibilityLabel="Pick a template image"
               onPress={onPickUploadImage}
-              className="mb-2 h-28 items-center justify-center overflow-hidden rounded-xl border border-dashed border-neutral-300 dark:border-neutral-700">
+              className="mb-2 h-28 items-center justify-center overflow-hidden rounded-card border border-dashed border-outline">
               {pickedImage ? (
-                <Image
-                  source={{ uri: pickedImage.uri }}
-                  style={{ width: '100%', height: '100%' }}
-                  contentFit="cover"
-                />
+                <Image source={{ uri: pickedImage.uri }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
               ) : (
-                <Text className="text-neutral-400">Tap to choose an image</Text>
+                <Text className="font-body text-ink-muted">Tap to choose an image</Text>
               )}
             </Pressable>
             <TextField label="Template name" value={newName} onChangeText={setNewName} />
-            {uploadError ? <Text className="mb-2 text-sm text-red-500">{uploadError}</Text> : null}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Upload template"
+            {uploadError ? <Text className="mb-2 font-body text-sm text-error">{uploadError}</Text> : null}
+            <PillButton
+              label={createTemplate.isPending ? 'Uploading…' : 'Upload Template'}
               onPress={onSubmitUpload}
-              disabled={createTemplate.isPending}
-              className="items-center rounded-xl bg-orange-500 py-3 disabled:opacity-50">
-              <Text className="text-base font-bold text-white">
-                {createTemplate.isPending ? 'Uploading…' : 'Upload template'}
-              </Text>
-            </Pressable>
+              loading={createTemplate.isPending}
+            />
           </View>
         ) : null}
 

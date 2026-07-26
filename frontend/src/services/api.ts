@@ -2,7 +2,17 @@ import { create, type ApiResponse } from 'apisauce';
 
 import { API_BASE_URL } from '@/constants/config';
 
-export const api = create({ baseURL: API_BASE_URL });
+// 15s timeout so an unreachable/wrong-network backend fails fast with a clear error instead of
+// hanging on the OS-level TCP connect timeout (which can take minutes). Generous enough for
+// normal LAN calls including image uploads.
+// `ngrok-skip-browser-warning` disables ngrok's free-tier HTML interstitial page, which would
+// otherwise be returned instead of JSON when the backend is reached through an ngrok tunnel
+// (harmless header for any non-ngrok backend).
+export const api = create({
+  baseURL: API_BASE_URL,
+  timeout: 15000,
+  headers: { 'ngrok-skip-browser-warning': 'true' },
+});
 
 export function setAuthToken(token: string | null) {
   if (token) {

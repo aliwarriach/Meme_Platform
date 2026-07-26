@@ -7,7 +7,9 @@ import { Controller, useForm } from 'react-hook-form';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import PillButton from '@/components/PillButton';
 import { TextField } from '@/components/TextField';
+import TopBar from '@/components/TopBar';
 import { createCommunitySchema, type CreateCommunityFormValues } from '@/features/communities/schemas';
 import type { CommunityPrivacy } from '@/services/communities';
 import { useCreateCommunityMutation } from '@/services/useCommunities';
@@ -70,26 +72,14 @@ export default function CreateCommunityScreen() {
   });
 
   return (
-    <SafeAreaView className="flex-1 bg-white dark:bg-neutral-950">
+    <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
+      <TopBar title="New Community" showBack />
       <ScrollView className="flex-1 px-6 py-4" keyboardShouldPersistTaps="handled">
-        <View className="mb-4 flex-row items-center">
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-            onPress={() => router.back()}
-            className="min-h-[44px] min-w-[44px] items-center justify-center">
-            <Text className="text-2xl text-neutral-900 dark:text-white">‹</Text>
-          </Pressable>
-          <Text className="ml-1 text-xl font-extrabold text-neutral-900 dark:text-white">
-            New Community
-          </Text>
-        </View>
-
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Pick a community icon"
           onPress={onPickIcon}
-          className="mb-4 h-24 w-24 items-center justify-center self-center overflow-hidden rounded-2xl border border-dashed border-neutral-300 dark:border-neutral-700">
+          className="mb-4 h-24 w-24 items-center justify-center self-center overflow-hidden rounded-full border border-dashed border-outline">
           {pickedIcon ? (
             <Image
               source={{ uri: pickedIcon.uri }}
@@ -97,10 +87,10 @@ export default function CreateCommunityScreen() {
               contentFit="cover"
             />
           ) : (
-            <Text className="px-2 text-center text-xs text-neutral-400">Icon (optional)</Text>
+            <Text className="px-2 text-center font-body text-xs text-ink-muted">Icon (optional)</Text>
           )}
         </Pressable>
-        {pickerError ? <Text className="mb-2 text-sm text-red-500">{pickerError}</Text> : null}
+        {pickerError ? <Text className="mb-2 font-body text-sm text-error">{pickerError}</Text> : null}
 
         <Controller
           control={control}
@@ -128,10 +118,8 @@ export default function CreateCommunityScreen() {
           )}
         />
 
-        <Text className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
-          Privacy
-        </Text>
-        <View className="mb-6">
+        <Text className="mb-2 font-label text-xs uppercase tracking-wide text-ink-muted">Privacy</Text>
+        <View className="mb-6 flex-row gap-3">
           {PRIVACY_OPTIONS.map((option) => {
             const selected = selectedPrivacy === option.value;
             return (
@@ -141,37 +129,28 @@ export default function CreateCommunityScreen() {
                 accessibilityLabel={`${option.label}: ${option.description}`}
                 accessibilityState={{ selected, checked: selected }}
                 onPress={() => setValue('privacy', option.value, { shouldValidate: true })}
-                className={`mb-2 min-h-[56px] justify-center rounded-xl border px-4 py-2 ${
-                  selected
-                    ? 'border-orange-500 bg-orange-500/10'
-                    : 'border-neutral-300 dark:border-neutral-700'
+                className={`flex-1 min-h-[64px] justify-center rounded-card border px-4 py-2 ${
+                  selected ? 'border-primary bg-primary/15' : 'border-outline-variant bg-surface-high/40'
                 }`}>
-                <Text
-                  className={`font-bold ${selected ? 'text-orange-500' : 'text-neutral-900 dark:text-white'}`}>
+                <Text className={`font-title ${selected ? 'text-primary-dim' : 'text-heading'}`}>
                   {option.label}
                 </Text>
-                <Text className="text-xs text-neutral-500 dark:text-neutral-400">
-                  {option.description}
-                </Text>
+                <Text className="font-body text-xs text-ink-muted">{option.description}</Text>
               </Pressable>
             );
           })}
         </View>
 
         {createCommunity.isError ? (
-          <Text className="mb-4 text-sm text-red-500">{createCommunity.error.message}</Text>
+          <Text className="mb-4 font-body text-sm text-error">{createCommunity.error.message}</Text>
         ) : null}
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Create community"
+        <PillButton
+          label={createCommunity.isPending ? 'Creating…' : 'Create Community'}
           onPress={onSubmit}
-          disabled={createCommunity.isPending}
-          className="mb-6 items-center rounded-xl bg-orange-500 py-3.5 disabled:opacity-50">
-          <Text className="text-base font-bold text-white">
-            {createCommunity.isPending ? 'Creating…' : 'Create community'}
-          </Text>
-        </Pressable>
+          loading={createCommunity.isPending}
+          className="mb-6"
+        />
       </ScrollView>
     </SafeAreaView>
   );

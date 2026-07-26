@@ -1,3 +1,4 @@
+import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { ActivityIndicator, Text, View } from 'react-native';
 
@@ -18,40 +19,36 @@ export function WinnerBanner({ winner, isLoading, isError, label }: WinnerBanner
     content?.kind === 'container' ? content.container.submitter.username : content?.meme.author.username;
 
   return (
-    <View className="mx-4 mb-3 rounded-xl border border-orange-200 bg-orange-50 p-3 dark:border-orange-500/30 dark:bg-orange-500/10">
-      <Text className="mb-2 text-xs font-bold uppercase text-orange-600 dark:text-orange-400">
-        {label}
-      </Text>
+    <View className="mx-4 mb-3 rounded-card border border-primary/30 bg-primary/10 p-4">
+      <View className="mb-2 flex-row items-center gap-1.5">
+        <MaterialIcons name="emoji-events" size={16} color="#ffb1c4" />
+        <Text className="font-label text-xs uppercase text-primary-dim">{label}</Text>
+        {!isLoading && !isError && content ? (
+          <View className="ml-1 rounded-full bg-primary px-2 py-0.5">
+            <Text className="font-label text-[10px] text-white">#1</Text>
+          </View>
+        ) : null}
+      </View>
       {isLoading ? (
-        <ActivityIndicator size="small" />
+        <ActivityIndicator size="small" color="#e3bdc5" />
       ) : isError ? (
-        <Text className="text-sm text-neutral-500 dark:text-neutral-400">
-          Couldn&apos;t load the winner.
-        </Text>
+        <Text className="font-body text-sm text-ink-muted">Couldn&apos;t load the winner.</Text>
       ) : !content ? (
-        <Text className="text-sm text-neutral-500 dark:text-neutral-400">
-          No votes were cast in that period.
-        </Text>
+        <Text className="font-body text-sm text-ink-muted">No votes were cast in that period.</Text>
       ) : (
         <View className="flex-row items-center">
           {imageUrl ? (
-            <Image
-              source={{ uri: imageUrl }}
-              style={{ width: 48, height: 48, borderRadius: 8 }}
-              contentFit="cover"
-            />
+            <Image source={{ uri: imageUrl }} style={{ width: 48, height: 48, borderRadius: 16 }} contentFit="cover" />
           ) : (
-            <View className="h-12 w-12 items-center justify-center rounded-lg bg-neutral-100 dark:bg-neutral-800">
-              <Text className="text-xs text-neutral-400">IG</Text>
+            <View className="h-12 w-12 items-center justify-center rounded-2xl bg-surface-high">
+              <MaterialIcons name="camera-alt" size={16} color="#e3bdc5" />
             </View>
           )}
           <View className="ml-3 flex-1">
-            <Text className="font-semibold text-neutral-900 dark:text-white" numberOfLines={1}>
+            <Text className="font-title text-heading" numberOfLines={1}>
               {authorName}
             </Text>
-            <Text className="text-xs text-neutral-500 dark:text-neutral-400">
-              score {winner.score}
-            </Text>
+            <Text className="font-body text-xs text-ink-muted">score {winner.score}</Text>
           </View>
         </View>
       )}

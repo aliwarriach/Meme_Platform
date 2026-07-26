@@ -1,18 +1,23 @@
+import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
+import Avatar from '@/components/Avatar';
+import VotePill from '@/components/VotePill';
 import { CommentsSection } from '@/features/feed/components/CommentsSection';
 import { SendMemeModal } from '@/features/meme-sending/SendMemeModal';
 import { shareMemeImage } from '@/features/sharing/shareMeme';
 import type { MemeResponse } from '@/services/memes';
 import { useRecordMemeViewMutation, useCastVoteMutation } from '@/services/useMemes';
+import { timeAgo } from '@/utils/timeAgo';
 import { useRecordViewOnVisible } from '@/utils/useRecordViewOnVisible';
 
 interface MemeCardProps {
   meme: MemeResponse;
 }
 
+/** Instagram-style post card: fixed 4:5 media ratio, avatar+username header, vote-pill + send/share/comment action row. */
 export function MemeCard({ meme }: MemeCardProps) {
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [sendModalOpen, setSendModalOpen] = useState(false);
@@ -39,31 +44,25 @@ export function MemeCard({ meme }: MemeCardProps) {
   const onVote = (value: 1 | -1) => castVote.mutate({ memeId: meme.id, value });
 
   return (
-    <View ref={cardRef} className="mb-4 border-b border-neutral-100 pb-4 dark:border-neutral-800">
-      <View className="flex-row items-center px-4 py-2">
-        <View
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants"
-          className="mr-2 h-8 w-8 items-center justify-center rounded-full bg-orange-500">
-          <Text className="text-xs font-bold text-white">
-            {meme.author.username.slice(0, 2).toUpperCase()}
-          </Text>
+    <View ref={cardRef} className="mb-3 border-b border-outline-variant/30 bg-bg pb-3">
+      <View className="flex-row items-center px-4 py-3">
+        <View className="mr-3">
+          <Avatar username={meme.author.username} size="sm" />
         </View>
-        <View>
-          <Text className="font-semibold text-neutral-900 dark:text-white">
-            {meme.author.username}
-          </Text>
-          {meme.community ? (
-            <Text className="text-xs text-neutral-500 dark:text-neutral-400">
-              in {meme.community.name}
-            </Text>
-          ) : null}
+        <View className="flex-1 flex-row items-center justify-between">
+          <View>
+            <Text className="font-title text-sm text-heading">{meme.author.username}</Text>
+            {meme.community ? (
+              <Text className="font-body text-xs text-ink-muted">in {meme.community.name}</Text>
+            ) : null}
+          </View>
+          <Text className="font-body text-xs text-ink-muted">{timeAgo(meme.created_at)}</Text>
         </View>
       </View>
 
       <Image
         source={{ uri: meme.image_url }}
-        style={{ width: '100%', aspectRatio: 1 }}
+        style={{ width: '100%', aspectRatio: 4 / 5 }}
         contentFit="cover"
         accessible
         accessibilityRole="image"
@@ -72,101 +71,69 @@ export function MemeCard({ meme }: MemeCardProps) {
         }
       />
 
-      {meme.caption ? (
-        <Text className="px-4 pt-2 text-neutral-900 dark:text-neutral-100">{meme.caption}</Text>
-      ) : null}
+      <View className="flex-row items-center justify-between px-4 pt-3">
+        <VotePill
+          score={meme.score}
+          viewerVote={meme.viewer_vote}
+          isVoting={isVoting}
+          onUpvote={() => onVote(1)}
+          onDownvote={() => onVote(-1)}
+        />
 
-      <View className="flex-row items-center px-4 pt-2">
-        <View className="mr-4 flex-row items-center rounded-full bg-neutral-100 dark:bg-neutral-800">
+        <View className="flex-row items-center gap-4">
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={meme.viewer_vote === 1 ? 'Remove upvote' : 'Upvote this meme'}
-            accessibilityState={{ selected: meme.viewer_vote === 1, disabled: isVoting }}
-            onPress={() => onVote(1)}
-            disabled={isVoting}
-            className="min-h-[44px] min-w-[44px] items-center justify-center disabled:opacity-50">
-            <Text
-              className={
-                meme.viewer_vote === 1 ? 'text-orange-500' : 'text-neutral-500 dark:text-neutral-400'
-              }>
-              ▲
-            </Text>
+            accessibilityLabel="Send to a friend"
+            onPress={() => setSendModalOpen(true)}
+            className="h-11 w-11 items-center justify-center">
+            <MaterialIcons name="send" size={22} color="#e3bdc5" />
           </Pressable>
 
-          {isVoting ? (
-            <ActivityIndicator size="small" />
-          ) : (
-            <Text className="min-w-[24px] text-center font-semibold text-neutral-900 dark:text-white">
-              {meme.score}
-            </Text>
-          )}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Share this meme"
+            onPress={onShare}
+            disabled={isSharing}
+            className="h-11 w-11 items-center justify-center disabled:opacity-50">
+            {isSharing ? (
+              <ActivityIndicator size="small" color="#e3bdc5" />
+            ) : (
+              <MaterialIcons name="ios-share" size={20} color="#e3bdc5" />
+            )}
+          </Pressable>
 
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={meme.viewer_vote === -1 ? 'Remove downvote' : 'Downvote this meme'}
-            accessibilityState={{ selected: meme.viewer_vote === -1, disabled: isVoting }}
-            onPress={() => onVote(-1)}
-            disabled={isVoting}
-            className="min-h-[44px] min-w-[44px] items-center justify-center disabled:opacity-50">
-            <Text
-              className={
-                meme.viewer_vote === -1 ? 'text-blue-500' : 'text-neutral-500 dark:text-neutral-400'
-              }>
-              ▼
-            </Text>
+            accessibilityLabel="Toggle comments"
+            onPress={() => setCommentsOpen((open) => !open)}
+            className="h-11 flex-row items-center gap-1">
+            <MaterialIcons name="chat-bubble-outline" size={20} color="#e3bdc5" />
+            <Text className="font-body text-sm text-ink-muted">{meme.comment_count}</Text>
           </Pressable>
         </View>
-
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Toggle comments"
-          onPress={() => setCommentsOpen((open) => !open)}
-          className="mr-4 min-h-[44px] justify-center">
-          <Text className="text-neutral-500 dark:text-neutral-400">
-            {meme.comment_count} comment{meme.comment_count === 1 ? '' : 's'}
-          </Text>
-        </Pressable>
-
-        {meme.view_count !== null ? (
-          // Visible only when the backend has authorized this viewer (the author, or a
-          // community post's community owner) — everyone else gets view_count: null and
-          // this is simply omitted, not hidden client-side.
-          <View className="mr-4 min-h-[44px] justify-center">
-            <Text className="text-neutral-500 dark:text-neutral-400">
-              👁 {meme.view_count} view{meme.view_count === 1 ? '' : 's'}
-            </Text>
-          </View>
-        ) : null}
-
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Send to a friend"
-          onPress={() => setSendModalOpen(true)}
-          className="mr-4 min-h-[44px] justify-center">
-          <Text className="text-neutral-500 dark:text-neutral-400">↗ Send</Text>
-        </Pressable>
-
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Share this meme"
-          onPress={onShare}
-          disabled={isSharing}
-          className="min-h-[44px] flex-row items-center disabled:opacity-50">
-          {isSharing ? (
-            <ActivityIndicator size="small" />
-          ) : (
-            <Text className="text-neutral-500 dark:text-neutral-400">⤴ Share</Text>
-          )}
-        </Pressable>
       </View>
 
-      {castVote.isError ? (
-        <Text className="px-4 pt-1 text-xs text-red-500">{castVote.error?.message}</Text>
+      {meme.caption ? (
+        <Text className="px-4 pt-2 font-body text-sm text-ink">
+          <Text className="font-title text-heading">{meme.author.username} </Text>
+          {meme.caption}
+        </Text>
       ) : null}
 
-      {shareError ? (
-        <Text className="px-4 pt-1 text-xs text-red-500">{shareError}</Text>
+      {meme.view_count !== null ? (
+        // Visible only when the backend has authorized this viewer (the author, or a
+        // community post's community owner) — everyone else gets view_count: null and
+        // this is simply omitted, not hidden client-side.
+        <Text className="px-4 pt-1 font-body text-xs text-ink-muted">
+          👁 {meme.view_count} view{meme.view_count === 1 ? '' : 's'}
+        </Text>
       ) : null}
+
+      {castVote.isError ? (
+        <Text className="px-4 pt-1 font-body text-xs text-error">{castVote.error?.message}</Text>
+      ) : null}
+
+      {shareError ? <Text className="px-4 pt-1 font-body text-xs text-error">{shareError}</Text> : null}
 
       {commentsOpen ? <CommentsSection memeId={meme.id} /> : null}
 

@@ -1,5 +1,6 @@
 import { Pressable, Text, View } from 'react-native';
 
+import Avatar from '@/components/Avatar';
 import type { MembershipResponse } from '@/services/communities';
 
 interface SideMemberPickerProps {
@@ -18,8 +19,8 @@ export function SideMemberPicker({
   onToggle,
 }: SideMemberPickerProps) {
   return (
-    <View className="mb-4 rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">
-      <Text className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
+    <View className="mb-4 rounded-card border border-outline-variant/30 bg-surface p-3">
+      <Text className="mb-2 font-label text-xs uppercase tracking-wide text-ink-muted">
         {sideName || 'Unnamed side'}
       </Text>
       {members.map((member) => {
@@ -33,10 +34,11 @@ export function SideMemberPicker({
             accessibilityLabel={`Assign ${member.user.username} to ${sideName || 'this side'}`}
             disabled={disabledByOtherSide}
             onPress={() => onToggle(member.user.id)}
-            className={`mb-1 min-h-[44px] flex-row items-center rounded-lg px-2 ${
-              selected ? 'bg-orange-500' : ''
+            className={`mb-1 min-h-[44px] flex-row items-center gap-2 rounded-full px-2 ${
+              selected ? 'bg-primary' : ''
             } ${disabledByOtherSide ? 'opacity-30' : ''}`}>
-            <Text className={selected ? 'font-bold text-white' : 'text-neutral-900 dark:text-white'}>
+            <Avatar username={member.user.username} size="sm" />
+            <Text className={`font-body ${selected ? 'font-title text-white' : 'text-heading'}`}>
               {member.user.username}
             </Text>
           </Pressable>

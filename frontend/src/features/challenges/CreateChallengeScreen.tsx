@@ -1,8 +1,11 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import PillButton from '@/components/PillButton';
+import { TextField } from '@/components/TextField';
+import TopBar from '@/components/TopBar';
 import { SideMemberPicker } from '@/features/challenges/components/SideMemberPicker';
 import { useMembers } from '@/services/useCommunities';
 import { useCreateChallengeMutation } from '@/services/useChallenges';
@@ -105,67 +108,23 @@ export default function CreateChallengeScreen({ communityId }: CreateChallengeSc
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-white dark:bg-neutral-950">
+    <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
+      <TopBar title="New Challenge" showBack />
       <ScrollView className="flex-1 px-6 pt-4">
-        <View className="mb-4 flex-row items-center">
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-            onPress={() => router.back()}
-            className="min-h-[44px] min-w-[44px] items-center justify-center">
-            <Text className="text-2xl text-neutral-900 dark:text-white">‹</Text>
-          </Pressable>
-          <Text className="ml-2 text-xl font-extrabold text-neutral-900 dark:text-white">
-            New Challenge
-          </Text>
-        </View>
-
-        <Text className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-400">
-          Title
-        </Text>
-        <TextInput
-          value={title}
-          onChangeText={setTitle}
-          placeholder="Meme War"
-          accessibilityLabel="Challenge title"
-          className="mb-4 min-h-[44px] rounded-xl border border-neutral-300 px-3 text-neutral-900 dark:border-neutral-700 dark:text-white"
-        />
-
-        <Text className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-400">
-          Duration (minutes)
-        </Text>
-        <TextInput
+        <TextField label="Title" value={title} onChangeText={setTitle} placeholder="Meme War" />
+        <TextField
+          label="Duration (minutes)"
           value={durationMinutes}
           onChangeText={setDurationMinutes}
           keyboardType="number-pad"
-          accessibilityLabel="Challenge duration in minutes"
-          className="mb-4 min-h-[44px] rounded-xl border border-neutral-300 px-3 text-neutral-900 dark:border-neutral-700 dark:text-white"
         />
-
-        <Text className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-400">
-          Side A name
-        </Text>
-        <TextInput
-          value={sideAName}
-          onChangeText={setSideAName}
-          accessibilityLabel="Side A name"
-          className="mb-2 min-h-[44px] rounded-xl border border-neutral-300 px-3 text-neutral-900 dark:border-neutral-700 dark:text-white"
-        />
-
-        <Text className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-400">
-          Side B name
-        </Text>
-        <TextInput
-          value={sideBName}
-          onChangeText={setSideBName}
-          accessibilityLabel="Side B name"
-          className="mb-4 min-h-[44px] rounded-xl border border-neutral-300 px-3 text-neutral-900 dark:border-neutral-700 dark:text-white"
-        />
+        <TextField label="Side A name" value={sideAName} onChangeText={setSideAName} />
+        <TextField label="Side B name" value={sideBName} onChangeText={setSideBName} />
 
         {membersQuery.isLoading ? (
-          <ActivityIndicator className="my-4" />
+          <ActivityIndicator className="my-4" color="#e3bdc5" />
         ) : membersQuery.isError ? (
-          <Text className="text-sm text-red-500">{membersQuery.error?.message}</Text>
+          <Text className="font-body text-sm text-error">{membersQuery.error?.message}</Text>
         ) : (
           <>
             <SideMemberPicker
@@ -185,21 +144,18 @@ export default function CreateChallengeScreen({ communityId }: CreateChallengeSc
           </>
         )}
 
-        {formError ? <Text className="mb-2 text-sm text-red-500">{formError}</Text> : null}
+        {formError ? <Text className="mb-2 font-body text-sm text-error">{formError}</Text> : null}
         {createChallenge.isError ? (
-          <Text className="mb-2 text-sm text-red-500">{createChallenge.error?.message}</Text>
+          <Text className="mb-2 font-body text-sm text-error">{createChallenge.error?.message}</Text>
         ) : null}
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Start challenge"
-          onPress={handleSubmit}
-          disabled={createChallenge.isPending}
-          className="mb-8 items-center rounded-xl bg-orange-500 py-3 disabled:opacity-50">
-          <Text className="font-bold text-white">
-            {createChallenge.isPending ? 'Starting…' : 'Start challenge'}
-          </Text>
-        </Pressable>
+        <View className="mb-8">
+          <PillButton
+            label={createChallenge.isPending ? 'Starting…' : 'Launch Challenge'}
+            onPress={handleSubmit}
+            loading={createChallenge.isPending}
+          />
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
