@@ -4,9 +4,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import Chip from '@/components/Chip';
 import TopBar from '@/components/TopBar';
+import { CompetitionEntryModal } from '@/features/voting/components/CompetitionEntryModal';
 import { StandingRow } from '@/features/voting/components/StandingRow';
 import { WinnerBanner } from '@/features/voting/components/WinnerBanner';
-import type { CompetitionPeriodType } from '@/services/competitions';
+import type { CompetitionPeriodType, StandingContent } from '@/services/competitions';
 import { useCurrentStandings, useWinner } from '@/services/useCompetitions';
 import { previousPeriodKey } from '@/utils/competitionPeriods';
 
@@ -18,6 +19,7 @@ const TABS: { type: CompetitionPeriodType; label: string; winnerLabel: string }[
 
 export default function VotingScreen() {
   const [activeTab, setActiveTab] = useState<CompetitionPeriodType>('day');
+  const [selectedContent, setSelectedContent] = useState<StandingContent | null>(null);
 
   const standingsQuery = useCurrentStandings(activeTab);
   const winnerQuery = useWinner(activeTab, previousPeriodKey(activeTab), true);
@@ -42,6 +44,7 @@ export default function VotingScreen() {
         isLoading={winnerQuery.isLoading}
         isError={winnerQuery.isError}
         label={activeTabMeta.winnerLabel}
+        onPress={setSelectedContent}
       />
 
       <Text className="mb-2 mt-2 px-2 font-label text-xs uppercase tracking-wide text-ink-muted">
@@ -58,7 +61,7 @@ export default function VotingScreen() {
         keyExtractor={(item) =>
           item.content.kind === 'meme' ? item.content.meme.id : item.content.container.id
         }
-        renderItem={({ item }) => <StandingRow entry={item} />}
+        renderItem={({ item }) => <StandingRow entry={item} onPress={setSelectedContent} />}
         ListHeaderComponent={header}
         refreshControl={
           <RefreshControl
@@ -78,6 +81,7 @@ export default function VotingScreen() {
           )
         }
       />
+      <CompetitionEntryModal content={selectedContent} onClose={() => setSelectedContent(null)} />
     </SafeAreaView>
   );
 }

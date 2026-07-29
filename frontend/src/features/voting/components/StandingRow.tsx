@@ -1,14 +1,15 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
-import type { StandingEntryResponse } from '@/services/competitions';
+import type { StandingContent, StandingEntryResponse } from '@/services/competitions';
 
 interface StandingRowProps {
   entry: StandingEntryResponse;
+  onPress: (content: StandingContent) => void;
 }
 
-export function StandingRow({ entry }: StandingRowProps) {
+export function StandingRow({ entry, onPress }: StandingRowProps) {
   const { content } = entry;
   const isContainer = content.kind === 'container';
   const imageUrl = isContainer ? content.container.thumbnail_url : content.meme.image_url;
@@ -16,7 +17,11 @@ export function StandingRow({ entry }: StandingRowProps) {
   const caption = isContainer ? content.container.title : content.meme.caption;
 
   return (
-    <View className="flex-row items-center border-b border-outline-variant/20 px-4 py-3">
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Open meme by ${authorName}`}
+      onPress={() => onPress(content)}
+      className="flex-row items-center border-b border-outline-variant/20 px-4 py-3">
       <Text className="w-8 font-title text-sm text-heading">{entry.rank}</Text>
       {imageUrl ? (
         <Image source={{ uri: imageUrl }} style={{ width: 56, height: 56, borderRadius: 16 }} contentFit="cover" />
@@ -36,6 +41,6 @@ export function StandingRow({ entry }: StandingRowProps) {
         ) : null}
       </View>
       <Text className="font-title text-sm text-primary-dim">{entry.score}</Text>
-    </View>
+    </Pressable>
   );
 }

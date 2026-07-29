@@ -1,0 +1,38 @@
+import { MaterialIcons } from '@expo/vector-icons';
+import { Modal, Pressable, ScrollView, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { MemeCard } from '@/features/feed/components/MemeCard';
+import { ContainerCard } from '@/features/instagram-companion/ContainerCard';
+import type { StandingContent } from '@/services/competitions';
+
+interface CompetitionEntryModalProps {
+  content: StandingContent | null;
+  onClose: () => void;
+}
+
+/** Full-screen view of a competition entry, reusing the same interactive card the feed/Instagram-companion use. */
+export function CompetitionEntryModal({ content, onClose }: CompetitionEntryModalProps) {
+  return (
+    <Modal visible={!!content} animationType="slide" onRequestClose={onClose}>
+      <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
+        <View className="flex-row items-center justify-end px-4 py-2">
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+            onPress={onClose}
+            className="h-11 w-11 items-center justify-center">
+            <MaterialIcons name="close" size={24} color="#e3bdc5" />
+          </Pressable>
+        </View>
+        <ScrollView>
+          {content?.kind === 'meme' ? (
+            <MemeCard meme={content.meme} />
+          ) : content?.kind === 'container' ? (
+            <ContainerCard container={content.container} />
+          ) : null}
+        </ScrollView>
+      </SafeAreaView>
+    </Modal>
+  );
+}

@@ -1,17 +1,18 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
-import type { WinnerResponse } from '@/services/competitions';
+import type { StandingContent, WinnerResponse } from '@/services/competitions';
 
 interface WinnerBannerProps {
   winner: WinnerResponse | undefined;
   isLoading: boolean;
   isError: boolean;
   label: string;
+  onPress: (content: StandingContent) => void;
 }
 
-export function WinnerBanner({ winner, isLoading, isError, label }: WinnerBannerProps) {
+export function WinnerBanner({ winner, isLoading, isError, label, onPress }: WinnerBannerProps) {
   const content = winner?.content;
   const imageUrl =
     content?.kind === 'container' ? content.container.thumbnail_url : content?.meme.image_url;
@@ -36,7 +37,11 @@ export function WinnerBanner({ winner, isLoading, isError, label }: WinnerBanner
       ) : !content ? (
         <Text className="font-body text-sm text-ink-muted">No votes were cast in that period.</Text>
       ) : (
-        <View className="flex-row items-center">
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Open meme by ${authorName}`}
+          onPress={() => onPress(content)}
+          className="flex-row items-center">
           {imageUrl ? (
             <Image source={{ uri: imageUrl }} style={{ width: 48, height: 48, borderRadius: 16 }} contentFit="cover" />
           ) : (
@@ -50,7 +55,7 @@ export function WinnerBanner({ winner, isLoading, isError, label }: WinnerBanner
             </Text>
             <Text className="font-body text-xs text-ink-muted">score {winner.score}</Text>
           </View>
-        </View>
+        </Pressable>
       )}
     </View>
   );
