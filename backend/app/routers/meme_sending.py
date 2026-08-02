@@ -53,16 +53,18 @@ async def meme_sending_socket(
     # JWT travels as a query param here instead — this endpoint is the one deliberate
     # exception to the Bearer-header convention used everywhere else in this API.
     try:
-        user_id = decode_access_token(token)
+        decoded = decode_access_token(token)
     except InvalidTokenError:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 
-    user = await users_service.get_user_by_id(db, user_id)
-    if user is None:
+    user = await users_service.get_user_by_id(db, decoded.user_id)
+    if user is None or user.token_version != decoded.token_version:
+        # A version mismatch means the token predates a logout-everywhere action.
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 
+    user_id = user.id
     await connection_manager.connect(user_id, websocket)
     try:
         while True:

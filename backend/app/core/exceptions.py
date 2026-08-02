@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import IntegrityError
 
 
 class DomainError(Exception):
@@ -174,3 +175,13 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(DomainError)
     async def _handle_domain_error(request: Request, exc: DomainError) -> JSONResponse:
         return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
+
+    @app.exception_handler(IntegrityError)
+    async def _handle_integrity_error(request: Request, exc: IntegrityError) -> JSONResponse:
+        # Safety net for any check-then-insert race that slips past a service-level
+        # try/except onto a DB unique/foreign-key constraint — keeps the API's
+        # `{detail: "..."}` error contract instead of leaking a raw 500.
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={"detail": "This action conflicts with existing data — it may have already been done"},
+        )

@@ -2,6 +2,7 @@ import uuid
 
 from fastapi import UploadFile
 from sqlalchemy import and_, func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
@@ -243,7 +244,12 @@ async def join_community(
         status=status_,
     )
     db.add(membership)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        # Two concurrent join calls from the same user both passed the check above.
+        await db.rollback()
+        raise AlreadyMemberOrRequestedError("Already a member or a pending request exists") from None
     await db.refresh(membership)
     return MembershipOut.model_validate(membership)
 

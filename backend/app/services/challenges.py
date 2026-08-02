@@ -28,6 +28,7 @@ import datetime
 import uuid
 
 from sqlalchemy import exists, func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
@@ -436,7 +437,14 @@ async def submit_to_challenge(
         challenge_id=challenge_id, side_id=side_id, submitter_id=current_user.id, meme_id=meme_id
     )
     db.add(submission)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        # Two concurrent submit calls for the same meme both passed the check above.
+        await db.rollback()
+        raise MemeNotEligibleForChallengeError(
+            "This meme was already submitted to this challenge"
+        ) from None
     await db.refresh(submission)
 
     submitter = await db.get(User, current_user.id)

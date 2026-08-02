@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     redis_url: str
     jwt_secret: str
     jwt_algorithm: str = "HS256"
-    jwt_expire_minutes: int = 60 * 24 * 7
+    jwt_expire_minutes: int = 60 * 24
 
     cloudinary_cloud_name: str
     cloudinary_api_key: str

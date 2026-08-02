@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 from httpx import AsyncClient
 
@@ -121,6 +123,21 @@ async def test_container_upvote_twice_removes_the_vote(client: AsyncClient):
     assert body["downvote_count"] == 0
     assert body["score"] == 0
     assert body["viewer_vote"] is None
+
+
+@pytest.mark.asyncio
+async def test_concurrent_first_container_votes_never_return_500(client: AsyncClient):
+    """Same race as `test_memes.py::test_concurrent_first_votes_never_return_500` but for
+    the parallel `ContainerVote` upsert path."""
+    alice = await create_user(client, "alice")
+    bob = await create_user(client, "bob")
+    container_id = (await _create_container(client, alice)).json()["id"]
+
+    responses = await asyncio.gather(
+        _vote_container(client, bob, container_id, 1),
+        _vote_container(client, bob, container_id, 1),
+    )
+    assert all(r.status_code == 201 for r in responses)
 
 
 @pytest.mark.asyncio

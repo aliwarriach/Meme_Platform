@@ -24,6 +24,13 @@ async def login(request: Request, data: LoginRequest, db: DbSession) -> TokenRes
     return await auth_service.authenticate_user(db, data)
 
 
+@router.post("/logout", status_code=204)
+async def logout(current_user: CurrentUser, db: DbSession) -> None:
+    # Invalidates every token currently issued to this user (this one included) —
+    # there's no per-device session tracking, so "logout" is always "logout everywhere".
+    await auth_service.logout_everywhere(db, current_user)
+
+
 @router.get("/me", response_model=UserOut)
 async def me(current_user: CurrentUser) -> UserOut:
     return UserOut.model_validate(current_user)

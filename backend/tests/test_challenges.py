@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 import uuid
 
@@ -203,6 +204,31 @@ async def test_submission_rejected_after_window_close(client: AsyncClient):
         headers=auth_header(alice),
     )
     assert response.status_code == 400
+
+
+async def test_concurrent_submission_of_same_meme_never_returns_500(client: AsyncClient):
+    """Both requests pass the "already submitted?" check before either commits; the DB
+    unique constraint catches the loser — must be a clean 400, never a raw 500."""
+    alice = await create_user(client, "alice")
+    bob = await create_user(client, "bob")
+    community = await _create_community(client, alice)
+    await _join(client, bob, community["id"])
+    challenge = (await _setup_two_side_challenge(client, alice, bob, community["id"])).json()
+    meme = await _post_meme(client, alice)
+
+    responses = await asyncio.gather(
+        client.post(
+            f"/communities/{community['id']}/challenges/{challenge['id']}/submissions",
+            params={"meme_id": meme["id"]},
+            headers=auth_header(alice),
+        ),
+        client.post(
+            f"/communities/{community['id']}/challenges/{challenge['id']}/submissions",
+            params={"meme_id": meme["id"]},
+            headers=auth_header(alice),
+        ),
+    )
+    assert sorted(r.status_code for r in responses) == [201, 400]
 
 
 async def test_evaluate_challenge_picks_winner_and_awards_points_and_badge(client: AsyncClient):

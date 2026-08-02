@@ -1,3 +1,5 @@
+import asyncio
+
 from httpx import AsyncClient
 
 from tests.conftest import auth_header, create_user
@@ -164,6 +166,20 @@ async def test_joining_twice_is_rejected(client: AsyncClient):
     await client.post(f"/communities/{community['id']}/join", headers=auth_header(bob))
     second = await client.post(f"/communities/{community['id']}/join", headers=auth_header(bob))
     assert second.status_code == 409
+
+
+async def test_concurrent_join_never_returns_500(client: AsyncClient):
+    """Both requests pass the membership-existence check before either commits; the DB
+    unique constraint catches the loser — must be a clean 409, never a raw 500."""
+    alice = await create_user(client, "alice")
+    bob = await create_user(client, "bob")
+    community = (await _create_community(client, alice, privacy="open")).json()
+
+    responses = await asyncio.gather(
+        client.post(f"/communities/{community['id']}/join", headers=auth_header(bob)),
+        client.post(f"/communities/{community['id']}/join", headers=auth_header(bob)),
+    )
+    assert sorted(r.status_code for r in responses) == [201, 409]
 
 
 async def test_leave_community_removes_membership(client: AsyncClient):

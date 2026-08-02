@@ -20,6 +20,7 @@ import uuid
 
 from sqlalchemy import exists, func, literal, select, union_all, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import InvalidSourceUrlError, MemeContainerNotFoundError
@@ -171,6 +172,49 @@ async def get_container_out_for_standings(
     return _build_container_out(container, upvote_count, downvote_count, comment_count or 0, None)
 
 
+async def _upsert_container_vote(
+    db: AsyncSession,
+    container_id: uuid.UUID,
+    user_id: uuid.UUID,
+    value: int,
+    *,
+    retried: bool = False,
+) -> bool:
+    """Returns whether a concurrent-insert race was hit and resolved via rollback+retry.
+    `db.rollback()` expires every ORM object bound to the session (unlike `commit()`,
+    which doesn't here since `expire_on_commit=False`) — callers must refresh anything
+    they still plan to use afterward (e.g. `current_user`) when this returns `True`.
+    """
+    result = await db.execute(
+        select(ContainerVote).where(
+            ContainerVote.meme_container_id == container_id,
+            ContainerVote.user_id == user_id,
+        )
+    )
+    existing = result.scalar_one_or_none()
+
+    if existing is None:
+        db.add(ContainerVote(meme_container_id=container_id, user_id=user_id, value=value))
+        try:
+            await db.commit()
+        except IntegrityError:
+            if retried:
+                raise
+            # Two concurrent first-votes from the same user raced the insert; the loser
+            # falls back to updating the row the winner just created.
+            await db.rollback()
+            await _upsert_container_vote(db, container_id, user_id, value, retried=True)
+            return True
+        return False
+
+    if existing.value == value:
+        await db.delete(existing)
+    else:
+        existing.value = value
+    await db.commit()
+    return False
+
+
 async def cast_container_vote(
     db: AsyncSession, current_user: User, container_id: uuid.UUID, value: int
 ) -> MemeContainerOut:
@@ -178,24 +222,10 @@ async def cast_container_vote(
     `services/votes.py::cast_vote` for native memes. Unlike a meme, a container has no
     "author" in the platform sense (just a submitter), so there's no self-vote restriction.
     """
-    container = await _get_container_or_404(db, container_id)
-
-    result = await db.execute(
-        select(ContainerVote).where(
-            ContainerVote.meme_container_id == container_id,
-            ContainerVote.user_id == current_user.id,
-        )
-    )
-    existing = result.scalar_one_or_none()
-
-    if existing is None:
-        db.add(ContainerVote(meme_container_id=container_id, user_id=current_user.id, value=value))
-    elif existing.value == value:
-        await db.delete(existing)
-    else:
-        existing.value = value
-
-    await db.commit()
+    await _get_container_or_404(db, container_id)
+    raced = await _upsert_container_vote(db, container_id, current_user.id, value)
+    if raced:
+        await db.refresh(current_user)
     return await get_container(db, current_user, container_id)
 
 

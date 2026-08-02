@@ -1,6 +1,7 @@
 import uuid
 
 from sqlalchemy import and_, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
@@ -51,7 +52,14 @@ async def send_friend_request(
         requester_id=current_user.id, addressee_id=target.id, status=FriendshipStatus.pending
     )
     db.add(friendship)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        # Two concurrent requests between the same pair both passed the check above.
+        await db.rollback()
+        raise FriendshipAlreadyExistsError(
+            "A friendship or pending request already exists between these users"
+        ) from None
     await db.refresh(friendship)
     return friendship
 

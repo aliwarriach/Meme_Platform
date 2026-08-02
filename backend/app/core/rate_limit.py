@@ -14,8 +14,8 @@ def _rate_limit_key(request: Request) -> str:
     if auth_header and auth_header.lower().startswith("bearer "):
         token = auth_header.split(" ", 1)[1]
         try:
-            user_id = decode_access_token(token)
-            return f"user:{user_id}"
+            decoded = decode_access_token(token)
+            return f"user:{decoded.user_id}"
         except InvalidTokenError:
             pass
     return get_remote_address(request)

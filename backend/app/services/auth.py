@@ -1,3 +1,4 @@
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
@@ -23,7 +24,14 @@ async def register_user(db: AsyncSession, data: RegisterRequest) -> TokenRespons
         hashed_password=hash_password(data.password),
     )
     db.add(user)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        # Two concurrent registrations both passed the checks above before either committed.
+        await db.rollback()
+        if await users_service.get_user_by_email(db, data.email) is not None:
+            raise EmailAlreadyExistsError("An account with this email already exists") from None
+        raise UsernameAlreadyExistsError("This username is already taken") from None
     await db.refresh(user)
 
     return _issue_token(user)
@@ -37,8 +45,15 @@ async def authenticate_user(db: AsyncSession, data: LoginRequest) -> TokenRespon
     return _issue_token(user)
 
 
+async def logout_everywhere(db: AsyncSession, current_user: User) -> None:
+    """Bumps `token_version`, invalidating every JWT issued before this call — the only
+    revocation granularity a stateless JWT (no denylist/refresh-token store) supports."""
+    current_user.token_version += 1
+    await db.commit()
+
+
 def _issue_token(user: User) -> TokenResponse:
     return TokenResponse(
-        access_token=create_access_token(user.id),
+        access_token=create_access_token(user.id, user.token_version),
         user=UserOut.model_validate(user),
     )

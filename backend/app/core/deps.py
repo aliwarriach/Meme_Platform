@@ -22,12 +22,13 @@ async def get_current_user(
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated")
 
     try:
-        user_id = decode_access_token(credentials.credentials)
+        decoded = decode_access_token(credentials.credentials)
     except InvalidTokenError as exc:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or expired token") from exc
 
-    user = await users_service.get_user_by_id(db, user_id)
-    if user is None:
+    user = await users_service.get_user_by_id(db, decoded.user_id)
+    if user is None or user.token_version != decoded.token_version:
+        # A version mismatch means the token predates a logout-everywhere action.
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or expired token")
     return user
 

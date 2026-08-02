@@ -1,3 +1,5 @@
+import asyncio
+
 from httpx import AsyncClient
 
 from tests.conftest import auth_header, create_user
@@ -362,6 +364,25 @@ async def test_upvote_then_downvote_flips_the_vote(client: AsyncClient):
     assert body["downvote_count"] == 1
     assert body["score"] == -1
     assert body["viewer_vote"] == -1
+
+
+async def test_concurrent_first_votes_never_return_500(client: AsyncClient):
+    """Two concurrent first-votes from the same user both pass the "no existing vote"
+    check before either commits; the loser must retry against the row the winner just
+    created instead of surfacing a raw 500 from the unique-constraint violation."""
+    alice = await create_user(client, "alice")
+    bob = await create_user(client, "bob")
+    meme_response = await _post_meme(client, alice, audiences=["public"])
+    meme_id = meme_response.json()["id"]
+
+    responses = await asyncio.gather(
+        _vote(client, bob, meme_id, 1),
+        _vote(client, bob, meme_id, 1),
+    )
+    assert all(r.status_code == 201 for r in responses)
+
+    final = await _vote(client, bob, meme_id, -1)
+    assert final.status_code == 201
 
 
 async def test_vote_requires_meme_to_be_visible(client: AsyncClient):

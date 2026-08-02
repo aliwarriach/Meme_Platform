@@ -1,3 +1,5 @@
+import asyncio
+
 from httpx import AsyncClient
 
 from tests.conftest import auth_header as _auth_header
@@ -179,3 +181,16 @@ async def test_friends_endpoints_require_authentication(client: AsyncClient):
 
     response = await client.post("/friends/requests", json={"username": "bob"})
     assert response.status_code == 401
+
+
+async def test_concurrent_friend_requests_never_return_500(client: AsyncClient):
+    """Both requests pass the "does this pair already exist?" check before either
+    commits; the DB unique constraint catches the loser — must be a clean 409."""
+    alice = await _create_user(client, "alice")
+    await _create_user(client, "bob")
+
+    responses = await asyncio.gather(
+        client.post("/friends/requests", json={"username": "bob"}, headers=_auth_header(alice)),
+        client.post("/friends/requests", json={"username": "bob"}, headers=_auth_header(alice)),
+    )
+    assert sorted(r.status_code for r in responses) == [201, 409]
