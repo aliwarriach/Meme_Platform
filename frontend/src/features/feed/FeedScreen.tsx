@@ -1,11 +1,13 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Platform, Pressable, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import FloatingBottomNav from '@/components/FloatingBottomNav';
 import TopBar from '@/components/TopBar';
+import DesktopInboxPanel from '@/components/web/DesktopInboxPanel';
+import { DESKTOP_FRAME_MIN_WIDTH } from '@/constants/webLayout';
 import { MergedFeedList } from '@/features/feed/components/MemeFeedList';
 import { ShareInstagramLinkModal } from '@/features/instagram-companion/ShareInstagramLinkModal';
 import type { MergedFeedItem } from '@/services/memes';
@@ -15,10 +17,12 @@ export default function FeedScreen() {
   const router = useRouter();
   const feedQuery = useFeed();
   const [shareModalVisible, setShareModalVisible] = useState(false);
+  const { width } = useWindowDimensions();
+  const showDesktopInbox = Platform.OS === 'web' && width >= DESKTOP_FRAME_MIN_WIDTH;
 
   const items: MergedFeedItem[] = feedQuery.data?.pages.flatMap((page) => page.items) ?? [];
 
-  return (
+  const feedPane = (
     <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
       <TopBar
         title="MemeVerse"
@@ -31,13 +35,15 @@ export default function FeedScreen() {
               className="h-11 w-11 items-center justify-center">
               <MaterialIcons name="add-link" size={22} color="#ffffff" />
             </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Inbox"
-              onPress={() => router.push('/inbox')}
-              className="h-11 w-11 items-center justify-center">
-              <MaterialIcons name="mail-outline" size={22} color="#ffffff" />
-            </Pressable>
+            {showDesktopInbox ? null : (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Inbox"
+                onPress={() => router.push('/inbox')}
+                className="h-11 w-11 items-center justify-center">
+                <MaterialIcons name="mail-outline" size={22} color="#ffffff" />
+              </Pressable>
+            )}
           </>
         }
       />
@@ -64,5 +70,14 @@ export default function FeedScreen() {
         onClose={() => setShareModalVisible(false)}
       />
     </SafeAreaView>
+  );
+
+  if (!showDesktopInbox) return feedPane;
+
+  return (
+    <View style={{ flex: 1, flexDirection: 'row' }}>
+      <View style={{ flex: 1 }}>{feedPane}</View>
+      <DesktopInboxPanel />
+    </View>
   );
 }

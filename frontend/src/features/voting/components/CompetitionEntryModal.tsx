@@ -2,6 +2,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Modal, Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import WebModalFrame from '@/components/web/WebModalFrame';
 import { MemeCard } from '@/features/feed/components/MemeCard';
 import { ContainerCard } from '@/features/instagram-companion/ContainerCard';
 import type { StandingContent } from '@/services/competitions';
@@ -15,6 +16,7 @@ interface CompetitionEntryModalProps {
 export function CompetitionEntryModal({ content, onClose }: CompetitionEntryModalProps) {
   return (
     <Modal visible={!!content} animationType="slide" onRequestClose={onClose}>
+      <WebModalFrame>
       <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
         <View className="flex-row items-center justify-end px-4 py-2">
           <Pressable
@@ -33,6 +35,7 @@ export function CompetitionEntryModal({ content, onClose }: CompetitionEntryModa
           ) : null}
         </ScrollView>
       </SafeAreaView>
+      </WebModalFrame>
     </Modal>
   );
 }

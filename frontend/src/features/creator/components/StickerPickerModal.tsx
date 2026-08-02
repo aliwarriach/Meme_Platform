@@ -1,6 +1,7 @@
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import WebModalFrame from '@/components/web/WebModalFrame';
 import { EMOJI_STICKERS } from '@/features/creator/document';
 
 interface StickerPickerModalProps {
@@ -14,6 +15,7 @@ interface StickerPickerModalProps {
 export function StickerPickerModal({ visible, onClose, onSelect }: StickerPickerModalProps) {
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <WebModalFrame>
       <SafeAreaView className="flex-1 bg-bg">
         <View className="flex-row items-center justify-between px-6 py-4">
           <Text className="font-heading text-xl text-heading">Pick a Sticker</Text>
@@ -39,6 +41,7 @@ export function StickerPickerModal({ visible, onClose, onSelect }: StickerPicker
           ))}
         </ScrollView>
       </SafeAreaView>
+      </WebModalFrame>
     </Modal>
   );
 }

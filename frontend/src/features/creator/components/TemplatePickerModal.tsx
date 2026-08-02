@@ -8,6 +8,7 @@ import Chip from '@/components/Chip';
 import PillButton from '@/components/PillButton';
 import { TextField } from '@/components/TextField';
 import { TemplateGrid } from '@/features/creator/components/TemplateGrid';
+import WebModalFrame from '@/components/web/WebModalFrame';
 import type { TemplateResponse } from '@/services/templates';
 import { useMyCommunities } from '@/services/useCommunities';
 import { useCommunityTemplates, useCreateTemplateMutation, useTemplates } from '@/services/useTemplates';
@@ -111,6 +112,7 @@ export function TemplatePickerModal({ visible, onClose, onSelect }: TemplatePick
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <WebModalFrame>
       <SafeAreaView className="flex-1 bg-bg">
         <View className="flex-row items-center justify-between px-4 py-3">
           <Text className="font-heading text-xl text-heading">Choose a Template</Text>
@@ -187,6 +189,7 @@ export function TemplatePickerModal({ visible, onClose, onSelect }: TemplatePick
           <CommunityTemplates communityId={scope.communityId} onSelect={onSelect} />
         )}
       </SafeAreaView>
+      </WebModalFrame>
     </Modal>
   );
 }

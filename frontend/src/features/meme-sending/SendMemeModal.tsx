@@ -1,8 +1,9 @@
 import { BlurView } from 'expo-blur';
 import { useState } from 'react';
-import { ActivityIndicator, FlatList, Modal, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Modal, Platform, Pressable, Text, View } from 'react-native';
 
 import Avatar from '@/components/Avatar';
+import { DESKTOP_MODAL_MAX_WIDTH } from '@/constants/webLayout';
 import { useFriendsList } from '@/services/useFriends';
 import { useSendMemeMutation } from '@/services/useMemeSending';
 
@@ -26,8 +27,12 @@ export function SendMemeModal({ memeId, visible, onClose }: SendMemeModalProps) 
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose} transparent>
-      <View className="flex-1 justify-end bg-black/60">
-        <View className="max-h-[70%] overflow-hidden rounded-t-card">
+      <View
+        className="flex-1 justify-end bg-black/60"
+        style={Platform.OS === 'web' ? { alignItems: 'center' } : undefined}>
+        <View
+          className="max-h-[70%] overflow-hidden rounded-t-card"
+          style={Platform.OS === 'web' ? { width: '100%', maxWidth: DESKTOP_MODAL_MAX_WIDTH } : undefined}>
           <BlurView intensity={60} tint="dark" className="border-t border-outline-variant/40 bg-surface/85 p-4">
             <View className="mb-3 flex-row items-center justify-between">
               <Text className="font-heading text-lg text-heading">Send to a Friend</Text>

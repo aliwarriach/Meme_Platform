@@ -18,3 +18,38 @@ body,
 #root {
   background-color: #1e0f13;
 }
+
+/* Desktop-web-only polish. Native never parses this file's raw CSS, so none of this touches
+   mobile — it only makes the ported RN-web app feel native to a mouse/keyboard on desktop. */
+[role='button'],
+a[href] {
+  cursor: pointer;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+::selection {
+  background-color: #ff338866;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #473438;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: #5b3f46;
+}

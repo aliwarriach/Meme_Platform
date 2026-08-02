@@ -6,6 +6,7 @@ import { z } from 'zod';
 
 import PillButton from '@/components/PillButton';
 import { TextField } from '@/components/TextField';
+import WebModalFrame from '@/components/web/WebModalFrame';
 import { useCreateContainerMutation } from '@/services/useInstagram';
 
 const shareLinkSchema = z.object({
@@ -46,6 +47,7 @@ export function ShareInstagramLinkModal({ visible, onClose }: ShareInstagramLink
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <WebModalFrame>
       <SafeAreaView className="flex-1 bg-bg">
         <View className="flex-1 px-6 py-4">
           <View className="mb-6 flex-row items-center justify-between">
@@ -92,6 +94,7 @@ export function ShareInstagramLinkModal({ visible, onClose }: ShareInstagramLink
           />
         </View>
       </SafeAreaView>
+      </WebModalFrame>
     </Modal>
   );
 }

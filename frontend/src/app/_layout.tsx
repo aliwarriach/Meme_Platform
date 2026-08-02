@@ -15,6 +15,7 @@ import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Provider as ReduxProvider, useDispatch, useSelector } from 'react-redux';
 
+import DesktopShell from '@/components/web/DesktopShell';
 import { bootstrapAuth } from '@/store/authSlice';
 import { store, type AppDispatch, type RootState } from '@/store/store';
 import { connectMemeSendingSocket, disconnectMemeSendingSocket } from '@/services/memeSendingSocket';
@@ -58,24 +59,26 @@ function AuthBoundary({ fontsLoaded }: { fontsLoaded: boolean }) {
   if (!isBootstrapped || !fontsLoaded) return null;
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="index" />
-      <Stack.Screen name="login" />
-      <Stack.Screen name="register" />
-      <Stack.Screen name="profile" />
-      <Stack.Screen name="friends" />
-      <Stack.Screen name="feed" />
-      <Stack.Screen name="new-post" />
-      <Stack.Screen name="communities" />
-      <Stack.Screen name="communities/new" />
-      <Stack.Screen name="communities/[id]" />
-      <Stack.Screen name="communities/[id]/challenges/new" />
-      <Stack.Screen name="communities/[id]/challenges/vs" />
-      <Stack.Screen name="communities/[id]/challenges/[challengeId]" />
-      <Stack.Screen name="leaderboards" />
-      <Stack.Screen name="voting" />
-      <Stack.Screen name="inbox" />
-    </Stack>
+    <DesktopShell>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" />
+        <Stack.Screen name="login" />
+        <Stack.Screen name="register" />
+        <Stack.Screen name="profile" />
+        <Stack.Screen name="friends" />
+        <Stack.Screen name="feed" />
+        <Stack.Screen name="new-post" />
+        <Stack.Screen name="communities" />
+        <Stack.Screen name="communities/new" />
+        <Stack.Screen name="communities/[id]" />
+        <Stack.Screen name="communities/[id]/challenges/new" />
+        <Stack.Screen name="communities/[id]/challenges/vs" />
+        <Stack.Screen name="communities/[id]/challenges/[challengeId]" />
+        <Stack.Screen name="leaderboards" />
+        <Stack.Screen name="voting" />
+        <Stack.Screen name="inbox" />
+      </Stack>
+    </DesktopShell>
   );
 }
 

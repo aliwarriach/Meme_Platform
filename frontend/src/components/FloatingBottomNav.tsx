@@ -1,7 +1,9 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { DESKTOP_FRAME_MIN_WIDTH } from '@/constants/webLayout';
 
 export type NavDestination = 'feed' | 'communities' | 'leaderboards' | 'profile';
 
@@ -38,6 +40,11 @@ const INACTIVE_TINT = '#e3bdc5';
 export default function FloatingBottomNav({ active }: FloatingBottomNavProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+
+  // DesktopShell's DesktopSidebarNav takes over navigation on wide desktop-web viewports —
+  // never touched on native, where this condition is always false.
+  if (Platform.OS === 'web' && width >= DESKTOP_FRAME_MIN_WIDTH) return null;
 
   return (
     <View pointerEvents="box-none" style={[styles.root, { bottom: insets.bottom + 12 }]}>
