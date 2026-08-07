@@ -63,6 +63,8 @@ export async function createMemeRequest(payload: {
   imageType: string;
   caption?: string;
   audiences: AudienceType[];
+  // Personal posts only — community posts don't accept tags yet (backend scope limit).
+  hashtags?: string[];
 }) {
   const form = new FormData();
   await appendImageToFormData(form, 'image', {
@@ -73,6 +75,7 @@ export async function createMemeRequest(payload: {
 
   if (payload.caption) form.append('caption', payload.caption);
   payload.audiences.forEach((audience) => form.append('audiences', audience));
+  payload.hashtags?.forEach((tag) => form.append('hashtags', tag));
 
   // apisauce defaults every request to Content-Type: application/json, which makes
   // axios JSON-stringify the FormData instead of sending it as multipart. Clearing

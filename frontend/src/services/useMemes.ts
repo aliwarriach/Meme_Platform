@@ -8,6 +8,16 @@ import {
 
 import { throwApiError } from '@/services/api';
 import {
+  applyVoteLocally,
+  bumpCommentCount,
+  cancelContentQueries,
+  markScoreSurfacesStale,
+  patchMemeInCaches,
+  restoreContentCaches,
+  snapshotContentCaches,
+  type CacheSnapshot,
+} from '@/services/optimisticCache';
+import {
   addCommentRequest,
   castVoteRequest,
   createCommunityMemeRequest,
@@ -31,6 +41,11 @@ const communityFeedKey = (communityId: string) => ['memes', 'community', communi
 const commentsKey = (memeId: string) => ['memes', memeId, 'comments'] as const;
 
 const FEED_PAGE_SIZE = 20;
+
+/** Cache entries a mutation snapshots before patching, so onError can put them back. */
+interface OptimisticContext {
+  snapshot: CacheSnapshot;
+}
 
 export function useFeed() {
   return useInfiniteQuery<
@@ -66,6 +81,7 @@ export function useCreateMemeMutation() {
       imageType: string;
       caption?: string;
       audiences: AudienceType[];
+      hashtags?: string[];
     }
   >({
     mutationFn: async (payload) => {
@@ -123,13 +139,33 @@ export function useCommunityFeed(communityId: string, enabled: boolean) {
 
 export function useCastVoteMutation() {
   const queryClient = useQueryClient();
-  return useMutation<VoteResponse, Error, { memeId: string; value: 1 | -1 }>({
+  return useMutation<VoteResponse, Error, { memeId: string; value: 1 | -1 }, OptimisticContext>({
     mutationFn: async ({ memeId, value }) => {
       const response = await castVoteRequest(memeId, value);
       if (!response.ok || !response.data) throwApiError(response, 'vote on meme');
       return response.data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: memesRootKey }),
+    onMutate: async ({ memeId, value }) => {
+      await cancelContentQueries(queryClient, 'meme');
+      const snapshot = snapshotContentCaches(queryClient, 'meme');
+      patchMemeInCaches(queryClient, memeId, (meme) => applyVoteLocally(meme, value));
+      return { snapshot };
+    },
+    onError: (_error, _variables, context) => {
+      if (context) restoreContentCaches(queryClient, context.snapshot);
+    },
+    // Reconcile against the server's authoritative counts — they drift from the optimistic
+    // guess whenever someone else voted on the same meme in between.
+    onSuccess: ({ upvote_count, downvote_count, score, viewer_vote }, { memeId }) => {
+      patchMemeInCaches(queryClient, memeId, (meme) => ({
+        ...meme,
+        upvote_count,
+        downvote_count,
+        score,
+        viewer_vote,
+      }));
+    },
+    onSettled: () => markScoreSurfacesStale(queryClient),
   });
 }
 
@@ -160,15 +196,26 @@ export function useComments(memeId: string, enabled: boolean) {
 
 export function useAddCommentMutation(memeId: string) {
   const queryClient = useQueryClient();
-  return useMutation<CommentResponse, Error, string>({
+  return useMutation<CommentResponse, Error, string, OptimisticContext>({
     mutationFn: async (body) => {
       const response = await addCommentRequest(memeId, body);
       if (!response.ok || !response.data) throwApiError(response, 'add comment');
       return response.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: commentsKey(memeId) });
-      queryClient.invalidateQueries({ queryKey: memesRootKey });
+    // The comment count is denormalized onto every cached copy of the meme, so bump it in
+    // place rather than refetching the feed to pick up a +1.
+    onMutate: async () => {
+      await cancelContentQueries(queryClient, 'meme');
+      const snapshot = snapshotContentCaches(queryClient, 'meme');
+      patchMemeInCaches(queryClient, memeId, (meme) => bumpCommentCount(meme, 1));
+      return { snapshot };
     },
+    onError: (_error, _variables, context) => {
+      if (context) restoreContentCaches(queryClient, context.snapshot);
+    },
+    // Only this meme's comment list refetches — it needs the server-assigned id/author for
+    // the new row. The feed already has the count it needs from onMutate.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: commentsKey(memeId) }),
+    onSettled: () => markScoreSurfacesStale(queryClient),
   });
 }

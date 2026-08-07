@@ -18,7 +18,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Inbox', href: '/inbox', icon: 'mail' },
   { label: 'Friends', href: '/friends', icon: 'people' },
   { label: 'Voting', href: '/voting', icon: 'how-to-vote' },
-  { label: 'Leaderboards', href: '/leaderboards', icon: 'emoji-events' },
+  { label: 'Compete', href: '/compete', icon: 'emoji-events' },
   { label: 'Profile', href: '/profile', icon: 'account-circle' },
 ];
 

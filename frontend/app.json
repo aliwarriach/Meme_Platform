@@ -42,6 +42,13 @@
             "usesCleartextTraffic": true
           }
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#ff3385"
+        }
       ]
     ],
     "experiments": {

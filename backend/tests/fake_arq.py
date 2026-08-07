@@ -10,10 +10,12 @@ from typing import Any
 
 from app.workers.tasks.ai_caption import generate_caption_job
 from app.workers.tasks.instagram import fetch_container_metadata_job
+from app.workers.tasks.notifications import send_push_job
 
 _JOB_FUNCTIONS = {
     "generate_caption_job": generate_caption_job,
     "fetch_container_metadata_job": fetch_container_metadata_job,
+    "send_push_job": send_push_job,
 }
 
 

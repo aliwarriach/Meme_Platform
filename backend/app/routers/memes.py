@@ -27,8 +27,11 @@ async def create_meme(
     db: DbSession,
     audiences: Annotated[list[AudienceType], Form()] = [],
     caption: Annotated[str | None, Form(max_length=500)] = None,
+    hashtags: Annotated[list[str], Form()] = [],
 ) -> MemeOut:
-    return await memes_service.create_meme(db, current_user, caption, audiences, image)
+    return await memes_service.create_meme(
+        db, current_user, caption, audiences, image, hashtags
+    )
 
 
 @router.get("/feed", response_model=MergedFeedPage)

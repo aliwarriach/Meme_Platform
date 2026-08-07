@@ -26,13 +26,40 @@ class ChallengeProposalCreate(BaseModel):
     end_time: datetime.datetime
 
 
+class OpenChallengeSideSetup(BaseModel):
+    """No `member_ids` — an open challenge's sides are filled by self-service join."""
+
+    name: str = Field(min_length=1, max_length=100)
+
+
+class OpenChallengeCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=150)
+    # Normalized server-side; a challenge reserves its tag exclusively.
+    hashtag: str = Field(min_length=1, max_length=100)
+    start_time: datetime.datetime
+    end_time: datetime.datetime
+    sides: list[OpenChallengeSideSetup] = Field(min_length=2)
+
+
+class ChallengeJoin(BaseModel):
+    side_id: uuid.UUID
+
+
+class DuelCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=150)
+    start_time: datetime.datetime
+    end_time: datetime.datetime
+
+
 class ChallengeSideOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
     name: str
     community_id: uuid.UUID | None
+    # Always empty for an open challenge — its roster is unbounded, use participant_count.
     member_ids: list[uuid.UUID] = []
+    participant_count: int = 0
     score: float | None = None
 
 
@@ -40,9 +67,21 @@ class ChallengeOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    community_id: uuid.UUID
+    # Both null for an `open` challenge, which belongs to the platform, not a community.
+    community_id: uuid.UUID | None
+    # Names are included alongside the ids because the cross-community "my challenges" list
+    # can't resolve them locally — a challenge there may belong to any community the caller
+    # is in. Same rationale as MemeOut's community badge carrying a name.
+    community_name: str | None = None
     opponent_community_id: uuid.UUID | None
+    opponent_community_name: str | None = None
+    # `open` challenges only: the reserved entry tag (normalized slug, no leading '#').
+    hashtag: str | None = None
     creator: UserOut
+    # `duel` only: the challenged friend. Set from proposal time, before they've accepted
+    # (and therefore before any `ChallengeParticipant` row for them exists).
+    invitee_id: uuid.UUID | None = None
+    invitee: UserOut | None = None
     title: str
     challenge_type: ChallengeType
     status: ChallengeStatus

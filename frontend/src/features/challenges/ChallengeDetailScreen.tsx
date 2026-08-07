@@ -1,10 +1,12 @@
 import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
 import { ScrollView, ActivityIndicator, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
 
 import PillButton from '@/components/PillButton';
 import TopBar from '@/components/TopBar';
+import { CountdownTimer } from '@/features/challenges/components/CountdownTimer';
 import { SubmissionPicker } from '@/features/challenges/components/SubmissionPicker';
 import type { MemeResponse } from '@/services/memes';
 import { useCommunityFeed } from '@/services/useMemes';
@@ -33,6 +35,7 @@ export default function ChallengeDetailScreen({
   communityId,
   challengeId,
 }: ChallengeDetailScreenProps) {
+  const router = useRouter();
   const currentUser = useSelector((state: RootState) => state.auth.user);
 
   const challengeQuery = useChallenge(communityId, challengeId);
@@ -102,11 +105,11 @@ export default function ChallengeDetailScreen({
               {isPendingProposal ? 'Awaiting response' : challenge.status}
             </Text>
           </View>
-          {!isPendingProposal ? (
+          {challenge.status === 'active' ? (
+            <CountdownTimer endTime={challenge.end_time} className="font-body text-xs text-ink-muted" />
+          ) : challenge.status === 'evaluated' ? (
             <Text className="font-body text-xs text-ink-muted">
-              {challenge.status === 'active'
-                ? `Ends ${new Date(challenge.end_time).toLocaleString()}`
-                : `Ended ${new Date(challenge.end_time).toLocaleString()}`}
+              Ended {new Date(challenge.end_time).toLocaleString()}
             </Text>
           ) : null}
         </View>
@@ -173,7 +176,16 @@ export default function ChallengeDetailScreen({
         {challenge.status === 'active' && mySideId ? (
           <View className="mt-4">
             <Text className="mb-2 font-label text-xs uppercase tracking-wide text-ink-muted">
-              Submit a meme for {challenge.sides.find((s) => s.id === mySideId)?.name}
+              Competing for {challenge.sides.find((s) => s.id === mySideId)?.name}
+            </Text>
+            <PillButton
+              label="Create a meme for this challenge"
+              onPress={() => router.push({ pathname: '/new-post', params: { challengeId } })}
+              className="mb-4"
+            />
+
+            <Text className="mb-2 font-label text-xs uppercase tracking-wide text-ink-muted">
+              Or submit something you already posted
             </Text>
             <SubmissionPicker
               memes={ownMemes}

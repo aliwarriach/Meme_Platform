@@ -15,7 +15,7 @@ import type { AppDispatch, RootState } from '@/store/store';
 const ENTRY_LINKS: { label: string; href: string; icon: keyof typeof MaterialIcons.glyphMap }[] = [
   { label: 'Friends', href: '/friends', icon: 'people-outline' },
   { label: 'Communities', href: '/communities', icon: 'groups' },
-  { label: 'Leaderboards', href: '/leaderboards', icon: 'emoji-events' },
+  { label: 'Compete', href: '/compete', icon: 'emoji-events' },
   { label: 'Competitions', href: '/voting', icon: 'military-tech' },
   { label: 'Inbox', href: '/inbox', icon: 'mail-outline' },
 ];

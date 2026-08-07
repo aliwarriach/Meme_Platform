@@ -1,17 +1,22 @@
 import { API_BASE_URL } from '@/constants/config';
 import type { AppDispatch } from '@/store/store';
 import { setSocketStatus } from '@/store/socketSlice';
-import type { MemeSendResponse } from '@/services/memeSending';
+import type { MessageResponse } from '@/services/messaging';
+import type { NotificationResponse } from '@/services/notifications';
 
-type IncomingMessage =
-  | { type: 'meme_received'; send: MemeSendResponse }
-  | { type: 'meme_send_reaction'; send: MemeSendResponse };
+export type IncomingMessage =
+  | { type: 'message_received'; conversation_id: string; message: MessageResponse }
+  | { type: 'message_read'; conversation_id: string; reader_id: string; read_at: string }
+  | { type: 'notification'; notification: NotificationResponse };
 
 type Listener = (message: IncomingMessage) => void;
 
 // Single ad hoc WebSocket connection for the whole app, matching frontend/CLAUDE.md's
 // "never open ad hoc sockets per screen" rule — screens subscribe via `onMessage`
 // instead of opening their own connection.
+//
+// The URL still says /meme-sending because that's where the backend's single per-user
+// socket lives; since Phase 19 it carries conversation frames rather than meme sends.
 let socket: WebSocket | null = null;
 let listeners: Listener[] = [];
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;

@@ -3,7 +3,7 @@
 Scope: `frontend/` only. Ignore backend rules here. Root rules still apply.
 
 ## What this project is
-Mobile-first, **community-focused** meme creation & sharing app (Android APK now, iOS later): meme feed, **communities** (join/create, community-private templates, community feed), meme creator (upload + text overlays + templates) with **per-post audience selection** (Friends / Public / one-or-more Communities), a rule-based meme scoring system driving **individual + community leaderboards**, **community challenges** (intra-community team vs. team, and community vs. community — setup, active submission window, evaluation, results/rewards), global voting/competitions (Meme of the Day/Week/Month), AI caption generator, real-time meme sending with a lightweight inbox, native share-sheet distribution, and Instagram Companion Mode (view/react to shared Reels inside the app via WebView). Casual users mostly live in the public feed; the core, retained user is community-focused. See root `CLAUDE.md`, `Idea.md`, and `Project_Requirements.md` in the repo root for the full picture.
+Mobile-first, **community-focused** meme creation & sharing app (Android APK now, iOS later): meme feed, **communities** (join/create, community-private templates, community feed), meme creator (upload + text overlays + templates) with **per-post audience selection** (Friends / Public / one-or-more Communities), a rule-based meme scoring system driving **individual + community leaderboards**, **community challenges** (intra-community team vs. team, and community vs. community — setup, active submission window, evaluation, results/rewards), global voting/competitions (Meme of the Day/Week/Month), AI caption generator, real-time friend-to-friend chat (text + memes, conversation inbox), native share-sheet distribution, and Instagram Companion Mode (view/react to shared Reels inside the app via WebView). Casual users mostly live in the public feed; the core, retained user is community-focused. See root `CLAUDE.md`, `Idea.md`, and `Project_Requirements.md` in the repo root for the full picture.
 
 ## Directives
 - Ultra-concise, code-first. ≤2 lines explanation unless real trade-off.
@@ -40,7 +40,8 @@ src/
     voting/              Meme of the Day/Week/Month, one-vote-per-period UI state
     sharing/             native share sheet integration, export as image/video
     ai-caption/          "make it funnier" caption/joke generator UI, iteration flow
-    meme-sending/        real-time send-to-friend, lightweight inbox, reaction-only replies
+    meme-sending/        the feed's "↗ Send" shortcut only (SendMemeModal) — everything else moved to messaging/
+    messaging/           real-time chat: conversation list, thread (text + meme messages), composer, new-chat friend picker
     instagram-companion/ share-to-app intake, MemeContainer display (WebView), react/comment UI, "Open Original" link-out
   store/       Redux Toolkit: store.ts + one slice file per client-state domain (authSlice, creatorDraftSlice, socketSlice)
   services/    Apisauce/axios API layer + TanStack Query hooks (useFeed, useCommunities, useTemplates, useScoring, useLeaderboards, useChallenges, useVoting, useAiCaption, useInbox, useMemeContainer)
@@ -88,7 +89,7 @@ Hand-roll only if trivial (few static items) or no well-maintained library fits.
 - All API calls via `services/` (Apisauce/axios inside a TanStack Query hook) — never fetch/axios, and never a raw HTTP call, directly in components.
 - Server data → TanStack Query. Client state → Redux Toolkit slice (cross-screen) or `useState` (local, single component). Promote local → Redux only on 2nd real cross-component consumer — most component state should stay `useState`, not preemptively globalized, and never wrapped in a custom hook instead.
 - Never mirror a TanStack Query result into Redux/useState — read it directly where needed; duplicating it is the exact bloat this stack exists to avoid.
-- WebSocket connection state (meme-sending) lives in a Redux slice; incoming messages invalidate/update the relevant TanStack Query cache (inbox), not a separate parallel state tree.
+- WebSocket connection state lives in a Redux slice; incoming frames **patch** the relevant TanStack Query cache (conversation list, open thread) rather than invalidating it, and never a separate parallel state tree. Invalidating a thread on every frame would refetch the whole loaded history and jump the scroll position mid-conversation — see `services/messagingCache.ts` and the same principle in `services/optimisticCache.ts`.
 - Community-scoped data (private templates, community feed, challenge submissions) is always fetched through a query hook parameterized by `communityId` — never fetched once and filtered client-side, since that would briefly expose data the user shouldn't see. The backend is the actual gate; the frontend just shouldn't rely on hiding what it already fetched.
 - The creator's audience selector (Friends/Public) is required, explicit state (not an implicit default) for personal posts — validate at least one audience is chosen before enabling publish. Community posts skip this picker entirely (see `features/creator/`); don't add a Community option back into it.
 - API / state / UI stay in separate layers.

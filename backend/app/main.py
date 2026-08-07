@@ -17,10 +17,13 @@ from app.routers import (
     communities,
     competitions,
     friends,
+    hashtags,
     instagram,
     leaderboards,
     meme_sending,
     memes,
+    messaging,
+    notifications,
     templates,
 )
 
@@ -62,7 +65,11 @@ app.include_router(communities.router)
 app.include_router(leaderboards.router)
 app.include_router(competitions.router)
 app.include_router(challenges.router)
+app.include_router(challenges.flat_router)
+app.include_router(hashtags.router)
 app.include_router(meme_sending.router)
+app.include_router(messaging.router)
+app.include_router(notifications.router)
 app.include_router(ai_caption.router)
 app.include_router(instagram.router)
 

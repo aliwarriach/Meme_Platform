@@ -1,4 +1,4 @@
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
 type VotePillProps = {
   score: number;
@@ -22,11 +22,15 @@ export default function VotePill({ score, viewerVote, isVoting, onUpvote, onDown
         <Text className={`text-base ${viewerVote === 1 ? 'text-primary' : 'text-ink-muted'}`}>▲</Text>
       </Pressable>
 
-      {isVoting ? (
-        <ActivityIndicator size="small" color="#ffffff" />
-      ) : (
-        <Text className="min-w-[28px] text-center font-title text-sm text-heading">{score}</Text>
-      )}
+      {/* The score is patched optimistically, so it already shows the post-vote value the
+          instant the arrow is tapped — never swap it for a spinner, which would blank out
+          the one number the user is looking at. Dimming is the whole in-flight signal. */}
+      <Text
+        className={`min-w-[28px] text-center font-title text-sm text-heading ${
+          isVoting ? 'opacity-60' : ''
+        }`}>
+        {score}
+      </Text>
 
       <Pressable
         accessibilityRole="button"

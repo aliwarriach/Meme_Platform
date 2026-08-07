@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import InvalidAudienceSelectionError, MemeNotFoundError
 from app.core.pagination import decode_cursor, encode_cursor
-from app.models.community import CommunityPrivacy
+from app.models.community import Community, CommunityPrivacy
 from app.models.community_membership import CommunityMembership, MembershipStatus
 from app.models.friendship import Friendship, FriendshipStatus
 from app.models.meme import Meme
@@ -98,12 +98,44 @@ def build_meme_out(
     )
 
 
+async def stage_personal_meme(
+    db: AsyncSession,
+    author_id: uuid.UUID,
+    caption: str | None,
+    audiences: set[AudienceType],
+    image: UploadFile,
+) -> Meme:
+    """Uploads the image and stages the `Meme` + its `PostAudience` rows **without
+    committing** — the caller owns the transaction. Counterpart to `stage_community_meme`,
+    split out so an open challenge (which has no community) can create its public entry
+    meme and its `ChallengeSubmission` atomically.
+
+    Audience validity must already be checked by the caller.
+    """
+    image_url, image_public_id = await validate_and_upload_image(image, folder="memes")
+
+    meme = Meme(
+        author_id=author_id,
+        image_url=image_url,
+        image_public_id=image_public_id,
+        caption=caption,
+    )
+    db.add(meme)
+    await db.flush()
+
+    for audience_type in audiences:
+        db.add(PostAudience(meme_id=meme.id, audience_type=audience_type))
+
+    return meme
+
+
 async def create_meme(
     db: AsyncSession,
     current_user: User,
     caption: str | None,
     audiences: list[AudienceType],
     image: UploadFile,
+    hashtags: list[str] | None = None,
 ) -> MemeOut:
     if AudienceType.community in audiences:
         raise InvalidAudienceSelectionError(
@@ -115,19 +147,14 @@ async def create_meme(
     if not unique_audiences:
         raise InvalidAudienceSelectionError("Choose at least one audience")
 
-    image_url, image_public_id = await validate_and_upload_image(image, folder="memes")
+    meme = await stage_personal_meme(db, current_user.id, caption, unique_audiences, image)
 
-    meme = Meme(
-        author_id=current_user.id,
-        image_url=image_url,
-        image_public_id=image_public_id,
-        caption=caption,
-    )
-    db.add(meme)
-    await db.flush()
+    if hashtags:
+        # Imported lazily to keep the dependency one-directional — services.hashtags reads
+        # this module's feed helpers, so a module-scope import here would be a cycle.
+        from app.services.hashtags import attach_hashtags
 
-    for audience_type in unique_audiences:
-        db.add(PostAudience(meme_id=meme.id, audience_type=audience_type))
+        await attach_hashtags(db, meme.id, hashtags)
 
     await db.commit()
     # meme is already identity-mapped in this session — db.get() would return it as-is
@@ -137,6 +164,43 @@ async def create_meme(
         meme, upvote_count=0, downvote_count=0, comment_count=0, viewer_vote=None,
         viewer_id=current_user.id,
     )
+
+
+async def stage_community_meme(
+    db: AsyncSession,
+    community: Community,
+    author_id: uuid.UUID,
+    caption: str | None,
+    image: UploadFile,
+) -> Meme:
+    """Uploads the image and stages the `Meme` + its derived `PostAudience` rows **without
+    committing** — the caller owns the transaction. Split out of `create_community_meme` so
+    the challenge create-and-submit flow can attach a `ChallengeSubmission` in the same
+    transaction; a two-call client chain would strand memes as "posted but not submitted"
+    whenever the second call failed on a flaky mobile network.
+
+    Membership must already be verified by the caller (it's what produces `community`).
+    """
+    image_url, image_public_id = await validate_and_upload_image(image, folder="memes")
+
+    meme = Meme(
+        author_id=author_id,
+        image_url=image_url,
+        image_public_id=image_public_id,
+        caption=caption,
+    )
+    db.add(meme)
+    await db.flush()
+
+    db.add(
+        PostAudience(
+            meme_id=meme.id, audience_type=AudienceType.community, community_id=community.id
+        )
+    )
+    if community.privacy == CommunityPrivacy.open:
+        db.add(PostAudience(meme_id=meme.id, audience_type=AudienceType.public))
+
+    return meme
 
 
 async def create_community_meme(
@@ -153,25 +217,7 @@ async def create_community_meme(
     badge) — an **invite-only** community's posts stay community-only.
     """
     community = await require_active_membership(db, community_id, current_user.id)
-
-    image_url, image_public_id = await validate_and_upload_image(image, folder="memes")
-
-    meme = Meme(
-        author_id=current_user.id,
-        image_url=image_url,
-        image_public_id=image_public_id,
-        caption=caption,
-    )
-    db.add(meme)
-    await db.flush()
-
-    db.add(
-        PostAudience(
-            meme_id=meme.id, audience_type=AudienceType.community, community_id=community_id
-        )
-    )
-    if community.privacy == CommunityPrivacy.open:
-        db.add(PostAudience(meme_id=meme.id, audience_type=AudienceType.public))
+    meme = await stage_community_meme(db, community, current_user.id, caption, image)
 
     await db.commit()
     await db.refresh(meme)

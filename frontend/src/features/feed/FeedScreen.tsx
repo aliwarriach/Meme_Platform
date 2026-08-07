@@ -5,6 +5,7 @@ import { Platform, Pressable, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import FloatingBottomNav from '@/components/FloatingBottomNav';
+import NotificationBell from '@/components/NotificationBell';
 import TopBar from '@/components/TopBar';
 import DesktopInboxPanel from '@/components/web/DesktopInboxPanel';
 import { DESKTOP_FRAME_MIN_WIDTH } from '@/constants/webLayout';
@@ -35,6 +36,7 @@ export default function FeedScreen() {
               className="h-11 w-11 items-center justify-center">
               <MaterialIcons name="add-link" size={22} color="#ffffff" />
             </Pressable>
+            <NotificationBell />
             {showDesktopInbox ? null : (
               <Pressable
                 accessibilityRole="button"

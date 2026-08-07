@@ -19,9 +19,18 @@ import { StickerPickerModal } from '@/features/creator/components/StickerPickerM
 import { TemplatePickerModal } from '@/features/creator/components/TemplatePickerModal';
 import { aspectRatio } from '@/features/creator/document';
 import { buildCreatorSchema, type CreatorFormValues } from '@/features/creator/schemas';
+import {
+  HashtagInput,
+  type ChallengeTagEntry,
+} from '@/features/challenges/components/HashtagInput';
+import { joinOpenChallengeRequest } from '@/services/challenges';
 import type { AudienceType } from '@/services/memes';
 import type { TemplateResponse } from '@/services/templates';
 import { useGenerateCaptionMutation } from '@/services/useAiCaption';
+import {
+  useChallengeFlat,
+  useCreateAndSubmitToChallengeMutation,
+} from '@/services/useChallenges';
 import { useCreateCommunityMemeMutation, useCreateMemeMutation } from '@/services/useMemes';
 import {
   addEmojiLayer,
@@ -45,18 +54,32 @@ const AUDIENCE_OPTIONS: { value: AudienceType; label: string }[] = [
 export default function CreatorScreen() {
   const router = useRouter();
   const dispatch = useDispatch<AppDispatch>();
-  const { communityId, communityName } = useLocalSearchParams<{
+  const { communityId, communityName, challengeId } = useLocalSearchParams<{
     communityId?: string;
     communityName?: string;
+    challengeId?: string;
   }>();
   // Posting from inside a community has no manual audience picker — visibility is
   // fully derived server-side from the community's privacy setting.
   const isCommunityPost = !!communityId;
+  // Entered from a challenge (the "Create a meme for this challenge" CTA) — publish
+  // submits directly into it instead of the normal audience-based post.
+  const isChallengeMode = !!challengeId;
 
   const createMeme = useCreateMemeMutation();
   const createCommunityMeme = useCreateCommunityMemeMutation();
-  const activeMutation = isCommunityPost ? createCommunityMeme : createMeme;
+  const createAndSubmitToChallenge = useCreateAndSubmitToChallengeMutation();
+  const activeMutation = isChallengeMode
+    ? createAndSubmitToChallenge
+    : isCommunityPost
+      ? createCommunityMeme
+      : createMeme;
   const generateCaption = useGenerateCaptionMutation();
+  const challengeQuery = useChallengeFlat(challengeId ?? '');
+
+  const [tags, setTags] = useState<string[]>([]);
+  const [challengeEntry, setChallengeEntry] = useState<ChallengeTagEntry | null>(null);
+  const [joinError, setJoinError] = useState<string | null>(null);
 
   const editorRef = useRef<EditorCanvasHandle>(null);
 
@@ -78,7 +101,10 @@ export default function CreatorScreen() {
     dispatch(resetDraft());
   }, [dispatch]);
 
-  const schema = useMemo(() => buildCreatorSchema(!isCommunityPost), [isCommunityPost]);
+  const schema = useMemo(
+    () => buildCreatorSchema(!isCommunityPost && !isChallengeMode),
+    [isCommunityPost, isChallengeMode]
+  );
 
   const {
     control,
@@ -178,8 +204,30 @@ export default function CreatorScreen() {
 
   const onSubmit = handleSubmit(async (values) => {
     if (!capturedUri) return;
+    setJoinError(null);
     try {
-      if (isCommunityPost) {
+      if (isChallengeMode && challengeId) {
+        await createAndSubmitToChallenge.mutateAsync({
+          challengeId,
+          image: { uri: capturedUri, name: 'meme.png', type: 'image/png' },
+          caption: values.caption || undefined,
+        });
+      } else if (challengeEntry) {
+        // Typed tag resolved to a challenge — join first (a re-join of the same side the
+        // user just picked is expected and treated as success, not an error: the pick
+        // itself already happened in the tag picker, this just makes sure the roster row
+        // exists before submitting), then submit through the same path as the explicit CTA.
+        const joinResponse = await joinOpenChallengeRequest(challengeEntry.challengeId, challengeEntry.sideId);
+        if (!joinResponse.ok && joinResponse.status !== 400) {
+          setJoinError(`Couldn't enter ${challengeEntry.challengeTitle} — try again.`);
+          return;
+        }
+        await createAndSubmitToChallenge.mutateAsync({
+          challengeId: challengeEntry.challengeId,
+          image: { uri: capturedUri, name: 'meme.png', type: 'image/png' },
+          caption: values.caption || undefined,
+        });
+      } else if (isCommunityPost) {
         await createCommunityMeme.mutateAsync({
           communityId,
           imageUri: capturedUri,
@@ -194,19 +242,29 @@ export default function CreatorScreen() {
           imageType: 'image/png',
           caption: values.caption || undefined,
           audiences: values.audiences,
+          hashtags: tags,
         });
       }
       dispatch(resetDraft());
       router.back();
     } catch {
-      // surfaced inline via activeMutation.isError below
+      // surfaced inline via activeMutation.isError/joinError below
     }
   });
 
   if (!baseImageUri) {
     return (
       <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
-        <TopBar title={isCommunityPost ? `New Post to ${communityName}` : 'New Meme'} showBack />
+        <TopBar
+          title={
+            isChallengeMode
+              ? (challengeQuery.data?.title ?? 'Challenge Entry')
+              : isCommunityPost
+                ? `New Post to ${communityName}`
+                : 'New Meme'
+          }
+          showBack
+        />
         <View className="flex-1 px-6 py-4">
           <PillButton label="Upload from Gallery" onPress={onPickOwnImage} className="mb-3" />
           <PillButton
@@ -238,7 +296,13 @@ export default function CreatorScreen() {
           <Text className="font-title text-base text-heading">{capturedUri ? '‹ Edit' : '‹ Start over'}</Text>
         </Pressable>
         <Text className="font-heading text-lg text-heading">
-          {capturedUri ? 'Preview' : isCommunityPost ? `New Post to ${communityName}` : 'New Meme'}
+          {capturedUri
+            ? 'Preview'
+            : isChallengeMode
+              ? (challengeQuery.data?.title ?? 'Challenge Entry')
+              : isCommunityPost
+                ? `New Post to ${communityName}`
+                : 'New Meme'}
         </Text>
         <View
           accessibilityElementsHidden
@@ -341,7 +405,19 @@ export default function CreatorScreen() {
               </Text>
             ) : null}
 
-            {isCommunityPost ? (
+            {isChallengeMode ? (
+              <View className="mb-4 rounded-card border border-primary/40 bg-primary/10 px-4 py-3">
+                <Text className="font-body text-sm text-ink">
+                  Competing in{' '}
+                  <Text className="font-title text-heading">
+                    {challengeQuery.data?.title ?? '…'}
+                  </Text>
+                </Text>
+                <Text className="mt-1 font-body text-xs text-ink-muted">
+                  This meme is submitted straight into the challenge — no separate posting step.
+                </Text>
+              </View>
+            ) : isCommunityPost ? (
               <View className="mb-4 rounded-card bg-surface-high/60 px-4 py-3">
                 <Text className="font-body text-sm text-ink">
                   Posting to <Text className="font-title text-heading">{communityName}</Text>
@@ -370,9 +446,17 @@ export default function CreatorScreen() {
                 {errors.audiences ? (
                   <Text className="mb-2 font-body text-sm text-error">{errors.audiences.message}</Text>
                 ) : null}
+
+                <HashtagInput
+                  tags={tags}
+                  onTagsChange={setTags}
+                  challengeEntry={challengeEntry}
+                  onChallengeEntryChange={setChallengeEntry}
+                />
               </>
             )}
 
+            {joinError ? <Text className="mb-4 font-body text-sm text-error">{joinError}</Text> : null}
             {activeMutation.isError ? (
               <Text className="mb-4 font-body text-sm text-error">{activeMutation.error.message}</Text>
             ) : null}

@@ -135,6 +135,31 @@ class MemeNotEligibleForChallengeError(DomainError):
     status_code = status.HTTP_400_BAD_REQUEST
 
 
+class HashtagInvalidError(DomainError):
+    status_code = status.HTTP_400_BAD_REQUEST
+
+
+class HashtagNotFoundError(DomainError):
+    status_code = status.HTTP_404_NOT_FOUND
+
+
+class HashtagAlreadyReservedError(DomainError):
+    """A challenge already owns this tag — reserving it twice would make entry ambiguous."""
+
+    status_code = status.HTTP_409_CONFLICT
+
+
+class ChallengeNotOpenError(DomainError):
+    """Self-service join/leave only applies to `open` challenges; the community shapes
+    assign sides via the owner or via membership."""
+
+    status_code = status.HTTP_400_BAD_REQUEST
+
+
+class AlreadyJoinedChallengeError(DomainError):
+    status_code = status.HTTP_400_BAD_REQUEST
+
+
 class ChallengeNotPendingError(DomainError):
     status_code = status.HTTP_400_BAD_REQUEST
 
@@ -147,15 +172,25 @@ class NotChallengeOpponentOwnerError(DomainError):
     status_code = status.HTTP_403_FORBIDDEN
 
 
+class CannotDuelSelfError(DomainError):
+    status_code = status.HTTP_400_BAD_REQUEST
+
+
+class NotChallengeInviteeError(DomainError):
+    """Only the challenged friend can accept/decline a pending duel."""
+
+    status_code = status.HTTP_403_FORBIDDEN
+
+
 class NotFriendsError(DomainError):
     status_code = status.HTTP_403_FORBIDDEN
 
 
-class MemeSendNotFoundError(DomainError):
+class ConversationNotFoundError(DomainError):
     status_code = status.HTTP_404_NOT_FOUND
 
 
-class NotMemeSendRecipientError(DomainError):
+class NotConversationParticipantError(DomainError):
     status_code = status.HTTP_403_FORBIDDEN
 
 
@@ -169,6 +204,10 @@ class MemeContainerNotFoundError(DomainError):
 
 class InvalidSourceUrlError(DomainError):
     status_code = status.HTTP_400_BAD_REQUEST
+
+
+class NotificationNotFoundError(DomainError):
+    status_code = status.HTTP_404_NOT_FOUND
 
 
 def register_exception_handlers(app: FastAPI) -> None:

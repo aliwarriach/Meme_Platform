@@ -83,8 +83,12 @@ Two challenge shapes, sharing the same underlying lifecycle:
 3. **Evaluation** — at window close, submissions are scored per the configured rule set; this may be automatic (via the meme scoring system) and/or involve designated judges/voting, depending on the rule set chosen.
 4. **Results** — winning side/community is determined, points + badge awarded, results reflected in individual and community leaderboards, results visible/announced to participants (and optionally publicly).
 
-## 11. Real-time Meme Sending
-- Send memes to friends via WebSockets, lightweight inbox, reactions-only replies (no full chat) — unchanged from original scope.
+## 11. Real-time Messaging (was: Real-time Meme Sending)
+- Send memes **and text** to friends via WebSockets. The inbox is a **conversation list**, not a flat feed of sends: one thread per friend, with last-message preview, unread count, and keyset-paginated history.
+- A thread holds two kinds of message — `text` and `meme` — in one ordered table. Sending a meme from the feed posts into the thread with that friend.
+- Read receipts are in scope (`read_at` per message, pushed to the sender). **Typing indicators are deferred** — they need new WS traffic for marginal value at this stage.
+- Accepted friendship is required to open a thread *and* re-checked on every send, so removing a friend closes off an existing thread.
+- **Supersedes the original "reactions-only replies (no full chat)" scope** — see the Decisions Log (§17) for why that was reversed.
 
 ## 12. Sharing System
 - Native share sheet (WhatsApp, Instagram, X, etc.), export as image/video — unchanged from original scope.
@@ -126,6 +130,7 @@ Two challenge shapes, sharing the same underlying lifecycle:
 - **Instagram Companion Mode in challenges**: not eligible — challenges are native-uploads only.
 - **Community privacy**: owner's choice per community, open or invite-only (see §3).
 - **Community posting is its own flow, not a creator audience option** (superseded an earlier Phase 7 design where a single creator let a poster multi-select Public/Friends/one-or-more-communities in one publish action): a community post is only created from inside that community, targets exactly that one community, and has no manual audience picker — visibility (community-only vs. also-public) is fully derived from the community's open/invite-only setting (see §4). Personal posts (Friends/Public) remain a separate, explicit multi-select flow from the main feed's creator.
+- **Full text chat replaces reactions-only replies** (2026-08-06, Phase 19 — reverses the original §11 "reactions-only replies (no full chat)" decision). The CTO UX review overrode it: the old inbox was a flat, undifferentiated firehose of every `MemeSend` from every sender, with four hardcoded emoji as the only possible reply and no way to start a conversation at all. That isn't a lightweight version of messaging, it's a surface users can't actually respond on — so a meme sent to a friend led nowhere. `meme_sends` was migrated into `Conversation` + `Message(kind: text | meme)`, one table with one ordering, rather than a `Message` table beside it (a thread view over two tables means a UNION, and keyset pagination over a UNION is painful and slow). `/meme-sending/send` survives as a thin shim so the feed's "↗ Send" button keeps working; the rest of that API is gone.
 - **Community feed page (`GET /communities/{id}/feed`) is always member-gated**, even for open communities — no open-community exception (matches §3). This doesn't limit *reach*: an open community's individual posts still surface in the public feed (badged with the community), so open-community content is publicly visible platform-wide even though browsing the community's dedicated feed page requires membership.
 
 ## 18. Open Questions (still to confirm)

@@ -2,7 +2,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { useSelector } from 'react-redux';
 
 import { DESKTOP_INBOX_PANEL_WIDTH } from '@/constants/webLayout';
-import { InboxList, STATUS_DOT_COLOR } from '@/features/meme-sending/InboxList';
+import { ConversationList, STATUS_DOT_COLOR } from '@/features/messaging/ConversationList';
 import type { RootState } from '@/store/store';
 
 /**
@@ -28,7 +28,7 @@ export default function DesktopInboxPanel() {
         </View>
       </View>
       <View style={styles.body}>
-        <InboxList />
+        <ConversationList />
       </View>
     </View>
   );

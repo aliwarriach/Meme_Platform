@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DESKTOP_FRAME_MIN_WIDTH } from '@/constants/webLayout';
 
-export type NavDestination = 'feed' | 'communities' | 'leaderboards' | 'profile';
+export type NavDestination = 'feed' | 'communities' | 'compete' | 'profile';
 
 type FloatingBottomNavProps = {
   active: NavDestination;
@@ -22,7 +22,10 @@ const ITEMS: NavItem[] = [
   { key: 'feed', href: '/feed', icon: 'home' },
   { key: 'communities', href: '/communities', icon: 'groups' },
   { key: 'create', href: '/new-post', icon: 'add', primary: true },
-  { key: 'leaderboards', href: '/leaderboards', icon: 'emoji-events' },
+  // Segmented [Challenges | Leaderboards] — merged into one slot so challenges gain a
+  // top-level entry without growing the nav past 5 items (44pt touch targets on small
+  // phones).
+  { key: 'compete', href: '/compete', icon: 'emoji-events' },
   { key: 'profile', href: '/profile', icon: 'account-circle' },
 ];
 

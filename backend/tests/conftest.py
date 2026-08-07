@@ -11,7 +11,10 @@ import app.main as main_module
 import app.services.ai_caption as ai_caption_service
 import app.services.instagram as instagram_service
 import app.services.media as media_service
+import app.services.messaging as messaging_service
+import app.services.notifications as notifications_service
 import app.workers.tasks.instagram as instagram_worker_tasks
+import app.workers.tasks.notifications as notifications_worker_tasks
 from app.core.config import settings
 from app.core.leaderboard_cache import _get_redis as get_leaderboard_redis
 from app.core.rate_limit import limiter
@@ -86,6 +89,7 @@ def use_test_session_factory_for_background_tasks(monkeypatch):
     "patch where imported" rule as `mock_media_upload` below.
     """
     monkeypatch.setattr(instagram_worker_tasks, "async_session_factory", TestSessionFactory)
+    monkeypatch.setattr(notifications_worker_tasks, "async_session_factory", TestSessionFactory)
 
 
 @pytest.fixture(autouse=True)
@@ -108,8 +112,27 @@ def use_fake_arq_pool(monkeypatch):
     """
     monkeypatch.setattr(instagram_service, "get_arq_pool", get_fake_arq_pool)
     monkeypatch.setattr(ai_caption_service, "get_arq_pool", get_fake_arq_pool)
+    monkeypatch.setattr(notifications_service, "get_arq_pool", get_fake_arq_pool)
+    monkeypatch.setattr(messaging_service, "get_arq_pool", get_fake_arq_pool)
     monkeypatch.setattr(main_module, "get_arq_pool", get_fake_arq_pool)
     monkeypatch.setattr(main_module, "close_arq_pool", _noop_close_arq_pool)
+
+
+@pytest.fixture(autouse=True)
+def mock_expo_push(monkeypatch):
+    """Fakes the outbound Expo push HTTP call for every test — `send_push_job` runs
+    inline via `FakeArqPool` (see above), so without this, any test that triggers a
+    notification would fire a real request to Expo's push API. Same "mock the external
+    boundary" precedent as `mock_media_upload`. Patched on the worker task module, where
+    the function is imported into and actually called from.
+    """
+    calls: list[dict] = []
+
+    async def _fake_send(tokens: list[str], title: str, body: str, data: dict) -> None:
+        calls.append({"tokens": tokens, "title": title, "body": body, "data": data})
+
+    monkeypatch.setattr(notifications_worker_tasks, "send_push_notifications", _fake_send)
+    return calls
 
 
 @pytest.fixture(autouse=True)

@@ -1,4 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { ActivityIndicator, FlatList, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -6,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import PillButton from '@/components/PillButton';
 import { TextField } from '@/components/TextField';
 import TopBar from '@/components/TopBar';
+import DuelProposeModal from '@/features/challenges/components/DuelProposeModal';
 import { FriendRequestRow } from '@/features/friends/components/FriendRequestRow';
 import { FriendRow } from '@/features/friends/components/FriendRow';
 import {
@@ -27,6 +29,7 @@ export default function FriendsScreen() {
   const sendMutation = useSendFriendRequestMutation();
   const acceptMutation = useAcceptFriendRequestMutation();
   const removeMutation = useRemoveFriendshipMutation();
+  const [duelTarget, setDuelTarget] = useState<FriendResponse | null>(null);
 
   const {
     control,
@@ -52,6 +55,7 @@ export default function FriendsScreen() {
       friend={item}
       onRemove={(friendshipId) => removeMutation.mutate(friendshipId)}
       isRemoving={removeMutation.isPending && removeMutation.variables === item.friendship_id}
+      onDuel={setDuelTarget}
     />
   );
 
@@ -129,6 +133,15 @@ export default function FriendsScreen() {
           )
         }
       />
+
+      {duelTarget ? (
+        <DuelProposeModal
+          visible
+          onClose={() => setDuelTarget(null)}
+          opponentId={duelTarget.user.id}
+          opponentUsername={duelTarget.user.username}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }

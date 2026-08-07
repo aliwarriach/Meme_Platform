@@ -1,7 +1,7 @@
 import { Redirect } from 'expo-router';
 import { useSelector } from 'react-redux';
 
-import InboxScreen from '@/features/meme-sending/InboxScreen';
+import InboxScreen from '@/features/messaging/InboxScreen';
 import type { RootState } from '@/store/store';
 
 export default function Inbox() {

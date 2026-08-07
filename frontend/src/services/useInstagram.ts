@@ -2,6 +2,16 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { throwApiError } from '@/services/api';
 import {
+  applyVoteLocally,
+  bumpCommentCount,
+  cancelContentQueries,
+  markScoreSurfacesStale,
+  patchContainerInCaches,
+  restoreContentCaches,
+  snapshotContentCaches,
+  type CacheSnapshot,
+} from '@/services/optimisticCache';
+import {
   addContainerCommentRequest,
   castContainerVoteRequest,
   createContainerRequest,
@@ -17,6 +27,11 @@ const feedKey = ['memes', 'feed'] as const;
 const containerKey = (containerId: string) => ['instagram', 'containers', containerId] as const;
 const containerCommentsKey = (containerId: string) =>
   ['instagram', 'containers', containerId, 'comments'] as const;
+
+/** Cache entries a mutation snapshots before patching, so onError can put them back. */
+interface OptimisticContext {
+  snapshot: CacheSnapshot;
+}
 
 export function useCreateContainerMutation() {
   const queryClient = useQueryClient();
@@ -47,16 +62,40 @@ export function useContainer(containerId: string, enabled: boolean) {
 
 export function useCastContainerVoteMutation() {
   const queryClient = useQueryClient();
-  return useMutation<MemeContainerResponse, Error, { containerId: string; value: 1 | -1 }>({
+  return useMutation<
+    MemeContainerResponse,
+    Error,
+    { containerId: string; value: 1 | -1 },
+    OptimisticContext
+  >({
     mutationFn: async ({ containerId, value }) => {
       const response = await castContainerVoteRequest(containerId, value);
       if (!response.ok || !response.data) throwApiError(response, 'vote on this content');
       return response.data;
     },
-    onSuccess: (_data, { containerId }) => {
-      queryClient.invalidateQueries({ queryKey: feedKey });
-      queryClient.invalidateQueries({ queryKey: containerKey(containerId) });
+    onMutate: async ({ containerId, value }) => {
+      await cancelContentQueries(queryClient, 'container');
+      const snapshot = snapshotContentCaches(queryClient, 'container');
+      patchContainerInCaches(queryClient, containerId, (container) =>
+        applyVoteLocally(container, value)
+      );
+      return { snapshot };
     },
+    onError: (_error, _variables, context) => {
+      if (context) restoreContentCaches(queryClient, context.snapshot);
+    },
+    // The response is the whole container, but only the vote fields are reconciled — the
+    // rest (metadata_status, thumbnail) is already live via useContainer's own polling.
+    onSuccess: ({ upvote_count, downvote_count, score, viewer_vote }, { containerId }) => {
+      patchContainerInCaches(queryClient, containerId, (container) => ({
+        ...container,
+        upvote_count,
+        downvote_count,
+        score,
+        viewer_vote,
+      }));
+    },
+    onSettled: () => markScoreSurfacesStale(queryClient),
   });
 }
 
@@ -86,16 +125,26 @@ export function useContainerComments(containerId: string, enabled: boolean) {
 
 export function useAddContainerCommentMutation(containerId: string) {
   const queryClient = useQueryClient();
-  return useMutation<ContainerCommentResponse, Error, string>({
+  return useMutation<ContainerCommentResponse, Error, string, OptimisticContext>({
     mutationFn: async (body) => {
       const response = await addContainerCommentRequest(containerId, body);
       if (!response.ok || !response.data) throwApiError(response, 'add comment');
       return response.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: containerCommentsKey(containerId) });
-      queryClient.invalidateQueries({ queryKey: containerKey(containerId) });
-      queryClient.invalidateQueries({ queryKey: feedKey });
+    onMutate: async () => {
+      await cancelContentQueries(queryClient, 'container');
+      const snapshot = snapshotContentCaches(queryClient, 'container');
+      patchContainerInCaches(queryClient, containerId, (container) =>
+        bumpCommentCount(container, 1)
+      );
+      return { snapshot };
     },
+    onError: (_error, _variables, context) => {
+      if (context) restoreContentCaches(queryClient, context.snapshot);
+    },
+    // Only this container's comment list refetches — it needs the server-assigned
+    // id/author for the new row. The feed already has the count it needs from onMutate.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: containerCommentsKey(containerId) }),
+    onSettled: () => markScoreSurfacesStale(queryClient),
   });
 }
