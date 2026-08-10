@@ -1,6 +1,7 @@
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 import Avatar from '@/components/Avatar';
+import { INK_MUTED } from '@/constants/theme';
 import type { MembershipResponse } from '@/services/communities';
 
 interface JoinRequestRowProps {
@@ -18,7 +19,7 @@ export function JoinRequestRow({ request, onApprove, onReject, isPending }: Join
       </View>
       <Text className="flex-1 font-body text-heading">{request.user.username}</Text>
       {isPending ? (
-        <ActivityIndicator size="small" color="#e3bdc5" />
+        <ActivityIndicator size="small" color={INK_MUTED} />
       ) : (
         <View className="flex-row gap-2">
           <Pressable

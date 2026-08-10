@@ -20,6 +20,7 @@ class CommunityOut(BaseModel):
     privacy: CommunityPrivacy
     member_count: int
     viewer_membership_status: MembershipStatus | None
+    has_active_challenge: bool
     created_at: datetime.datetime
 
 

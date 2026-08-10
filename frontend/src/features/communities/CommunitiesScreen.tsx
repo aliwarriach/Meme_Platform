@@ -6,7 +6,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import Chip from '@/components/Chip';
 import FloatingBottomNav from '@/components/FloatingBottomNav';
+import PillButton from '@/components/PillButton';
 import TopBar from '@/components/TopBar';
+import { INK_MUTED } from '@/constants/theme';
 import { CommunityCard } from '@/features/communities/components/CommunityCard';
 import type { CommunityResponse } from '@/services/communities';
 import { useDiscoverCommunities, useMyCommunities } from '@/services/useCommunities';
@@ -56,13 +58,20 @@ export default function CommunitiesScreen() {
           )}
           ListEmptyComponent={
             mineQuery.isLoading ? (
-              <ActivityIndicator className="mt-8" color="#e3bdc5" />
+              <ActivityIndicator className="mt-8" color={INK_MUTED} />
             ) : mineQuery.isError ? (
               <Text className="font-body text-sm text-error">{mineQuery.error?.message}</Text>
             ) : (
-              <Text className="mt-8 text-center font-body text-sm text-ink-muted">
-                You haven&apos;t joined any communities yet
-              </Text>
+              <View className="mt-8 items-center gap-3 px-6">
+                <Text className="text-center font-body text-sm text-ink-muted">
+                  You haven&apos;t joined any communities yet
+                </Text>
+                <PillButton
+                  label="Discover Communities"
+                  variant="outline"
+                  onPress={() => setTab('discover')}
+                />
+              </View>
             )
           }
         />
@@ -81,11 +90,11 @@ export default function CommunitiesScreen() {
             <CommunityCard community={item} onPress={() => goToCommunity(item.id)} />
           )}
           ListFooterComponent={
-            discoverQuery.isFetchingNextPage ? <ActivityIndicator className="my-4" color="#e3bdc5" /> : null
+            discoverQuery.isFetchingNextPage ? <ActivityIndicator className="my-4" color={INK_MUTED} /> : null
           }
           ListEmptyComponent={
             discoverQuery.isLoading ? (
-              <ActivityIndicator className="mt-8" color="#e3bdc5" />
+              <ActivityIndicator className="mt-8" color={INK_MUTED} />
             ) : discoverQuery.isError ? (
               <Text className="font-body text-sm text-error">{discoverQuery.error?.message}</Text>
             ) : (

@@ -1,3 +1,4 @@
+import { MaterialIcons } from '@expo/vector-icons';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -10,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import PillButton from '@/components/PillButton';
 import { TextField } from '@/components/TextField';
 import TopBar from '@/components/TopBar';
+import { INK_MUTED } from '@/constants/theme';
 import { createCommunitySchema, type CreateCommunityFormValues } from '@/features/communities/schemas';
 import type { CommunityPrivacy } from '@/services/communities';
 import { useCreateCommunityMutation } from '@/services/useCommunities';
@@ -87,7 +89,10 @@ export default function CreateCommunityScreen() {
               contentFit="cover"
             />
           ) : (
-            <Text className="px-2 text-center font-body text-xs text-ink-muted">Icon (optional)</Text>
+            <View className="items-center gap-1 px-2">
+              <MaterialIcons name="add-a-photo" size={20} color={INK_MUTED} />
+              <Text className="text-center font-body text-xs text-ink-muted">Icon (optional)</Text>
+            </View>
           )}
         </Pressable>
         {pickerError ? <Text className="mb-2 font-body text-sm text-error">{pickerError}</Text> : null}

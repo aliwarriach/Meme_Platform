@@ -1,7 +1,7 @@
 import uuid
 
 from fastapi import UploadFile
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,6 +14,7 @@ from app.core.exceptions import (
     NotCommunityOwnerError,
 )
 from app.core.pagination import decode_cursor, encode_cursor
+from app.models.challenge import Challenge, ChallengeStatus
 from app.models.community import Community, CommunityPrivacy
 from app.models.community_membership import CommunityMembership, MembershipRole, MembershipStatus
 from app.models.user import User
@@ -61,8 +62,29 @@ async def require_active_membership(
     return community
 
 
+def _active_challenge_exists_subq():
+    """Correlated EXISTS for 'this community has a currently-active challenge' — true whether
+    the community is the proposer (`community_id`) or the challenged side in a
+    community_vs_community challenge (`opponent_community_id`). Used to surface a live-challenge
+    signal on community list/detail views without an N+1 fetch per community."""
+    return (
+        exists()
+        .where(
+            or_(
+                Challenge.community_id == Community.id,
+                Challenge.opponent_community_id == Community.id,
+            ),
+            Challenge.status == ChallengeStatus.active,
+        )
+        .correlate(Community)
+    )
+
+
 def _build_community_out(
-    community: Community, member_count: int, viewer_status: MembershipStatus | None
+    community: Community,
+    member_count: int,
+    viewer_status: MembershipStatus | None,
+    has_active_challenge: bool,
 ) -> CommunityOut:
     return CommunityOut(
         id=community.id,
@@ -74,6 +96,7 @@ def _build_community_out(
         privacy=community.privacy,
         member_count=member_count,
         viewer_membership_status=viewer_status,
+        has_active_challenge=has_active_challenge,
         created_at=community.created_at,
     )
 
@@ -119,7 +142,9 @@ async def create_community(
 
     await db.commit()
     await db.refresh(community)
-    return _build_community_out(community, member_count=1, viewer_status=MembershipStatus.active)
+    return _build_community_out(
+        community, member_count=1, viewer_status=MembershipStatus.active, has_active_challenge=False
+    )
 
 
 async def list_communities(
@@ -143,9 +168,10 @@ async def list_communities(
         .correlate(Community)
         .scalar_subquery()
     )
+    active_challenge_subq = _active_challenge_exists_subq()
 
     stmt = (
-        select(Community, member_count_subq, viewer_status_subq)
+        select(Community, member_count_subq, viewer_status_subq, active_challenge_subq)
         .order_by(Community.created_at.desc(), Community.id.desc())
         .limit(limit + 1)
     )
@@ -166,8 +192,8 @@ async def list_communities(
     rows = rows[:limit]
 
     items = [
-        _build_community_out(community, member_count, viewer_status)
-        for community, member_count, viewer_status in rows
+        _build_community_out(community, member_count, viewer_status, has_active_challenge)
+        for community, member_count, viewer_status, has_active_challenge in rows
     ]
     next_cursor = encode_cursor(rows[-1][0].created_at, rows[-1][0].id) if has_more and rows else None
 
@@ -185,8 +211,10 @@ async def list_my_communities(db: AsyncSession, current_user: User) -> list[Comm
         .scalar_subquery()
     )
 
+    active_challenge_subq = _active_challenge_exists_subq()
+
     stmt = (
-        select(Community, member_count_subq)
+        select(Community, member_count_subq, active_challenge_subq)
         .join(CommunityMembership, CommunityMembership.community_id == Community.id)
         .where(
             CommunityMembership.user_id == current_user.id,
@@ -199,8 +227,8 @@ async def list_my_communities(db: AsyncSession, current_user: User) -> list[Comm
     rows = result.all()
 
     return [
-        _build_community_out(community, member_count, MembershipStatus.active)
-        for community, member_count in rows
+        _build_community_out(community, member_count, MembershipStatus.active, has_active_challenge)
+        for community, member_count, has_active_challenge in rows
     ]
 
 
@@ -220,7 +248,20 @@ async def get_community(
     viewer_membership = await _get_membership(db, community_id, current_user.id)
     viewer_status = viewer_membership.status if viewer_membership is not None else None
 
-    return _build_community_out(community, member_count, viewer_status)
+    active_challenge_result = await db.execute(
+        select(
+            exists().where(
+                or_(
+                    Challenge.community_id == community_id,
+                    Challenge.opponent_community_id == community_id,
+                ),
+                Challenge.status == ChallengeStatus.active,
+            )
+        )
+    )
+    has_active_challenge = active_challenge_result.scalar_one()
+
+    return _build_community_out(community, member_count, viewer_status, has_active_challenge)
 
 
 async def join_community(

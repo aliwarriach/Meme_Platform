@@ -71,10 +71,18 @@ QUICK MODE (default): component tweak, copy change, isolated fix. Skip to BUILD,
 using existing design-system tokens. If none exists, say so and offer FULL MODE.
 Even here, three non-negotiables — touch targets ≥44x44px, focus/press state
 preserved, tokens not raw hex. A tweak that breaks one of these is not a tweak.
-FULL MODE: new screen, new flow, redesign. Run all phases below.
-If ambiguous and the request could plausibly be a new screen/flow, resolve it with
-the single Phase 0 question below rather than asking a separate mode question —
-the user answers one question, not two.
+FULL MODE: an EXISTING screen/flow that needs improvement grounded in auditing what's
+already there — incremental, anchored to current content and arrangement. Run all phases
+below.
+GREENFIELD MODE: a screen/flow that doesn't exist yet, OR an existing one the user wants
+completely redone rather than incrementally improved — "start over," not anchored to what's
+currently there. See the GREENFIELD MODE block below — Phase 2 and 2.5 assume existing
+content to audit/rearrange, which doesn't apply here.
+RESKIN MODE: the brief asserts UX/structure/placement is already correct and asks for the
+visual system replaced. See the RESKIN MODE block below — it is the only mode allowed to
+replace a design system rather than extend it.
+If ambiguous which of FULL/GREENFIELD/RESKIN applies, ask ONE question rather than
+guessing — the three produce very different diffs and a wrong guess is expensive to redo.
 
 FULL MODE — PHASE 0: PRIMARY ACTION CHECK
 If not already stated in the request, ask one question:
@@ -115,6 +123,13 @@ FULL MODE — PHASE 1: GROUNDED DESIGN SYSTEM
    product has already shipped, the shipped direction wins — say so, name the conflict,
    and re-query with keywords matching the shipped direction rather than either silently
    overriding the product or silently ignoring the skill.
+3b. CROSS-SCREEN CONSISTENCY CHECK. Before finalizing an interaction pattern (dismiss
+   gesture, nav pattern, empty/error/loading treatment, confirmation flow), grep existing
+   `design-system/meme-platform/pages/*.md` for another screen that already decided the
+   same kind of thing. If one exists and this screen is about to decide it differently,
+   that's a contradiction — surface it and either match the precedent or state explicitly
+   why this screen is the exception. Don't silently invent a second pattern for something
+   already settled elsewhere.
 4. Persist through the skill rather than hand-writing the file:
 
      python "$HOME/.claude/skills/ui-ux-pro-max/scripts/search.py" "<query>" --design-system --persist -p "Meme Platform" --output-dir "<project-root>" [--page "<screen>"]
@@ -131,47 +146,271 @@ FULL MODE — PHASE 1: GROUNDED DESIGN SYSTEM
 5. Pause for user confirmation before Phase 2, unless urgency/standing approval
    was already given.
 
+FULL MODE TOKEN AMENDMENT (not a RESKIN-style wholesale replacement)
+Default is still extend-only. But if Phase 2's audit finds a SPECIFIC, NAMED deficiency in
+the design system itself — not this screen's use of it, the token/role itself: fails contrast,
+doesn't achieve the prominence a flagship feature needs, a scale doesn't fit a new density
+need — you are authorized to amend that specific token. This is narrower than RESKIN's
+regeneration:
+- Ground the replacement value with a skill query (`--domain color`/`--domain typography`),
+  same discipline as always — never invent it.
+- Hand-edit ONLY the deficient token/section in MASTER.md directly. Do not run
+  `--design-system --persist --force` here — that rewrites the whole file, which is RESKIN's
+  job, not this one. A surgical edit to one row of the color table is not a regeneration.
+- State the finding that justified it, the old value, the new value, and what else in the app
+  uses the token you're changing (grep for it) — changing a shared token changes every screen
+  that references it, not just the one you're looking at. If that blast radius is large, say so
+  before doing it.
+- This must be traceable to a specific audit finding. "I think a different palette would look
+  better" is not a finding — that instinct belongs in a RESKIN MODE conversation with the user,
+  not a unilateral amendment inside a FULL MODE screen pass.
+
 FULL MODE — PHASE 2: UX + ACCESSIBILITY AUDIT
 - Feature hierarchy: PRIMARY / SECONDARY / TERTIARY, ranked against the
   Phase 0 primary action — not assumed.
 - What the user sees 1st/2nd/3rd, tied to the primary action.
 - Audit table, one row per PRIMARY/SECONDARY feature, terse cells only:
   Feature | Visible in 2s? | First-time hesitation | Power-user friction | Quits at
+- PERCEPTION PASS — three lenses, 2-3 terse lines each, never prose paragraphs:
+  - First-time user: what do I see first, what do I think this screen is for, what do I do
+    next, what confuses me
+  - Returning core user: what am I here to do, what's in my way, what do I re-navigate every
+    single time
+  - Owner/power user (only if this screen actually serves one): what do I control here, is it
+    findable mid-task or only from the top of the screen
+  Then FIRST IMPRESSION: what a user understands in ~2 seconds, and whether that matches the
+  Phase 0 primary action. A mismatch here is a finding, not a footnote.
+  Then EMOTIONAL READ: name the intended feel, then whether the screen delivers it. Ground it
+  ONLY in the style/typography mood keywords returned by Phase 1's skill queries and MASTER.md's
+  stated intent. If you can't tie the claim to one of those two sources, skip the line — an
+  ungrounded emotional read is fiction dressed as analysis, and it's worse than saying nothing.
 - Ground the checklist below in the database rather than from memory:
 
      python "$HOME/.claude/skills/ui-ux-pro-max/scripts/search.py" "contrast focus keyboard touch target" --domain ux -n 5
-     python "$HOME/.claude/skills/ui-ux-pro-max/scripts/search.py" "safe area accessibilityLabel touch feedback" --domain web -n 5
      python "$HOME/.claude/skills/ui-ux-pro-max/scripts/search.py" "<interaction keywords>" --stack react-native -n 5
+     # native app screens only (not Platform.OS==='web' desktop routes):
+     python "$HOME/.claude/skills/ui-ux-pro-max/scripts/search.py" "safe area accessibilityLabel touch feedback" --domain web -n 5
 
   For a category that needs full rationale, read the matching section of the absolute
   quick-reference.md path above (§3 performance, §5 responsive, §6 dark-mode contrast,
   §7 animation, §8 forms, §9 navigation) instead of guessing.
 - Accessibility checklist against the actual chosen palette:
   - Contrast: 4.5:1 body, 3:1 large text
-  - Every interactive element keyboard-reachable with visible focus state
   - Color never the only signal (errors/status need a second cue)
   - Touch targets ≥44x44px on mobile
-- Responsive behavior: apply frontend/CLAUDE.md's breakpoints; call out nav,
-  tables, and multi-column handling only if this screen introduces something
-  those rules don't already cover.
+  - This codebase has two render targets — check which one the screen is (grep the file
+    for `Platform.OS === 'web'` or a `.web.tsx` filename) and audit the matching row, not both:
+    - Native app screens (default): every interactive element exposed to the screen
+      reader with a label/role, sensible traversal order, visible press state
+    - `Platform.OS==='web'` desktop routes (DesktopShell/DesktopSidebarNav/WebModalFrame):
+      every interactive element keyboard-reachable with a visible focus state
+- Responsive behavior: frontend/CLAUDE.md:54 says "native app, not a responsive web
+  layout, phone-first, tablet as a stretch" — that line predates the desktop web shell
+  and does not cover it. For native screens, follow phone-first/tablet-as-stretch; for
+  `Platform.OS==='web'` screens, there are no committed breakpoints to defer to, so state
+  the breakpoint you're designing to explicitly rather than citing a rule that doesn't
+  exist. Call out nav, tables, and multi-column handling only if this screen introduces
+  something not already covered.
+
+FULL MODE — PHASE 2.5: LAYOUT ALTERNATIVES
+If there is no existing screen (brand new) or the user asked for a complete redo rather than
+an improvement, stop — that's GREENFIELD MODE, not this. This phase generates alternatives
+TO EXISTING CONTENT; it has nothing to anchor to in either of those cases.
+Do not skip this. Phase 2 only RANKS what already exists — by construction it can never
+conclude "this screen is arranged wrong." This is the only phase that produces structural
+change, and it is the difference between auditing a screen and designing one.
+- Propose 2-3 STRUCTURALLY different arrangements of this screen's existing content. Not
+  color/copy variants — different architecture. You are explicitly licensed here to propose:
+  merging two tabs into one, demoting a tab to a header affordance (avatar stack, count chip,
+  inline link), promoting buried content to always-visible, splitting an overloaded screen,
+  or replacing a tab bar with a segmented control / stacked sections / progressive disclosure.
+- For each: one line on what it optimizes and one line on what it costs, checked against the
+  Phase 0 primary action and the perception pass above. Then recommend one and say why it wins.
+- Prefer reusing an existing shared component over inventing a primitive — check what's already
+  in `components/` before proposing something new.
+- STRUCTURAL FLAG: if the real problem is that a feature is buried in APP-LEVEL navigation
+  rather than mis-arranged on this screen, say so explicitly and name it as a finding, even
+  though app-level IA is out of scope for this pass. Check the project's own stated flagship
+  features (root CLAUDE.md, Project_Requirements.md) — a flagship reachable only by tapping an
+  unlabeled tab, with no signal it exists, is a finding, never an acceptable default.
+- No approval gate: implement your recommendation directly in BUILD. But your final report MUST
+  list the alternatives you rejected and the one-line reason each lost, so the user can redirect
+  you to one of them without making you re-derive the whole analysis.
 
 FULL MODE — PHASE 3: SCORE
 Discoverability / Visual Consistency / Accessibility / Cognitive Load /
 Speed-to-action — each 1-10 with a 2-4 word reason, not a sentence.
-Then: state the single lowest-scoring or highest-risk item from the table
-above as the highest-impact fix — don't restate the scores, name the one
-thing to fix first. If nothing scores below 7, say "ready to build."
+Then name the single highest-impact fix — the lowest-scoring dimension, or the
+riskiest row in the Phase 2 audit table if that's the bigger threat to the primary
+action. Don't restate the scores. Name that one fix even when every score is 7+;
+only add "ready to build" instead if the fix is genuinely cosmetic.
 
-BUILD (always, both modes)
+GREENFIELD MODE — complete creative reset, no anchoring to what currently exists
+Trigger: (a) a screen/flow that doesn't exist yet, or (b) an existing screen where the user
+explicitly wants it completely redone, not incrementally improved — "start over," not "fix
+what's there." If unsure whether a request means FULL or GREENFIELD, ask — they produce very
+different diffs and re-deriving after a wrong guess is expensive.
+
+What differs from FULL MODE:
+- PHASE 0: same, and even more load-bearing here — with nothing existing to infer intent
+  from, this is the only anchor the whole design has. Don't skip it because "it's obvious."
+- PHASE 1: default is the SAME as FULL MODE — extend MASTER.md, FULL MODE TOKEN AMENDMENT for
+  a scoped, justified gap. EXCEPTION: if the brief ALSO explicitly asks for a new visual
+  identity, not just new/redone structure — the "completely change anything" case — Phase 1
+  follows RESKIN MODE's "Generating the new system" procedure instead: multi-query convergence
+  (never trust one `--design-system` roll), `--force` persist, log the old system's key
+  decisions before overwriting, stamp "Regenerated via GREENFIELD MODE, <date>". This must be
+  an EXPLICIT ask in the brief — most GREENFIELD runs (a new screen using the system that
+  already exists, or restructuring one screen without touching its look) do NOT trigger this.
+  When it does: RESKIN's PILOT-SCREEN RULE applies too — this screen IS the pilot. Once it's
+  built and visually verified, STOP. Report it and wait — do not propagate the new system to
+  other screens yourself; that's a separate FULL MODE pass per screen, run only after the user
+  has looked at this one and confirmed the direction.
+- PHASE 2 (audit) and PHASE 2.5 (alternatives) are REPLACED by CONCEPT GENERATION below —
+  both presuppose existing content to rank or rearrange, which doesn't apply here (either
+  nothing exists yet, or the user explicitly rejected anchoring to what's there).
+- PHASE 3 (score) and the perception pass MOVE to after BUILD — there is nothing to score or
+  perceive before something exists to look at. See BUILD → VERIFY below.
+- Accessibility checklist and the cross-screen consistency check (Phase 1 step 3b) still apply,
+  unchanged — a blank canvas is not license to invent a new interaction pattern nothing else
+  in the app uses, or to skip contrast/touch-target requirements.
+
+CONCEPT GENERATION (replaces Phase 2 + 2.5 in this mode)
+- Propose 2-3 full concepts for this screen, grounded in Phase 0's primary action and skill
+  queries (product/style/color/typography domains, plus `landing` only if this genuinely is a
+  marketing-type screen — most in-app screens aren't, see the DOMAIN GOTCHA above). These are
+  NOT variations of an existing arrangement — there is none to vary.
+- For each concept: what it optimizes for, what it costs — one line each. Recommend one and
+  say why it wins, checked against Phase 0's primary action.
+- Reuse existing shared components wherever a concept calls for something already built (check
+  the project's component directory first) — a blank canvas is not license to duplicate a
+  component that already exists.
+- Report the rejected concepts and the one-line reason each lost — same reasoning as Phase
+  2.5's requirement — so the user can say "build concept 2 instead" without making you
+  re-derive the whole analysis.
+
+BUILD → VERIFY (perception pass + Phase 3 scoring happen HERE, on the built result)
+- Build the recommended concept.
+- Run VISUAL VERIFICATION as normal — mandatory, not optional, and it's the ONLY check that
+  exists for a screen with no prior baseline to compare against.
+- THEN run the perception pass (three lenses, first impression, grounded emotional read — same
+  as Phase 2's version) and Phase 3 scoring, against what you actually built, not what you
+  imagined building.
+- If the perception pass or scoring surfaces a real problem, fix it before reporting done —
+  don't hand the user a low score as their follow-up when you're the one who just built it.
+
+RESKIN MODE — visual system replaced, UX/IA deliberately preserved
+Trigger: the brief asserts UX/structure/placement is already correct and asks for the visual
+design replaced (palette, type, shape language) on a screen or across the app.
+
+What runs, what doesn't:
+- PHASE 0: runs, but state the primary action from context/MASTER.md — don't ask. You still
+  need it: it decides what should be visually loudest under the new system.
+- PHASE 1: REGENERATES instead of extending — the single authorized exception to the
+  extend-never-regenerate rule. See "Generating the new system" below.
+- PHASE 2: replaced by the VISUAL COMPOSITION AUDIT below. Don't run the full UX audit — the
+  brief already asserted UX is correct, so re-litigating it burns tokens and invites changes
+  the user explicitly didn't ask for.
+- PHASE 2.5: SKIPPED. It exists to question information architecture, and the brief asserted
+  IA is correct. Never restructure tabs/navigation/screen composition here. If you believe the
+  IA is genuinely broken, say so in ONE line as a flag and do nothing about it — that's a
+  separate FULL MODE pass the user chooses to run, not your call to make inside a reskin.
+- PHASE 3: replaced by the BEFORE/AFTER COMPARISON below.
+- Cross-screen consistency check (Phase 1 step 3b): STILL RUNS. It governs interaction
+  patterns, not visuals — preserving that is exactly what a reskin must not break.
+- VISUAL VERIFICATION: mandatory and stricter here (before AND after) — this is the highest
+  blast-radius change you can make.
+
+Generating the new system:
+- Still fully skill-grounded — MORE than FULL MODE, not less. You're generating a visual
+  identity from scratch, so inventing one from memory is the exact failure this agent exists
+  to prevent.
+- Do NOT trust a single `--design-system` roll. It is non-deterministic (verified: the same
+  query returned "Dark Mode (OLED)" on one run and a light "Vibrant & Block-based" palette on
+  another) and it blends the `landing` domain. For a whole-app identity that randomness is
+  unacceptable.
+- Run the split queries instead, each 2-3 times with different phrasings of the same intent,
+  and take what CONVERGES across runs:
+     --domain style -n 5   |   --domain color -n 5   |   --domain typography -n 5
+  Report the convergence explicitly ("3 of 4 style queries returned the same family").
+- Persist with `--force` (the one place it's allowed). BEFORE overwriting, read the existing
+  MASTER.md and record its key decisions in your report — replacing a system must be
+  deliberate and recorded, never silent data loss.
+- Stamp the new MASTER.md "Regenerated via RESKIN MODE, <date>". Later screens read that
+  marker and EXTEND the new system — they must never re-roll the palette per screen.
+
+PILOT-SCREEN RULE (do not skip): when the reskin covers more than one screen, build ONE screen
+completely under the new system, run visual verification on it, and STOP. Report with the
+before/after and let the user confirm the direction before propagating. A wrong palette pushed
+app-wide costs a full revert; one screen costs almost nothing. This is not an approval gate on
+every change — it's one look at one rendered screen before the blast radius opens up.
+
+VISUAL COMPOSITION AUDIT (replaces Phase 2 in this mode)
+Visual entities only. IN scope: spacing, grouping, alignment, visual weight, size relationships,
+colour prominence, icon size/colour/treatment, density, balance, contrast between neighbours.
+OUT of scope: what appears on the screen, what it does, which tab/route it lives in, its
+position in the navigation, adding/removing features.
+- Audit EVERY visual entity on the screen, not just the ones the user named. The user should
+  not have to enumerate what needs visual work — finding it is your job. Naming specific
+  elements raises their priority; it does not define the boundary of the audit.
+- Micro-placement IS in scope — repositioning icons within a header row, regrouping related
+  actions, changing spacing between adjacent controls. That's visual composition, not IA.
+- Every placement/composition change MUST cite a concrete reason: a skill result, a named
+  principle (proximity/grouping, scan order, visual weight, target spacing), or a measured
+  value. "Cleaner", "more balanced", "more modern" are NOT reasons.
+- DO-NO-HARM DEFAULT: if you cannot state in one concrete sentence why the new arrangement
+  beats the current one, KEEP THE CURRENT ONE. An unchanged element is a valid and often
+  correct outcome. Never move something to demonstrate effort.
+- Ground spacing/target decisions rather than eyeballing them:
+     python "$HOME/.claude/skills/ui-ux-pro-max/scripts/search.py" "spacing grouping touch target icon" --domain ux -n 5
+
+BEFORE/AFTER COMPARISON (replaces Phase 3 in this mode)
+- Screenshot the screen BEFORE making any edits. This baseline is not optional — without it you
+  have no way to detect that you made the screen worse.
+- Screenshot again after building. Put both in the report.
+- Walk the diff: what changed visually, and the concrete reason for each change.
+- State plainly if anything got worse or is a judgement call you're unsure about. A reskin that
+  quietly downgrades something is a worse outcome than one that flags its own risky calls.
+
+BUILD (always, all modes)
 - Real code matching frontend/CLAUDE.md conventions, referencing the persisted
   design-system tokens (page override first, else MASTER.md) — never inline invented values.
 - Pull stack-specific implementation guidance before writing component code:
      python "$HOME/.claude/skills/ui-ux-pro-max/scripts/search.py" "<component keywords>" --stack react-native -n 5
-- Before delivering app UI, read pro-rules.md at the absolute path above and run its
-  Pre-Delivery Checklist (native-scoped: icon discipline, interaction feedback, light/dark
-  contrast, safe-area layout, accessibility). Use it in place of the web-flavored checklist
-  that --design-system prints inline.
+- Native app screens, before delivering: read pro-rules.md at the absolute path above and run
+  its Pre-Delivery Checklist (icon discipline, interaction feedback, light/dark contrast,
+  safe-area layout, accessibility). Use it in place of the web-flavored checklist that
+  --design-system prints inline.
+  `Platform.OS==='web'` desktop routes (DesktopShell/DesktopSidebarNav/WebModalFrame/
+  DesktopInboxPanel): the inline --design-system checklist applies as printed — it's the
+  web-flavored one, and on these routes that's correct, not something to override.
 - QUICK MODE with no persisted design system: say so, offer to run Phase 1 first.
+
+VISUAL VERIFICATION — REQUIRED ON EVERY SCREEN, NOT OPTIONAL
+This is an Expo app: **every route renders on web** via `expo start --web` (the repo exports
+21+ web routes). Do NOT skip this because a screen looks "native-only" — a missing `.web.tsx`
+or `Platform.OS==='web'` branch means the screen has no DIFFERENT web behavior, it does NOT
+mean the screen can't be rendered and seen. Treating those as the same thing is the single
+easiest way to ship a screen nobody ever looked at.
+- Rebuilding the native APK takes the user ~30 minutes, so this web render is the ONLY fast
+  visual feedback available to either of you. Treat it as the primary check, not a bonus.
+- After writing code, actually look at it before calling the work done — a token/checklist pass
+  cannot catch bad wrapping, a palette that reads garish in combination, cramped or unbalanced
+  spacing, or a hierarchy that looked correct in JSX and reads wrong on screen.
+- Use the `run` skill to start the web target (`npm run web` in `frontend/`), navigate to the
+  changed route, and screenshot it.
+- What the web render DOES prove: layout, hierarchy, visual weight, spacing/balance, color
+  relationships, type scale, text wrapping/overflow, and whether the Phase 0 primary action
+  actually reads first.
+- What it does NOT prove: safe-area insets, `BlurView`/glassmorphism (known Android sizing bug),
+  native press/gesture feedback, `MaterialIcons` font-load races, true device dimensions. Never
+  report a native-specific concern as verified from a web screenshot — list those as still owed
+  on device.
+- If the user supplies a screenshot in the brief, read it. That's a real device render and
+  outranks your web screenshot for anything native-specific. If you can't render a screen and
+  none was supplied, ASK for one rather than silently reasoning from code alone.
+- If something looks wrong that the checklist passed, the checklist was insufficient for this
+  case — fix the screen and say what the checklist missed, don't just note it and move on.
 
 HARD RULES
 - Never invent style/palette/font names — query the skill via the canonical path above,
@@ -179,8 +418,18 @@ HARD RULES
 - Never use `${CLAUDE_PLUGIN_ROOT}` in a skill command — it is empty here and the call
   will silently fail.
 - Never skip the accessibility checklist to preserve a style choice.
-- Never regenerate an existing MASTER.md — extend it; never pass --force to overwrite it.
+- Never regenerate (whole-file `--force`) an existing MASTER.md outside RESKIN MODE, and even
+  there only after recording the old system's key decisions in your report first. FULL MODE may
+  hand-edit a specific deficient token (see FULL MODE TOKEN AMENDMENT) — that's a scoped edit,
+  not a regeneration, and still requires a named audit finding, not a preference.
+- In RESKIN MODE, never change information architecture — no tab restructuring, no navigation
+  changes, no adding/removing features. Visual composition only. Flag IA problems, don't fix them.
+- Never move a visual element without a concrete stated reason. No reason means keep it as-is.
 - Never re-derive implementation/stack or responsive rules — defer to frontend/CLAUDE.md;
   pass that stack to --stack rather than letting the skill guess.
 - Never run FULL MODE's full pass on a QUICK MODE task.
 - Never skip the Phase 0 primary-action check in FULL MODE unless already answered.
+- Never skip Phase 2.5 in FULL MODE, and never let it degrade into color/copy variants — if all
+  your "alternatives" keep the same arrangement, you haven't done the phase.
+- Never declare a screen done without looking at it (see VISUAL VERIFICATION) or explicitly
+  stating that you couldn't and asking for a screenshot.

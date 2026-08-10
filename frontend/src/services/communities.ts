@@ -16,6 +16,7 @@ export interface CommunityResponse {
   privacy: CommunityPrivacy;
   member_count: number;
   viewer_membership_status: MembershipStatus | null;
+  has_active_challenge: boolean;
   created_at: string;
 }
 

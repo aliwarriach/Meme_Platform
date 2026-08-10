@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 
 from httpx import AsyncClient
 
@@ -271,6 +272,42 @@ async def test_discover_communities_pagination_returns_next_cursor_and_respects_
     second_body = second_page.json()
     assert len(second_body["items"]) == 1
     assert second_body["next_cursor"] is None
+
+
+async def test_has_active_challenge_reflects_live_challenge_on_list_mine_and_detail(
+    client: AsyncClient,
+):
+    alice = await create_user(client, "alice")
+    bob = await create_user(client, "bob")
+    community = (await _create_community(client, alice, privacy="open")).json()
+    assert community["has_active_challenge"] is False
+
+    await client.post(f"/communities/{community['id']}/join", headers=auth_header(bob))
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    payload = {
+        "title": "Meme War",
+        "start_time": (now - datetime.timedelta(minutes=1)).isoformat(),
+        "end_time": (now + datetime.timedelta(minutes=10)).isoformat(),
+        "sides": [
+            {"name": "Team A", "member_ids": [alice["user"]["id"]]},
+            {"name": "Team B", "member_ids": [bob["user"]["id"]]},
+        ],
+    }
+    challenge_response = await client.post(
+        f"/communities/{community['id']}/challenges", json=payload, headers=auth_header(alice)
+    )
+    assert challenge_response.status_code == 201
+    assert challenge_response.json()["status"] == "active"
+
+    detail = await client.get(f"/communities/{community['id']}", headers=auth_header(alice))
+    assert detail.json()["has_active_challenge"] is True
+
+    mine = await client.get("/communities/mine", headers=auth_header(alice))
+    assert mine.json()[0]["has_active_challenge"] is True
+
+    discover = await client.get("/communities", headers=auth_header(alice))
+    assert discover.json()["items"][0]["has_active_challenge"] is True
 
 
 async def test_communities_endpoints_require_authentication(client: AsyncClient):
