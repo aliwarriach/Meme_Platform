@@ -1,8 +1,10 @@
+import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useSelector } from 'react-redux';
 
-import { FEED_WEB_COLORS, FEED_WEB_RADIUS, FEED_WEB_SPACING, FEED_WEB_TYPE } from '@/constants/webFeedTheme';
+import type { VaporwaveTheme } from '@/constants/webFeedThemeVapor';
 import { DESKTOP_INBOX_PANEL_WIDTH } from '@/constants/webLayout';
+import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 import { ConversationList, STATUS_DOT_COLOR } from '@/features/messaging/ConversationList';
 import type { RootState } from '@/store/store';
 
@@ -20,6 +22,8 @@ import type { RootState } from '@/store/store';
 export default function WebFeedRail() {
   const socketStatus = useSelector((state: RootState) => state.socket.status);
   const dotColor = STATUS_DOT_COLOR[socketStatus] ?? STATUS_DOT_COLOR.disconnected;
+  const { colors: FEED_WEB_COLORS, type: FEED_WEB_TYPE, radius: FEED_WEB_RADIUS, spacing: FEED_WEB_SPACING } = useVaporwaveTheme();
+  const styles = useMemo(() => createStyles(FEED_WEB_COLORS, FEED_WEB_RADIUS, FEED_WEB_SPACING), [FEED_WEB_COLORS, FEED_WEB_RADIUS, FEED_WEB_SPACING]);
 
   return (
     <View style={[styles.root, { width: DESKTOP_INBOX_PANEL_WIDTH }]}>
@@ -37,7 +41,11 @@ export default function WebFeedRail() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (
+  FEED_WEB_COLORS: VaporwaveTheme['colors'],
+  FEED_WEB_RADIUS: VaporwaveTheme['radius'],
+  FEED_WEB_SPACING: VaporwaveTheme['spacing'],
+) => StyleSheet.create({
   root: {
     height: '100%',
     borderRadius: FEED_WEB_RADIUS.card,

@@ -15,6 +15,15 @@ interface ContainerCardProps {
   container: MemeContainerResponse;
 }
 
+// Pins the in-app WebView to Instagram only — without this, any redirect chain from the
+// loaded page (an ad, a compromised/renamed account, a malicious short-link) could
+// navigate the WebView to an arbitrary origin inside the app, a credible phishing surface
+// (SecurityIssues.md L-4). Backend already anchors the *initial* URL the same way
+// (services/instagram.py::_validate_instagram_url); this constrains everything the page
+// can navigate to *after* it loads.
+const INSTAGRAM_WEBVIEW_ORIGIN_WHITELIST = ['https://www.instagram.com/*', 'https://instagram.com/*'];
+const INSTAGRAM_HOST_RE = /^https:\/\/(www\.)?instagram\.com(\/|$)/i;
+
 // Instagram embeds require their own oEmbed HTML/JS, which the stubbed backend fetcher
 // (integrations/instagram_oembed.py) doesn't provide yet — so the WebView renders the
 // public post page directly (read-only preview) rather than a proper oEmbed embed. Swaps
@@ -56,6 +65,8 @@ export function ContainerCard({ container }: ContainerCardProps) {
               source={{ uri: container.source_url }}
               style={{ flex: 1 }}
               startInLoadingState
+              originWhitelist={INSTAGRAM_WEBVIEW_ORIGIN_WHITELIST}
+              onShouldStartLoadWithRequest={(request) => INSTAGRAM_HOST_RE.test(request.url)}
               renderLoading={() => (
                 <View className="flex-1 items-center justify-center bg-black">
                   <ActivityIndicator color="#e3bdc5" />

@@ -1,6 +1,10 @@
 -r base.txt
-pytest
-pytest-asyncio
-ruff
-black
-python-dotenv
+pytest==9.1.1
+pytest-asyncio==1.4.0
+ruff==0.15.22
+black==26.5.1
+python-dotenv==1.2.2
+# Regenerates the hash-locked *.lock files below after any change to base/prod/dev.txt:
+#   python -m piptools compile --generate-hashes --output-file=requirements/base.lock requirements/base.txt
+#   (repeat for prod.txt -> prod.lock and dev.txt -> dev.lock)
+pip-tools==7.6.1

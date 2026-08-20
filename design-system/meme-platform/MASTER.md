@@ -177,3 +177,94 @@ reuse `tertiary` for "live/active" specifically — any future challenge/compete
 Use `references/pro-rules.md` (native-scoped: icon discipline, interaction feedback, light/dark contrast, safe-area
 layout, accessibility) in place of the skill's `--design-system` inline checklist, which is web-flavored
 (`cursor-pointer`, hover states, CSS breakpoints) and does not apply to this native app.
+
+---
+
+## Web Design System (Platform.OS==='web' rendering only — everything above this section is native-only)
+
+**Everything above this line governs native screens exclusively** (`ThemeProvider` hardcoded to
+`DarkTheme`, "Vivid Meme Culture" tokens via `tailwind.config.js`). It does not apply to any
+`.web.tsx` platform-extension sibling.
+
+**Status (as of 2026-08-19):** "Vaporwave Glass Evolution" (dark) / "Luminous Vapor Glass" (light)
+is the **standing default design system for all web rendering in this project** — i.e. the system
+any future FULL MODE pass on any other web screen should extend, not re-roll the skill for. It was
+originally a Feed/Friends-only pilot and has now been promoted to the project default, starting
+with the Voting screen (see `pages/voting-web.md` for that migration's full record).
+
+- **Token/provider source of truth:** `frontend/src/constants/webFeedThemeVapor.ts` (color roles,
+  type scale, radius, spacing, font stack — both modes, with inline sourcing comments; read this
+  file first, never re-derive values from memory) + `frontend/src/constants/VaporwaveWebTheme.tsx`
+  (`VaporwaveThemeProvider` / `useVaporwaveTheme()` — light/dark toggle, persisted to
+  `localStorage` under `vaporwave-web-theme`, OS-preference fallback). Each consuming screen
+  mounts its own provider instance; the shared storage key is what keeps the mode choice
+  consistent across screens on revisit.
+- **Reference implementations** (follow this exact pattern — provider mount, `injectFeedWebFont()`
+  on mount, `LinearGradient` background from `colors.gradientTop/Mid/Bottom`, `createStyles(colors,
+  radius, spacing)` factories, no page-specific theme file of its own):
+  - `frontend/src/features/feed/FeedScreen.web.tsx` (+ `WebFeedTopBar`, `WebFeedRail`,
+    `WebMergedFeedList`, `WebMemeCard`, `WebVotePill`, `WebAvatar`, `WebContainerCard`)
+  - `frontend/src/features/friends/FriendsScreen.web.tsx` (+ `WebFriendsTopBar`, `WebFriendRow`,
+    `WebFriendRequestRow`)
+  - `frontend/src/features/voting/VotingScreen.web.tsx` (+ `WebVotingTopBar`, `WebVotingTabs`,
+    `WebStandingRow`, `WebWinnerBanner`, `WebCompetitionEntryModal`)
+  - `frontend/src/features/challenges/CompeteScreen.web.tsx` (hub) +
+    `CreateChallengeScreen.web.tsx`/`CreateOpenChallengeScreen.web.tsx`/
+    `ProposeVsChallengeScreen.web.tsx` (create/propose forms) +
+    `ChallengeDetailScreen.web.tsx`/`DuelDetailScreen.web.tsx` (detail) — the whole
+    Compete/Challenges flow, migrated as one consolidated pass (+ `WebCompeteTopBar`,
+    `WebCompeteTabs`, `WebCompeteButton`, `WebCompeteTextField`, `WebDurationPresets`,
+    `WebChallengeStatusBadge`, `WebCountdownTimer`, `WebChallengeCard`, `WebChallengeSideCard`,
+    `WebResultBanner`, `WebSubmissionThumb`, `WebSubmissionPicker`, `WebSideMemberPicker`)
+  - `frontend/src/features/leaderboards/LeaderboardsScreen.web.tsx` (Individual/Communities
+    ranked standings, net-new — no prior independent theme existed for this screen, see
+    `pages/leaderboard-web.md`) (+ `WebLeaderboardsTopBar`, `WebLeaderboardTabs`,
+    `WebLeaderboardRow` — a single shared row component for both tabs, reusing `WebAvatar` for
+    both user avatars and community initials tiles rather than a second fallback
+    implementation; rank-badge treatment reuses `WebStandingRow`'s established top-3 convention)
+  - `frontend/src/features/auth/SessionScreen.web.tsx` (Profile/account/settings — identity block,
+    stat cards, badges, settings-list groups, see `pages/profile-web.md`) (+ `WebProfileTopBar`,
+    `WebScoreCard`, `WebBadgeChip`, `WebSettingsRow`, net-new `WebEmailVerificationBanner`; reuses
+    `WebAvatar` for the identity-block avatar rather than a dedicated `WebProfileAvatar` — the
+    prior independent-theme version of that component was retired outright, not rewritten)
+  - `frontend/src/features/messaging/InboxScreen.web.tsx` (conversation list) +
+    `ThreadScreen.web.tsx` (single-thread view) — the full Inbox flow, net-new (no prior
+    independent theme existed for either screen), see `pages/inbox-web.md` (+ `WebInboxTopBar`,
+    `WebThreadTopBar`, `WebConversationRow`, `WebNewChatModal`, `WebMessageBubble`,
+    `WebMessageComposer`; reuses `WebAvatar` throughout). Distinct from
+    `components/web/DesktopInboxPanel.tsx` (a Feed-only rail preview, now dead code — see
+    `pages/inbox-web.md`'s relationship section) and from `components/web/WebFeedRail.tsx` (the
+    rail preview's actual live implementation, which still renders its rows via the shared native
+    `ConversationList` unstyled — a pre-existing seam out of this pass's scope).
+- **Migrated screens so far:** Feed, Friends, Voting, Challenges/Compete, Leaderboard, Profile,
+  Inbox — all five planned migration-sequence screens are now complete (see `pages/compete-web.md`,
+  `pages/leaderboard-web.md`, `pages/profile-web.md`, and `pages/inbox-web.md` for those
+  migrations' full records).
+  **Not yet migrated** (still runs its own independent theme system, not Vaporwave — do not
+  assume Vaporwave applies there until a dedicated FULL MODE pass migrates it): Communities
+  (`pages/community-web.md`) — intentionally left as-is, per every prior pass's PILOT-SCREEN
+  precedent, until it gets its own pass.
+- **Accessibility discipline established by the Voting migration, apply on future migrations
+  too:** not every token that "looks like the brand color" is safe as a text-bearing fill or
+  foreground in both modes — `indigoPrimary` (bright cyan) fails 4.5:1 as a white-text fill in
+  both modes and fails even 3:1 as light-mode foreground/icon content; it's a glow/border/
+  dark-mode-only-foreground hue, not a universal fill color. `indigoSecondary` (magenta) is the
+  token that actually clears 4.5:1 as a solid fill + `onAccent` text in both modes. See
+  `pages/voting-web.md`'s Accessibility section for the full measured contrast table before
+  reusing either as foreground content on a new screen.
+- **Shared chrome note:** `DesktopShell`/`DesktopSidebarNav` (mounted app-wide in `app/_layout.tsx`)
+  still render in the older pre-Vaporwave chrome (`#1e0f13`/`#372529`) — a known, accepted seam
+  every Vaporwave screen so far has inherited, not something any single-screen migration pass
+  should fix (that's shared, app-wide chrome, out of scope for a page-scoped pass).
+- Page-specific rules/token tables for each migrated screen live in `pages/feed-web.md` (stale —
+  predates the Vaporwave promotion, describes the earlier "Dark Cinema" pilot only),
+  `pages/voting-web.md` (current, describes Vaporwave as actually used), `pages/compete-web.md`
+  (current as of the Challenges/Compete migration — supersedes that file's own prior Neubrutalism
+  RESKIN record), `pages/leaderboard-web.md` (current — net-new build, no prior system to
+  supersede; also records a still-open app-level IA finding: `DesktopSidebarNav` has no
+  "Leaderboards" link), and `pages/inbox-web.md` (current — net-new build for both the
+  conversation-list and thread screens; also records the `DesktopInboxPanel`/`WebFeedRail`
+  relationship and confirms the final old-system-file consolidation check across all five
+  migration passes). Friends has no page doc yet (never generated one) — treat
+  `FriendsScreen.web.tsx` itself plus this section as its documentation of record until one
+  exists.

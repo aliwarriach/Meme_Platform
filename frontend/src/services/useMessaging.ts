@@ -88,7 +88,6 @@ function pendingMessage(
     // Redux holds the camelCase client shape; the cache holds wire shapes.
     sender: {
       id: sender.id,
-      email: sender.email,
       username: sender.username,
       bio: sender.bio,
       avatar_url: sender.avatarUrl,

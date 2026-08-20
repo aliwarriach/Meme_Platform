@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.meme_container import ContainerMetadataStatus, ContainerPlatform
-from app.schemas.auth import UserOut
+from app.schemas.auth import PublicUserOut
 from app.schemas.memes import MemeOut
 
 
@@ -17,7 +17,7 @@ class MemeContainerOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    submitter: UserOut
+    submitter: PublicUserOut
     platform: ContainerPlatform
     source_url: str
     title: str | None
@@ -47,7 +47,7 @@ class ContainerCommentOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    author: UserOut
+    author: PublicUserOut
     body: str
     created_at: datetime.datetime
 

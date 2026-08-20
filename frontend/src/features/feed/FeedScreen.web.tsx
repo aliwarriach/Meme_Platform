@@ -7,9 +7,10 @@ import FloatingBottomNav from '@/components/FloatingBottomNav';
 import WebFeedRail from '@/components/web/WebFeedRail';
 import WebFeedTopBar from '@/components/web/WebFeedTopBar';
 import { WebMergedFeedList } from '@/components/web/WebMergedFeedList';
-import { FEED_WEB_COLORS, injectFeedWebFont } from '@/constants/webFeedTheme';
+import { injectFeedWebFont } from '@/constants/webFeedThemeVapor';
 import { DESKTOP_FRAME_MIN_WIDTH } from '@/constants/webLayout';
 import { ShareInstagramLinkModal } from '@/features/instagram-companion/ShareInstagramLinkModal';
+import { VaporwaveThemeProvider, useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 import type { MergedFeedItem } from '@/services/memes';
 import { useFeed } from '@/services/useMemes';
 
@@ -31,10 +32,19 @@ import { useFeed } from '@/services/useMemes';
  * needed here).
  */
 export default function FeedScreen() {
+  return (
+    <VaporwaveThemeProvider>
+      <FeedScreenContent />
+    </VaporwaveThemeProvider>
+  );
+}
+
+function FeedScreenContent() {
   const feedQuery = useFeed();
   const [shareModalVisible, setShareModalVisible] = useState(false);
   const { width } = useWindowDimensions();
   const showRail = width >= DESKTOP_FRAME_MIN_WIDTH;
+  const { colors } = useVaporwaveTheme();
 
   useEffect(() => {
     injectFeedWebFont();
@@ -45,7 +55,7 @@ export default function FeedScreen() {
   return (
     <View style={styles.root}>
       <LinearGradient
-        colors={[FEED_WEB_COLORS.gradientTop, FEED_WEB_COLORS.gradientMid, FEED_WEB_COLORS.gradientBottom]}
+        colors={[colors.gradientTop, colors.gradientMid, colors.gradientBottom]}
         style={StyleSheet.absoluteFill}
       />
 

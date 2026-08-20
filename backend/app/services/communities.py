@@ -18,7 +18,7 @@ from app.models.challenge import Challenge, ChallengeStatus
 from app.models.community import Community, CommunityPrivacy
 from app.models.community_membership import CommunityMembership, MembershipRole, MembershipStatus
 from app.models.user import User
-from app.schemas.auth import UserOut
+from app.schemas.auth import PublicUserOut
 from app.schemas.communities import CommunityOut, CommunityPage, MembershipOut
 from app.services.media import validate_and_upload_image
 
@@ -88,7 +88,7 @@ def _build_community_out(
 ) -> CommunityOut:
     return CommunityOut(
         id=community.id,
-        owner=UserOut.model_validate(community.owner),
+        owner=PublicUserOut.model_validate(community.owner),
         name=community.name,
         description=community.description,
         icon_url=community.icon_url,

@@ -2,12 +2,12 @@ import uuid
 
 from pydantic import BaseModel
 
-from app.schemas.auth import UserOut
+from app.schemas.auth import PublicUserOut
 
 
 class IndividualLeaderboardEntry(BaseModel):
     rank: int
-    user: UserOut
+    user: PublicUserOut
     score: int
 
 
@@ -33,5 +33,5 @@ class ProfileScoreOut(BaseModel):
     distinct from the 30-day-windowed individual leaderboard. Not audience-gated: anyone
     can see anyone's profile score, same as the public individual leaderboard."""
 
-    user: UserOut
+    user: PublicUserOut
     score: int

@@ -7,6 +7,7 @@ import { useDispatch } from 'react-redux';
 
 import PillButton from '@/components/PillButton';
 import { TextField } from '@/components/TextField';
+import { GoogleSignInFlow } from '@/features/auth/GoogleSignInFlow';
 import { loginSchema, type LoginFormValues } from '@/features/auth/schemas';
 import { useLoginMutation } from '@/services/useAuth';
 import { persistCredentials } from '@/store/authSlice';
@@ -84,6 +85,8 @@ export default function LoginScreen() {
           onPress={onSubmit}
           loading={loginMutation.isPending}
         />
+
+        <GoogleSignInFlow />
 
         <View className="mt-6 flex-row justify-center">
           <Text className="font-body text-ink-muted">Don&apos;t have an account? </Text>

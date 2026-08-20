@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 from app.models.post_audience import AudienceType
-from app.schemas.auth import UserOut
+from app.schemas.auth import PublicUserOut
 
 
 class CommunityBadge(BaseModel):
@@ -19,7 +19,7 @@ class MemeOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    author: UserOut
+    author: PublicUserOut
     image_url: str
     caption: str | None
     audiences: list[AudienceType]

@@ -1,7 +1,8 @@
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { useVotingWebTheme } from '@/constants/VotingWebTheme';
-import { VOTING_WEB_RADIUS, VOTING_WEB_SPACING, VOTING_WEB_TYPE, type WebPressableState } from '@/constants/webVotingTheme';
+import type { VaporwaveTheme } from '@/constants/webFeedThemeVapor';
+import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 import type { CompetitionPeriodType } from '@/services/competitions';
 
 interface TabOption {
@@ -15,17 +16,33 @@ interface WebVotingTabsProps {
   onChange: (value: CompetitionPeriodType) => void;
 }
 
-/** Connected pill-track segmented control for the Today/This Week/This Month period tabs —
- * replaces the native `Chip` row with a single track, same "block-based" affordance precedent
- * `community-web.md` used for its own tab rows. Built independently (not imported from
- * `WebSegmentedControl.tsx`, which is hard-coupled to the communities theme). */
+interface WebPressableState {
+  pressed: boolean;
+  hovered?: boolean;
+  focused?: boolean;
+}
+
+/**
+ * Connected pill-track segmented control for the Today/This Week/This Month period tabs —
+ * Vaporwave/Luminous equivalent of the retired independent-theme `WebVotingTabs`. Built locally
+ * rather than importing `WebSegmentedControl.tsx` (still hard-coupled to the un-migrated
+ * communities theme) or `WebCompeteTabs.tsx` (same, compete theme) — same "independent tree"
+ * precedent every other web pilot in this app follows.
+ *
+ * Selected fill uses `indigoSecondary` + `onAccent`, not `indigoPrimary` + `onAccent`: bright
+ * cyan (`indigoPrimary`) measures ~1.4:1 with white text in dark mode and ~1.7:1 in light mode
+ * (it's a light, low-contrast hue meant for glow/border/icon-on-dark use, not a solid text-bearing
+ * fill) — `indigoSecondary` (magenta) measures 9.0:1 dark / 6.46:1 light with `onAccent`,
+ * comfortably clearing 4.5:1 AA in both modes. Computed via the standard WCAG relative-luminance
+ * formula against this file's own token values, not eyeballed.
+ */
 export function WebVotingTabs({ options, value, onChange }: WebVotingTabsProps) {
-  const { colors } = useVotingWebTheme();
+  const { colors, type, radius, spacing, mode } = useVaporwaveTheme();
+  const styles = useMemo(() => createStyles(colors, radius, spacing), [colors, radius, spacing]);
+  const ringColor = mode === 'dark' ? colors.indigoPrimary : colors.indigoSecondary;
 
   return (
-    <View
-      accessibilityRole="tablist"
-      style={[styles.track, { backgroundColor: colors.elevated, borderColor: colors.border }]}>
+    <View accessibilityRole="tablist" style={styles.track}>
       {options.map((option) => {
         const selected = option.type === value;
         return (
@@ -37,19 +54,11 @@ export function WebVotingTabs({ options, value, onChange }: WebVotingTabsProps) 
             onPress={() => onChange(option.type)}
             style={({ hovered, focused }: WebPressableState) => [
               styles.segment,
-              selected && { backgroundColor: colors.primary },
-              hovered && !selected && { backgroundColor: colors.elevatedHover },
-              focused && { outlineColor: colors.ring, outlineWidth: 2, outlineOffset: 1 },
+              selected && { backgroundColor: colors.indigoSecondary },
+              hovered && !selected && { backgroundColor: colors.hoverTint },
+              focused && { outlineColor: ringColor, outlineWidth: 2, outlineOffset: 1 },
             ]}>
-            {/* Unselected label uses full `foreground`, not `foregroundMuted` — measured contrast
-                for `foregroundMuted` against this track's `elevated` background falls to ~4.1:1
-                in light mode, under 4.5:1 AA (see webVotingTheme.ts). Hierarchy still reads
-                clearly from the selected pill's solid fill, not from text-color dimming. */}
-            <Text
-              style={[
-                VOTING_WEB_TYPE.title,
-                { color: selected ? colors.onPrimary : colors.foreground },
-              ]}>
+            <Text style={[type.title, { color: selected ? colors.onAccent : colors.foreground }]}>
               {option.label}
             </Text>
           </Pressable>
@@ -59,21 +68,28 @@ export function WebVotingTabs({ options, value, onChange }: WebVotingTabsProps) 
   );
 }
 
-const styles = StyleSheet.create({
-  track: {
-    flexDirection: 'row',
-    borderRadius: VOTING_WEB_RADIUS.pill,
-    borderWidth: 1,
-    padding: 4,
-    gap: 4,
-  },
-  segment: {
-    flex: 1,
-    minHeight: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: VOTING_WEB_RADIUS.pill,
-    paddingHorizontal: VOTING_WEB_SPACING.md,
-    paddingVertical: VOTING_WEB_SPACING.sm,
-  },
-});
+const createStyles = (
+  colors: VaporwaveTheme['colors'],
+  radius: VaporwaveTheme['radius'],
+  spacing: VaporwaveTheme['spacing'],
+) =>
+  StyleSheet.create({
+    track: {
+      flexDirection: 'row',
+      borderRadius: radius.pill,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceElevated,
+      padding: 4,
+      gap: 4,
+    },
+    segment: {
+      flex: 1,
+      minHeight: 40,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+    },
+  });

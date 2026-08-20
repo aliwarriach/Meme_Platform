@@ -1,17 +1,22 @@
 import uuid
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 
 from app.core.deps import CurrentUser, DbSession
+from app.core.rate_limit import limiter
 from app.schemas.friends import FriendOut, FriendRequestCreate, FriendshipOut
 from app.services import friends as friends_service
 
 router = APIRouter(prefix="/friends", tags=["friends"])
 
 
+# Unlimited otherwise: an unthrottled harassment channel (repeat friend requests to any
+# user) and, combined with the username-enumeration oracle in send_friend_request's error
+# message, a fast way to probe which usernames exist (SecurityIssues.md L-8).
 @router.post("/requests", response_model=FriendshipOut, status_code=201)
+@limiter.limit("20/minute")
 async def send_request(
-    data: FriendRequestCreate, current_user: CurrentUser, db: DbSession
+    request: Request, data: FriendRequestCreate, current_user: CurrentUser, db: DbSession
 ) -> FriendshipOut:
     return await friends_service.send_friend_request(db, current_user, data)
 

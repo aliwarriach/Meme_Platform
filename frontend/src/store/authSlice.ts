@@ -9,6 +9,7 @@ export interface AuthUser {
   username: string;
   bio: string | null;
   avatarUrl: string | null;
+  emailVerifiedAt: string | null;
 }
 
 interface AuthState {
@@ -29,6 +30,7 @@ function toAuthUser(raw: {
   username: string;
   bio: string | null;
   avatar_url: string | null;
+  email_verified_at: string | null;
 }): AuthUser {
   return {
     id: raw.id,
@@ -36,6 +38,7 @@ function toAuthUser(raw: {
     username: raw.username,
     bio: raw.bio,
     avatarUrl: raw.avatar_url,
+    emailVerifiedAt: raw.email_verified_at,
   };
 }
 
@@ -50,6 +53,7 @@ export const bootstrapAuth = createAsyncThunk('auth/bootstrap', async (_: void, 
     username: string;
     bio: string | null;
     avatar_url: string | null;
+    email_verified_at: string | null;
   }>('/auth/me');
 
   if (!response.ok || !response.data) {
@@ -66,7 +70,14 @@ export const persistCredentials = createAsyncThunk(
   'auth/persistCredentials',
   async (payload: {
     token: string;
-    user: { id: string; email: string; username: string; bio: string | null; avatar_url: string | null };
+    user: {
+      id: string;
+      email: string;
+      username: string;
+      bio: string | null;
+      avatar_url: string | null;
+      email_verified_at: string | null;
+    };
   }) => {
     await setStoredToken(payload.token);
     return { token: payload.token, user: toAuthUser(payload.user) };
@@ -74,6 +85,15 @@ export const persistCredentials = createAsyncThunk(
 );
 
 export const signOut = createAsyncThunk('auth/signOut', async () => {
+  // Best-effort server-side revocation (bumps token_version, invalidating the JWT
+  // immediately rather than leaving it valid for the rest of its 24h lifetime). A
+  // network failure still clears the device locally — the user asked to sign out and
+  // that must always succeed locally, even if the server can't be reached right now.
+  try {
+    await api.post('/auth/logout');
+  } catch {
+    // Ignored — local sign-out proceeds regardless.
+  }
   await clearStoredToken();
 });
 
@@ -85,6 +105,9 @@ const authSlice = createSlice({
       state.token = action.payload.token;
       state.user = action.payload.user;
       setAuthToken(action.payload.token);
+    },
+    setEmailVerified(state, action: PayloadAction<string>) {
+      if (state.user) state.user.emailVerifiedAt = action.payload;
     },
   },
   extraReducers: (builder) => {
@@ -108,5 +131,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { setCredentials } = authSlice.actions;
+export const { setCredentials, setEmailVerified } = authSlice.actions;
 export default authSlice.reducer;

@@ -139,18 +139,38 @@ async def mark_all_read(db: AsyncSession, current_user: User) -> MarkAllReadOut:
     return MarkAllReadOut(read_count=result.rowcount or 0)
 
 
+PUSH_TOKEN_REASSIGN_STALE_AFTER = datetime.timedelta(days=30)
+
+
 async def register_push_token(
     db: AsyncSession, current_user: User, token: str, platform: str
 ) -> None:
     """Upsert by token, not by (user, token): a device's token can move to a different
     account on reinstall/re-login, and the old owner must stop receiving that device's
-    pushes the moment the new owner registers it."""
+    pushes the moment the new owner registers it.
+
+    Reassigning to a *different* user only happens once the existing binding has gone
+    stale (unrefreshed for PUSH_TOKEN_REASSIGN_STALE_AFTER) — a genuine reinstall/re-login
+    naturally re-registers the token on app launch, so a still-fresh binding means the
+    current owner is actively using this device, and reassigning it would silently
+    redirect their notification stream to whoever just called this (SecurityIssues.md
+    L-2) — this token is an opaque string an attacker would need out-of-band, but there's
+    no reason to trust possession of it alone while the real owner is still around.
+    A still-fresh conflict is a silent no-op rather than an error: the caller has nothing
+    actionable to do differently, and an error would just leak that the token is bound
+    elsewhere.
+    """
     existing = await db.scalar(select(PushToken).where(PushToken.token == token))
-    if existing is not None:
-        existing.user_id = current_user.id
+    if existing is None:
+        db.add(PushToken(user_id=current_user.id, token=token, platform=platform))
+    elif existing.user_id == current_user.id:
         existing.platform = platform
     else:
-        db.add(PushToken(user_id=current_user.id, token=token, platform=platform))
+        now = datetime.datetime.now(datetime.timezone.utc)
+        if now - existing.updated_at < PUSH_TOKEN_REASSIGN_STALE_AFTER:
+            return
+        existing.user_id = current_user.id
+        existing.platform = platform
     await db.commit()
 
 

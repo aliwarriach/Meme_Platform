@@ -3,7 +3,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Form, Query, Request, UploadFile
 
-from app.core.deps import CurrentUser, DbSession
+from app.core.deps import CurrentUser, CurrentVerifiedUser, DbSession
 from app.core.rate_limit import limiter
 from app.models.post_audience import AudienceType
 from app.schemas.comments import CommentCreate, CommentOut
@@ -34,6 +34,13 @@ async def create_meme(
     )
 
 
+@router.delete("/{meme_id}", status_code=204)
+async def delete_meme(meme_id: uuid.UUID, current_user: CurrentUser, db: DbSession) -> None:
+    """Author-only soft delete (SecurityFeatures.md F-4) — the meme drops out of every
+    feed/read immediately; a DM referencing it degrades to a null-meme placeholder."""
+    await memes_service.delete_meme(db, current_user, meme_id)
+
+
 @router.get("/feed", response_model=MergedFeedPage)
 async def get_feed(
     current_user: CurrentUser,
@@ -55,11 +62,12 @@ async def cast_vote(
     request: Request,
     meme_id: uuid.UUID,
     data: VoteCast,
-    current_user: CurrentUser,
+    current_user: CurrentVerifiedUser,
     db: DbSession,
 ) -> VoteOut:
     """Reddit-style upvote/downvote. Casting the same value again removes the vote;
-    casting the opposite value flips it."""
+    casting the opposite value flips it. Requires a verified email (SecurityFeatures.md
+    F-1) — vote farming with unlimited free accounts is a named abuse scenario."""
     return await votes_service.cast_vote(db, current_user, meme_id, data.value)
 
 
@@ -94,3 +102,11 @@ async def list_comments(
     meme_id: uuid.UUID, current_user: CurrentUser, db: DbSession
 ) -> list[CommentOut]:
     return await comments_service.list_comments(db, current_user, meme_id)
+
+
+@router.delete("/{meme_id}/comments/{comment_id}", status_code=204)
+async def delete_comment(
+    meme_id: uuid.UUID, comment_id: uuid.UUID, current_user: CurrentUser, db: DbSession
+) -> None:
+    """Author-only soft delete (SecurityFeatures.md F-4)."""
+    await comments_service.delete_comment(db, current_user, meme_id, comment_id)

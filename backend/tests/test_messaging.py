@@ -2,7 +2,7 @@ from fastapi.testclient import TestClient
 from httpx import AsyncClient
 
 from app.main import app
-from tests.conftest import auth_header, create_user
+from tests.conftest import auth_header, create_user, mark_email_verified, ws_ticket
 
 
 async def _become_friends(client: AsyncClient, alice: dict, bob: dict) -> str:
@@ -268,12 +268,25 @@ async def test_websocket_delivers_message_in_real_time():
     with TestClient(app) as test_client:
         alice = test_client.post(
             "/auth/register",
-            json={"email": "alice@ws.com", "username": "alice", "password": "password123"},
+            json={
+                "email": "alice@ws.com",
+                "username": "alice",
+                "password": "password123",
+                "date_of_birth": "2000-01-01",
+            },
         ).json()
         bob = test_client.post(
             "/auth/register",
-            json={"email": "bob@ws.com", "username": "bob", "password": "password123"},
+            json={
+                "email": "bob@ws.com",
+                "username": "bob",
+                "password": "password123",
+                "date_of_birth": "2000-01-01",
+            },
         ).json()
+        # Alice opens the (new) conversation below, which requires a verified email
+        # (SecurityFeatures.md F-1); Bob only ever reuses it, so he doesn't need to be.
+        await mark_email_verified(alice["user"]["id"])
 
         friendship_id = test_client.post(
             "/friends/requests", json={"username": "bob"}, headers=auth_header(alice)
@@ -286,7 +299,7 @@ async def test_websocket_delivers_message_in_real_time():
             headers=auth_header(alice),
         ).json()["id"]
 
-        with test_client.websocket_connect(f"/meme-sending/ws?token={bob['access_token']}") as ws:
+        with test_client.websocket_connect(f"/meme-sending/ws?ticket={ws_ticket(test_client, bob)}") as ws:
             send = test_client.post(
                 f"/messaging/conversations/{conversation_id}/messages",
                 json={"kind": "text", "body": "live"},
@@ -301,7 +314,7 @@ async def test_websocket_delivers_message_in_real_time():
             assert frame["message"]["sender"]["username"] == "alice"
 
         # Read receipts travel the other way: alice is the one who must learn bob read it.
-        with test_client.websocket_connect(f"/meme-sending/ws?token={alice['access_token']}") as ws:
+        with test_client.websocket_connect(f"/meme-sending/ws?ticket={ws_ticket(test_client, alice)}") as ws:
             test_client.post(
                 f"/messaging/conversations/{conversation_id}/read", headers=auth_header(bob)
             )

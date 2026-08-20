@@ -1,14 +1,9 @@
 import type { ReactNode } from 'react';
+import { useMemo } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, type GestureResponderEvent } from 'react-native';
 
-import { useCompeteWebTheme } from '@/constants/CompeteWebTheme';
-import {
-  COMPETE_WEB_RADIUS,
-  COMPETE_WEB_SHADOW,
-  COMPETE_WEB_SPACING,
-  COMPETE_WEB_TYPE,
-  type WebPressableState,
-} from '@/constants/webCompeteTheme';
+import type { VaporwaveTheme } from '@/constants/webFeedThemeVapor';
+import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 
 type Variant = 'primary' | 'outline' | 'ghost';
 
@@ -23,12 +18,30 @@ interface WebCompeteButtonProps {
   fullWidth?: boolean;
 }
 
-/** Theme-aware pill button for the Compete web pages — same interaction contract as the shared
- * native `PillButton` (loading/disabled state, 44px min height) but new chrome, since that
- * component is native-resolved and aliases the old NativeWind token set. Primary variant carries
- * this page's signature `outline` + hard-offset-shadow emphasis treatment (see Shape signature
- * note in compete-web.md) — the loudest, most brutalist element on any given screen, matching
- * the brief's "energy belongs in... CTAs" instruction. */
+interface WebPressableState {
+  pressed: boolean;
+  hovered?: boolean;
+  focused?: boolean;
+}
+
+/**
+ * Theme-aware pill button for the Compete/Challenges web pages — Vaporwave/Luminous equivalent
+ * of the retired independent-theme `WebCompeteButton`. Primary variant carries a soft
+ * `indigoGlow` shadow (decorative, exempt from text-contrast rules, same technique
+ * `WebWinnerBanner` uses on Voting) instead of the retired Neubrutalism system's hard 3px offset
+ * shadow — that shadow language ("no gradients, no blur") is specific to the style this page is
+ * being migrated OFF of, and is incompatible with Vaporwave's glass/glow language.
+ *
+ * `outline`/`ghost` variants use a MODE-CONDITIONAL accent for border + text, never a fixed
+ * token: `indigoPrimary` (cyan) measures ~11.7:1 against the dark canvas but only ~1.7:1 against
+ * light; `indigoSecondary` (magenta) is the inverse — too-close-in-luminance against a dark
+ * canvas/card (~1.6-1.9:1, under even the 3:1 non-text minimum) but ~6.5:1 against light. Neither
+ * token is safe as a fixed border/text color across both modes, so the mode check picks whichever
+ * one actually clears AA — same reasoning `WebCompeteTopBar`'s focus ring and every other
+ * mode-conditional accent in this migration uses. `indigoSecondary` is never used as outline
+ * border/text directly on `card`/background in this build for that reason (see
+ * compete-web.md's Accessibility section).
+ */
 export default function WebCompeteButton({
   label,
   onPress,
@@ -39,23 +52,26 @@ export default function WebCompeteButton({
   accessibilityLabel,
   fullWidth = false,
 }: WebCompeteButtonProps) {
-  const { colors } = useCompeteWebTheme();
+  const { colors, type, radius, spacing, mode } = useVaporwaveTheme();
+  const styles = useMemo(() => createStyles(radius, spacing), [radius, spacing]);
   const isDisabled = disabled || loading;
+  const accent = mode === 'dark' ? colors.indigoPrimary : colors.indigoSecondary;
 
   const variantStyle =
     variant === 'primary'
       ? {
-          backgroundColor: colors.primary,
-          borderWidth: 2,
-          borderColor: colors.outline,
-          ...COMPETE_WEB_SHADOW.hard,
+          backgroundColor: colors.indigoSecondary,
+          shadowColor: colors.indigoGlow,
+          shadowOffset: { width: 0, height: 0 },
+          shadowOpacity: 0.9,
+          shadowRadius: 14,
+          elevation: 4,
         }
       : variant === 'outline'
-        ? { backgroundColor: 'transparent', borderWidth: 2, borderColor: colors.primary }
-        : { backgroundColor: colors.elevated, borderWidth: 0 };
+        ? { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: accent }
+        : { backgroundColor: colors.surfaceElevated, borderWidth: 0 };
 
-  const textColor =
-    variant === 'primary' ? colors.onPrimary : variant === 'outline' ? colors.primaryText : colors.cardForeground;
+  const textColor = variant === 'primary' ? colors.onAccent : variant === 'outline' ? accent : colors.foreground;
 
   return (
     <Pressable
@@ -69,45 +85,40 @@ export default function WebCompeteButton({
         variantStyle,
         fullWidth && styles.fullWidth,
         isDisabled && styles.disabled,
-        hovered && !isDisabled && (variant === 'primary' ? styles.hoveredPrimary : styles.hovered),
-        focused && !isDisabled && { outlineColor: colors.ring, outlineWidth: 2, outlineOffset: 2 },
+        hovered && !isDisabled && styles.hovered,
+        focused && !isDisabled && { outlineColor: accent, outlineWidth: 2, outlineOffset: 2 },
       ]}>
       {loading ? (
         <ActivityIndicator color={textColor} />
       ) : (
         <>
           {icon}
-          <Text style={[COMPETE_WEB_TYPE.title, { color: textColor }]}>{label}</Text>
+          <Text style={[type.title, { color: textColor }]}>{label}</Text>
         </>
       )}
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  base: {
-    minHeight: 44,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: COMPETE_WEB_SPACING.sm,
-    borderRadius: COMPETE_WEB_RADIUS.pill,
-    paddingHorizontal: COMPETE_WEB_SPACING.xl,
-    paddingVertical: COMPETE_WEB_SPACING.md,
-  },
-  fullWidth: {
-    width: '100%',
-  },
-  disabled: {
-    opacity: 0.5,
-  },
-  hovered: {
-    opacity: 0.9,
-  },
-  // Mechanical press: shift toward the shadow and drop it, rather than a soft opacity fade —
-  // the Neubrutalism style's own "mechanical press: translateX/Y equal to shadow offset" note.
-  hoveredPrimary: {
-    transform: [{ translateX: 1 }, { translateY: 1 }],
-    shadowOffset: { width: 2, height: 2 },
-  },
-});
+const createStyles = (radius: VaporwaveTheme['radius'], spacing: VaporwaveTheme['spacing']) =>
+  StyleSheet.create({
+    base: {
+      minHeight: 44,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.sm,
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.xl,
+      paddingVertical: spacing.md,
+    },
+    fullWidth: {
+      width: '100%',
+    },
+    disabled: {
+      opacity: 0.5,
+    },
+    hovered: {
+      opacity: 0.9,
+    },
+  });

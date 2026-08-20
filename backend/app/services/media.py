@@ -6,7 +6,7 @@ from app.core.exceptions import (
     MediaUploadFailedError,
     UnsupportedMediaTypeError,
 )
-from app.integrations.cloudinary_client import MediaUploadError, upload_image
+from app.integrations.cloudinary_client import MediaUploadError, delete_image, upload_image
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
@@ -29,3 +29,9 @@ async def validate_and_upload_image(image: UploadFile, folder: str) -> tuple[str
         return await upload_image(file_bytes, folder=folder)
     except MediaUploadError as exc:
         raise MediaUploadFailedError(str(exc)) from exc
+
+
+async def delete_uploaded_image(public_id: str) -> None:
+    """Best-effort Cloudinary cleanup, called after a meme/template/etc. is soft-deleted
+    (SecurityFeatures.md F-4) — never raises, see `integrations/cloudinary_client.py`."""
+    await delete_image(public_id)

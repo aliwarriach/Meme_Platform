@@ -1,12 +1,13 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 
 import WebVotePill from '@/components/web/WebVotePill';
-import { FEED_WEB_COLORS, FEED_WEB_RADIUS, FEED_WEB_SPACING, FEED_WEB_TYPE } from '@/constants/webFeedTheme';
+import type { VaporwaveTheme } from '@/constants/webFeedThemeVapor';
 import { ContainerCommentsSection } from '@/features/instagram-companion/ContainerCommentsSection';
+import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 import type { MemeContainerResponse } from '@/services/instagram';
 import { useCastContainerVoteMutation, useRecordContainerViewMutation } from '@/services/useInstagram';
 import { timeAgo } from '@/utils/timeAgo';
@@ -16,6 +17,11 @@ interface WebContainerCardProps {
   container: MemeContainerResponse;
 }
 
+// See features/instagram-companion/ContainerCard.tsx (native) for why this whitelist
+// exists — same fix, same rationale (SecurityIssues.md L-4).
+const INSTAGRAM_WEBVIEW_ORIGIN_WHITELIST = ['https://www.instagram.com/*', 'https://instagram.com/*'];
+const INSTAGRAM_HOST_RE = /^https:\/\/(www\.)?instagram\.com(\/|$)/i;
+
 /** "Dark Cinema" equivalent of `features/instagram-companion/ContainerCard.tsx` (native-resolved,
  * untouched) for Instagram Companion Mode items merged into the web feed. Same data/hooks,
  * new chrome only. */
@@ -24,6 +30,8 @@ export function WebContainerCard({ container }: WebContainerCardProps) {
   const castVote = useCastContainerVoteMutation();
   const recordView = useRecordContainerViewMutation();
   const cardRef = useRecordViewOnVisible(() => recordView.mutate(container.id));
+  const { colors: FEED_WEB_COLORS, type: FEED_WEB_TYPE, radius: FEED_WEB_RADIUS, spacing: FEED_WEB_SPACING } = useVaporwaveTheme();
+  const styles = useMemo(() => createStyles(FEED_WEB_COLORS, FEED_WEB_RADIUS, FEED_WEB_SPACING), [FEED_WEB_COLORS, FEED_WEB_RADIUS, FEED_WEB_SPACING]);
 
   const isVoting = castVote.isPending;
 
@@ -54,6 +62,8 @@ export function WebContainerCard({ container }: WebContainerCardProps) {
               source={{ uri: container.source_url }}
               style={styles.media}
               startInLoadingState
+              originWhitelist={INSTAGRAM_WEBVIEW_ORIGIN_WHITELIST}
+              onShouldStartLoadWithRequest={(request) => INSTAGRAM_HOST_RE.test(request.url)}
               renderLoading={() => (
                 <View style={styles.mediaCenter}>
                   <ActivityIndicator color={FEED_WEB_COLORS.foregroundMuted} />
@@ -120,7 +130,11 @@ export function WebContainerCard({ container }: WebContainerCardProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (
+  FEED_WEB_COLORS: VaporwaveTheme['colors'],
+  FEED_WEB_RADIUS: VaporwaveTheme['radius'],
+  FEED_WEB_SPACING: VaporwaveTheme['spacing'],
+) => StyleSheet.create({
   card: {
     marginBottom: FEED_WEB_SPACING.lg,
     borderRadius: FEED_WEB_RADIUS.card,
@@ -198,7 +212,7 @@ const styles = StyleSheet.create({
     borderColor: FEED_WEB_COLORS.border,
   },
   openOriginalHovered: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: FEED_WEB_COLORS.hoverTint,
   },
   iconButton: {
     height: 40,
@@ -209,7 +223,7 @@ const styles = StyleSheet.create({
     borderRadius: FEED_WEB_RADIUS.pill,
   },
   iconButtonHovered: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: FEED_WEB_COLORS.hoverTint,
   },
   caption: {
     paddingHorizontal: FEED_WEB_SPACING.lg,

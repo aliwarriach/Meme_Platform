@@ -1,0 +1,22 @@
+# Root-level safety net — backend/ and frontend/ each have their own .gitignore for their
+# specifics; this covers anything created at the repo root so a future root-level .env,
+# key, or dump isn't tracked by default (SecurityIssues.md I-2).
+
+.env
+.env.*
+!.env.example
+!*/.env.example
+
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+
+*.sqlite
+*.sqlite3
+*.dump
+*.sql.gz
+
+.DS_Store
+Thumbs.db

@@ -4,7 +4,7 @@ import uuid
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.challenge import ChallengeStatus, ChallengeType
-from app.schemas.auth import UserOut
+from app.schemas.auth import PublicUserOut
 from app.schemas.memes import MemeOut
 
 
@@ -77,11 +77,11 @@ class ChallengeOut(BaseModel):
     opponent_community_name: str | None = None
     # `open` challenges only: the reserved entry tag (normalized slug, no leading '#').
     hashtag: str | None = None
-    creator: UserOut
+    creator: PublicUserOut
     # `duel` only: the challenged friend. Set from proposal time, before they've accepted
     # (and therefore before any `ChallengeParticipant` row for them exists).
     invitee_id: uuid.UUID | None = None
-    invitee: UserOut | None = None
+    invitee: PublicUserOut | None = None
     title: str
     challenge_type: ChallengeType
     status: ChallengeStatus
@@ -96,7 +96,7 @@ class ChallengeSubmissionOut(BaseModel):
 
     id: uuid.UUID
     side_id: uuid.UUID
-    submitter: UserOut
+    submitter: PublicUserOut
     meme: MemeOut
     created_at: datetime.datetime
 

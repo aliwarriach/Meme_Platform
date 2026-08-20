@@ -1,5 +1,6 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
@@ -11,8 +12,9 @@ import WebCompeteTopBar from '@/components/web/WebCompeteTopBar';
 import { WebCountdownTimer } from '@/components/web/WebCountdownTimer';
 import { WebResultBanner } from '@/components/web/WebResultBanner';
 import { WebSubmissionThumb } from '@/components/web/WebSubmissionThumb';
-import { CompeteThemeProvider, useCompeteWebTheme } from '@/constants/CompeteWebTheme';
-import { COMPETE_WEB_SHADOW, COMPETE_WEB_SPACING, COMPETE_WEB_TYPE } from '@/constants/webCompeteTheme';
+import type { VaporwaveTheme } from '@/constants/webFeedThemeVapor';
+import { injectFeedWebFont } from '@/constants/webFeedThemeVapor';
+import { VaporwaveThemeProvider, useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 import {
   useAcceptDuelMutation,
   useChallengeFlat,
@@ -29,16 +31,24 @@ interface DuelDetailScreenProps {
 /**
  * Web-only sibling of `features/challenges/DuelDetailScreen.tsx` (native-resolved, untouched) —
  * community-less challenge detail for duels and `open` challenges, reached via the flat
- * `/challenges/[challengeId]` route. Same business logic/data as native (local join-state
- * tracking for `open` challenges, since `member_ids` is always `[]` for that shape — see the
- * detailed rationale in the native component and `.claude/memory/challenges.md`), new chrome.
+ * `/challenges/[challengeId]` route. Migrated off the retired independent Neubrutalism theme onto
+ * the project-standard Vaporwave/Luminous glass system — see
+ * `design-system/meme-platform/pages/compete-web.md`. Same business logic/data as native (local
+ * join-state tracking for `open` challenges, since `member_ids` is always `[]` for that shape —
+ * see the detailed rationale in the native component and `.claude/memory/challenges.md`), only
+ * chrome changed.
  */
 function DuelDetailScreenContent({ challengeId }: DuelDetailScreenProps) {
   const router = useRouter();
-  const { colors } = useCompeteWebTheme();
+  const { colors, type, spacing } = useVaporwaveTheme();
+  const styles = useMemo(() => createStyles(colors, spacing), [colors, spacing]);
   const currentUser = useSelector((state: RootState) => state.auth.user);
   const [locallyJoinedSideId, setLocallyJoinedSideId] = useState<string | null>(null);
   const [joinNotice, setJoinNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    injectFeedWebFont();
+  }, []);
 
   const challengeQuery = useChallengeFlat(challengeId);
   const challenge = challengeQuery.data;
@@ -53,12 +63,11 @@ function DuelDetailScreenContent({ challengeId }: DuelDetailScreenProps) {
 
   if (challengeQuery.isLoading || !challenge) {
     return (
-      <View style={[styles.centerRoot, { backgroundColor: colors.background }]}>
+      <View style={styles.root}>
+        <LinearGradient colors={[colors.gradientTop, colors.gradientMid, colors.gradientBottom]} style={StyleSheet.absoluteFill} />
         <SafeAreaView style={styles.centerSafe}>
           {challengeQuery.isError ? (
-            <Text style={[COMPETE_WEB_TYPE.body, styles.centerPad, { color: colors.destructiveText }]}>
-              {challengeQuery.error?.message}
-            </Text>
+            <Text style={[type.body, styles.centerPad, { color: colors.error }]}>{challengeQuery.error?.message}</Text>
           ) : (
             <ActivityIndicator color={colors.foregroundMuted} />
           )}
@@ -88,20 +97,17 @@ function DuelDetailScreenContent({ challengeId }: DuelDetailScreenProps) {
   };
 
   return (
-    <View style={[styles.root, { backgroundColor: colors.background }]}>
+    <View style={styles.root}>
+      <LinearGradient colors={[colors.gradientTop, colors.gradientMid, colors.gradientBottom]} style={StyleSheet.absoluteFill} />
       <SafeAreaView style={styles.safe} edges={['top']}>
         <WebCompeteTopBar title={challenge.title} />
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-          <View
-            style={[
-              styles.statusCluster,
-              { backgroundColor: colors.card, borderColor: colors.outline, ...COMPETE_WEB_SHADOW.hard },
-            ]}>
+          <View style={[styles.statusCluster, { backgroundColor: colors.surfaceGlass, borderColor: colors.border }]}>
             <WebChallengeStatusBadge status={challenge.status} />
             {challenge.status === 'active' ? (
-              <WebCountdownTimer endTime={challenge.end_time} style={[COMPETE_WEB_TYPE.meta, { color: colors.foregroundMuted }]} />
+              <WebCountdownTimer endTime={challenge.end_time} style={[type.meta, { color: colors.foregroundMuted }]} />
             ) : isEvaluated ? (
-              <Text style={[COMPETE_WEB_TYPE.meta, { color: colors.foregroundMuted }]}>
+              <Text style={[type.meta, { color: colors.foregroundMuted }]}>
                 Ended {new Date(challenge.end_time).toLocaleString()}
               </Text>
             ) : null}
@@ -123,7 +129,7 @@ function DuelDetailScreenContent({ challengeId }: DuelDetailScreenProps) {
               }
               joinLoading={joinChallenge.isPending && joinChallenge.variables?.sideId === challenge.sides[0]?.id}
             />
-            <Text style={[COMPETE_WEB_TYPE.vsText, styles.vsText, { color: colors.foregroundMuted }]}>VS</Text>
+            <Text style={[type.h2, styles.vsText, { color: colors.foregroundMuted }]}>VS</Text>
             <WebChallengeSideCard
               side={challenge.sides[1]}
               isViewerSide={challenge.sides[1]?.id === mySideId}
@@ -139,9 +145,7 @@ function DuelDetailScreenContent({ challengeId }: DuelDetailScreenProps) {
             />
           </View>
           {joinNotice ? (
-            <Text style={[COMPETE_WEB_TYPE.body, { color: colors.foregroundMuted, marginBottom: COMPETE_WEB_SPACING.sm }]}>
-              {joinNotice}
-            </Text>
+            <Text style={[type.body, { color: colors.foregroundMuted, marginBottom: spacing.sm }]}>{joinNotice}</Text>
           ) : null}
 
           {isPendingProposal && isInvitee ? (
@@ -162,19 +166,19 @@ function DuelDetailScreenContent({ challengeId }: DuelDetailScreenProps) {
             </View>
           ) : null}
           {acceptDuel.isError || declineDuel.isError ? (
-            <Text style={[COMPETE_WEB_TYPE.body, { color: colors.destructiveText, marginTop: COMPETE_WEB_SPACING.sm }]}>
+            <Text style={[type.body, { color: colors.error, marginTop: spacing.sm }]}>
               {acceptDuel.error?.message ?? declineDuel.error?.message}
             </Text>
           ) : null}
           {isPendingProposal && !isInvitee ? (
-            <Text style={[COMPETE_WEB_TYPE.body, { color: colors.foregroundMuted, marginTop: COMPETE_WEB_SPACING.sm }]}>
+            <Text style={[type.body, { color: colors.foregroundMuted, marginTop: spacing.sm }]}>
               Waiting for {challenge.invitee?.username ?? 'your opponent'} to respond.
             </Text>
           ) : null}
 
           {challenge.status === 'active' && mySideId ? (
             <View style={styles.section}>
-              <Text style={[COMPETE_WEB_TYPE.label, { color: colors.foregroundMuted, marginBottom: COMPETE_WEB_SPACING.sm }]}>
+              <Text style={[type.label, { color: colors.foregroundMuted, marginBottom: spacing.sm }]}>
                 Competing for {challenge.sides.find((s) => s.id === mySideId)?.name}
               </Text>
               <WebCompeteButton
@@ -187,15 +191,13 @@ function DuelDetailScreenContent({ challengeId }: DuelDetailScreenProps) {
 
           {isEvaluated ? (
             <View style={styles.section}>
-              <Text style={[COMPETE_WEB_TYPE.label, { color: colors.foregroundMuted, marginBottom: COMPETE_WEB_SPACING.sm }]}>
-                Submissions
-              </Text>
+              <Text style={[type.label, { color: colors.foregroundMuted, marginBottom: spacing.sm }]}>Submissions</Text>
               {resultsQuery.isLoading ? (
                 <ActivityIndicator style={{ marginVertical: 16 }} color={colors.foregroundMuted} />
               ) : resultsQuery.isError ? (
-                <Text style={[COMPETE_WEB_TYPE.body, { color: colors.destructiveText }]}>{resultsQuery.error?.message}</Text>
+                <Text style={[type.body, { color: colors.error }]}>{resultsQuery.error?.message}</Text>
               ) : submissions.length === 0 ? (
-                <Text style={[COMPETE_WEB_TYPE.body, { color: colors.foregroundMuted }]}>No submissions were made.</Text>
+                <Text style={[type.body, { color: colors.foregroundMuted }]}>No submissions were made.</Text>
               ) : (
                 <View style={styles.submissionsGrid}>
                   {submissions.map((submission) => (
@@ -218,48 +220,48 @@ function DuelDetailScreenContent({ challengeId }: DuelDetailScreenProps) {
 
 export default function DuelDetailScreen(props: DuelDetailScreenProps) {
   return (
-    <CompeteThemeProvider>
+    <VaporwaveThemeProvider>
       <DuelDetailScreenContent {...props} />
-    </CompeteThemeProvider>
+    </VaporwaveThemeProvider>
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1 },
-  safe: { flex: 1 },
-  centerRoot: { flex: 1 },
-  centerSafe: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  centerPad: { paddingHorizontal: COMPETE_WEB_SPACING.lg, textAlign: 'center' },
-  scroll: { flex: 1, paddingHorizontal: COMPETE_WEB_SPACING.lg },
-  scrollContent: { paddingTop: COMPETE_WEB_SPACING.lg, paddingBottom: 48 },
-  statusCluster: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: COMPETE_WEB_SPACING.sm,
-    borderRadius: 12,
-    borderWidth: 2,
-    padding: COMPETE_WEB_SPACING.md,
-    marginBottom: COMPETE_WEB_SPACING.lg,
-  },
-  sidesRow: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    gap: COMPETE_WEB_SPACING.sm,
-    marginBottom: COMPETE_WEB_SPACING.md,
-  },
-  vsText: {
-    alignSelf: 'center',
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    gap: COMPETE_WEB_SPACING.md,
-    marginTop: COMPETE_WEB_SPACING.sm,
-  },
-  section: {
-    marginTop: COMPETE_WEB_SPACING.lg,
-  },
-  submissionsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-});
+const createStyles = (colors: VaporwaveTheme['colors'], spacing: VaporwaveTheme['spacing']) =>
+  StyleSheet.create({
+    root: { flex: 1 },
+    safe: { flex: 1 },
+    centerSafe: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+    centerPad: { paddingHorizontal: spacing.lg, textAlign: 'center' },
+    scroll: { flex: 1, paddingHorizontal: spacing.lg },
+    scrollContent: { paddingTop: spacing.lg, paddingBottom: 48 },
+    statusCluster: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      borderRadius: 16,
+      borderWidth: 1,
+      padding: spacing.md,
+      marginBottom: spacing.lg,
+    },
+    sidesRow: {
+      flexDirection: 'row',
+      alignItems: 'stretch',
+      gap: spacing.sm,
+      marginBottom: spacing.md,
+    },
+    vsText: {
+      alignSelf: 'center',
+    },
+    actionsRow: {
+      flexDirection: 'row',
+      gap: spacing.md,
+      marginTop: spacing.sm,
+    },
+    section: {
+      marginTop: spacing.lg,
+    },
+    submissionsGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+    },
+  });

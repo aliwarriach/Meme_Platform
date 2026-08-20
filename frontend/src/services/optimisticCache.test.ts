@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
 import { QueryClient } from '@tanstack/react-query';
 
-import type { AuthUserResponse } from '@/services/auth';
+import type { PublicUserResponse } from '@/services/auth';
 import type { MemeContainerResponse } from '@/services/instagram';
 import type { MemeResponse, MergedFeedPageResponse } from '@/services/memes';
 import {
@@ -14,9 +14,8 @@ import {
   snapshotContentCaches,
 } from '@/services/optimisticCache';
 
-const author: AuthUserResponse = {
+const author: PublicUserResponse = {
   id: 'user-1',
-  email: 'alice@example.test',
   username: 'alice',
   bio: null,
   avatar_url: null,

@@ -1,4 +1,5 @@
 from app.models.badge import Badge, BadgeType
+from app.models.block import Block
 from app.models.challenge import Challenge, ChallengeStatus, ChallengeType
 from app.models.challenge_participant import ChallengeParticipant
 from app.models.challenge_side import ChallengeSide
@@ -28,6 +29,7 @@ __all__ = [
     "AudienceType",
     "Badge",
     "BadgeType",
+    "Block",
     "Challenge",
     "ChallengeParticipant",
     "ChallengeSide",

@@ -1,8 +1,10 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { FEED_WEB_COLORS, FEED_WEB_RADIUS, FEED_WEB_SPACING, FEED_WEB_TYPE } from '@/constants/webFeedTheme';
+import type { VaporwaveTheme } from '@/constants/webFeedThemeVapor';
+import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 import { useUnreadNotificationCount } from '@/services/useNotifications';
 
 interface WebFeedTopBarProps {
@@ -12,17 +14,30 @@ interface WebFeedTopBarProps {
 /** Per-column header for the web feed pilot (Twitter/Discord-style — scoped to the feed's own
  * content column, not full app width; the persistent nav lives in `DesktopSidebarNav`). Rebuilds
  * `TopBar` + `NotificationBell`'s data/behavior with new chrome rather than reusing those
- * components directly, since both are native-resolved shared files. */
+ * components directly, since both are native-resolved shared files. Also hosts the feed's
+ * light/dark toggle (RESKIN MODE, 2026-08-19) — natural home alongside the other icon-button
+ * affordances (share/notifications). */
 export default function WebFeedTopBar({ onShareInstagramLink }: WebFeedTopBarProps) {
   const router = useRouter();
   const unreadQuery = useUnreadNotificationCount();
   const unreadCount = unreadQuery.data?.count ?? 0;
+  const { colors: FEED_WEB_COLORS, type: FEED_WEB_TYPE, radius: FEED_WEB_RADIUS, spacing: FEED_WEB_SPACING, mode, toggleMode } =
+    useVaporwaveTheme();
+  const styles = useMemo(() => createStyles(FEED_WEB_COLORS, FEED_WEB_RADIUS, FEED_WEB_SPACING), [FEED_WEB_COLORS, FEED_WEB_RADIUS, FEED_WEB_SPACING]);
 
   return (
     <View style={styles.root}>
       <Text style={[FEED_WEB_TYPE.display, styles.brand]}>MemeVerse</Text>
 
       <View style={styles.actions}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          onPress={toggleMode}
+          style={({ hovered }) => [styles.iconButton, hovered && styles.iconButtonHovered]}>
+          <MaterialIcons name={mode === 'dark' ? 'light-mode' : 'dark-mode'} size={20} color={FEED_WEB_COLORS.foreground} />
+        </Pressable>
+
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Share an Instagram Reel"
@@ -48,7 +63,11 @@ export default function WebFeedTopBar({ onShareInstagramLink }: WebFeedTopBarPro
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (
+  FEED_WEB_COLORS: VaporwaveTheme['colors'],
+  FEED_WEB_RADIUS: VaporwaveTheme['radius'],
+  FEED_WEB_SPACING: VaporwaveTheme['spacing'],
+) => StyleSheet.create({
   root: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -74,7 +93,7 @@ const styles = StyleSheet.create({
     borderRadius: FEED_WEB_RADIUS.pill,
   },
   iconButtonHovered: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: FEED_WEB_COLORS.hoverTint,
   },
   badge: {
     position: 'absolute',

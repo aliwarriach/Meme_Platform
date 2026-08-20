@@ -1,10 +1,13 @@
 import asyncio
+import logging
 import uuid
 
 import cloudinary
 import cloudinary.uploader
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 cloudinary.config(
     cloud_name=settings.cloudinary_cloud_name,
@@ -37,3 +40,14 @@ async def upload_image(file_bytes: bytes, folder: str) -> tuple[str, str]:
         raise MediaUploadError("Failed to upload image to media storage") from exc
 
     return result["secure_url"], result["public_id"]
+
+
+async def delete_image(public_id: str) -> None:
+    """Best-effort cleanup — never raises. A soft-deleted row (SecurityFeatures.md F-4)
+    is already excluded from every read the moment `deleted_at` is set, which is the
+    part that actually matters; Cloudinary asset cleanup is secondary and must never
+    block or fail the delete request itself."""
+    try:
+        await asyncio.to_thread(cloudinary.uploader.destroy, public_id, resource_type="image")
+    except Exception:
+        logger.exception("Failed to delete Cloudinary asset %s", public_id)

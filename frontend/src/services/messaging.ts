@@ -1,5 +1,5 @@
 import { api } from '@/services/api';
-import type { AuthUserResponse } from '@/services/auth';
+import type { PublicUserResponse } from '@/services/auth';
 import type { MemeResponse } from '@/services/memes';
 
 export type MessageKind = 'text' | 'meme';
@@ -7,7 +7,7 @@ export type MessageKind = 'text' | 'meme';
 export interface MessageResponse {
   id: string;
   conversation_id: string;
-  sender: AuthUserResponse;
+  sender: PublicUserResponse;
   kind: MessageKind;
   body: string | null;
   /** Null for text messages, and for a meme message whose meme was deleted since. */
@@ -18,7 +18,7 @@ export interface MessageResponse {
 
 export interface ConversationResponse {
   id: string;
-  other_user: AuthUserResponse;
+  other_user: PublicUserResponse;
   last_message: MessageResponse | null;
   unread_count: number;
   last_message_at: string | null;

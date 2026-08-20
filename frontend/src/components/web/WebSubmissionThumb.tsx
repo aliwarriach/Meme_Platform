@@ -1,8 +1,9 @@
 import { Image } from 'expo-image';
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { useCompeteWebTheme } from '@/constants/CompeteWebTheme';
-import { COMPETE_WEB_RADIUS, COMPETE_WEB_SPACING, COMPETE_WEB_TYPE, type WebPressableState } from '@/constants/webCompeteTheme';
+import type { VaporwaveTheme } from '@/constants/webFeedThemeVapor';
+import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 
 interface WebSubmissionThumbProps {
   imageUrl: string;
@@ -15,28 +16,27 @@ interface WebSubmissionThumbProps {
 
 /**
  * Single meme/submission thumbnail — used by both `WebSubmissionPicker` (own-meme submission)
- * and the evaluated-results grids on `DuelDetailScreen`/`ChallengeDetailScreen`. Deliberately
- * the CALMEST surface in this whole system: plain `border` (never `outline`), no hard shadow, no
- * brand-color fill — per the brief's explicit instruction that meme content stays the visual
- * focus while energy lives in chrome/CTAs/badges around it, not on the memes themselves.
+ * and the evaluated-results grids on `DuelDetailScreen`/`ChallengeDetailScreen`. Vaporwave/
+ * Luminous equivalent of the retired independent-theme `WebSubmissionThumb`, carrying forward its
+ * one deliberate rule unchanged: the CALMEST surface in this whole tree — plain `border`, no
+ * glow, no brand-color fill — so the meme content stays the visual focus while energy stays on
+ * chrome/CTAs/badges around it, not on the memes themselves.
  */
 export function WebSubmissionThumb({ imageUrl, caption, onPress, disabled, footerLabel }: WebSubmissionThumbProps) {
-  const { colors } = useCompeteWebTheme();
+  const { colors, type, radius, spacing, mode } = useVaporwaveTheme();
+  const styles = useMemo(() => createStyles(radius, spacing), [radius, spacing]);
+  const ringColor = mode === 'dark' ? colors.indigoPrimary : colors.indigoSecondary;
 
   const content = (
     <>
-      <Image
-        source={{ uri: imageUrl }}
-        style={[styles.image, { borderColor: colors.border, borderRadius: COMPETE_WEB_RADIUS.chip }]}
-        contentFit="cover"
-      />
+      <Image source={{ uri: imageUrl }} style={[styles.image, { borderColor: colors.border, borderRadius: radius.chip }]} contentFit="cover" />
       {footerLabel ? (
-        <Text style={[COMPETE_WEB_TYPE.meta, styles.footer, { color: colors.foregroundMuted }]} numberOfLines={1}>
+        <Text style={[type.meta, styles.footer, { color: colors.foregroundMuted }]} numberOfLines={1}>
           {footerLabel}
         </Text>
       ) : null}
       {caption ? (
-        <Text style={[COMPETE_WEB_TYPE.meta, styles.footer, { color: colors.foregroundMuted }]} numberOfLines={1}>
+        <Text style={[type.meta, styles.footer, { color: colors.foregroundMuted }]} numberOfLines={1}>
           {caption}
         </Text>
       ) : null}
@@ -53,34 +53,35 @@ export function WebSubmissionThumb({ imageUrl, caption, onPress, disabled, foote
       accessibilityLabel={footerLabel ?? 'Meme submission'}
       disabled={disabled}
       onPress={onPress}
-      style={({ hovered, focused }: WebPressableState) => [
+      style={({ hovered, focused }: { pressed: boolean; hovered?: boolean; focused?: boolean }) => [
         styles.wrap,
         disabled && styles.disabled,
         hovered && !disabled && styles.hovered,
-        focused && !disabled && { outlineColor: colors.ring, outlineWidth: 2, outlineOffset: 2, borderRadius: COMPETE_WEB_RADIUS.chip },
+        focused && !disabled && { outlineColor: ringColor, outlineWidth: 2, outlineOffset: 2, borderRadius: radius.chip },
       ]}>
       {content}
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: {
-    width: 92,
-    marginRight: COMPETE_WEB_SPACING.md,
-  },
-  image: {
-    width: 92,
-    height: 92,
-    borderWidth: 1,
-  },
-  footer: {
-    marginTop: 4,
-  },
-  disabled: {
-    opacity: 0.4,
-  },
-  hovered: {
-    opacity: 0.85,
-  },
-});
+const createStyles = (radius: VaporwaveTheme['radius'], spacing: VaporwaveTheme['spacing']) =>
+  StyleSheet.create({
+    wrap: {
+      width: 92,
+      marginRight: spacing.md,
+    },
+    image: {
+      width: 92,
+      height: 92,
+      borderWidth: 1,
+    },
+    footer: {
+      marginTop: 4,
+    },
+    disabled: {
+      opacity: 0.4,
+    },
+    hovered: {
+      opacity: 0.85,
+    },
+  });

@@ -1,6 +1,8 @@
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { FEED_WEB_COLORS, FEED_WEB_RADIUS, FEED_WEB_TYPE } from '@/constants/webFeedTheme';
+import type { VaporwaveTheme } from '@/constants/webFeedThemeVapor';
+import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 
 interface WebVotePillProps {
   score: number;
@@ -16,6 +18,9 @@ interface WebVotePillProps {
  * fill. Color is never the only signal — each arrow also carries `accessibilityState.selected`
  * and a distinct icon direction, not color alone. */
 export default function WebVotePill({ score, viewerVote, isVoting, onUpvote, onDownvote }: WebVotePillProps) {
+  const { colors: FEED_WEB_COLORS, type: FEED_WEB_TYPE, radius: FEED_WEB_RADIUS } = useVaporwaveTheme();
+  const styles = useMemo(() => createStyles(FEED_WEB_COLORS, FEED_WEB_RADIUS), [FEED_WEB_COLORS, FEED_WEB_RADIUS]);
+
   return (
     <View style={styles.root}>
       <Pressable
@@ -58,7 +63,8 @@ export default function WebVotePill({ score, viewerVote, isVoting, onUpvote, onD
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (FEED_WEB_COLORS: VaporwaveTheme['colors'], FEED_WEB_RADIUS: VaporwaveTheme['radius']) =>
+  StyleSheet.create({
   root: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -76,7 +82,7 @@ const styles = StyleSheet.create({
     borderRadius: FEED_WEB_RADIUS.pill,
   },
   arrowHovered: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: FEED_WEB_COLORS.hoverTint,
   },
   arrowActiveUp: {
     backgroundColor: 'rgba(34, 197, 94, 0.14)',

@@ -1,5 +1,5 @@
 import { api } from '@/services/api';
-import type { AuthUserResponse } from '@/services/auth';
+import type { PublicUserResponse } from '@/services/auth';
 import type { MemeContainerResponse } from '@/services/instagram';
 import { appendImageToFormData } from '@/utils/multipartImage';
 
@@ -12,7 +12,7 @@ export interface CommunityBadge {
 
 export interface MemeResponse {
   id: string;
-  author: AuthUserResponse;
+  author: PublicUserResponse;
   image_url: string;
   caption: string | null;
   audiences: (AudienceType | 'community')[];
@@ -48,7 +48,7 @@ export interface MergedFeedPageResponse {
 
 export interface CommentResponse {
   id: string;
-  author: AuthUserResponse;
+  author: PublicUserResponse;
   body: string;
   created_at: string;
 }

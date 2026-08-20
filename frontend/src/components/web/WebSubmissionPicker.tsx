@@ -1,8 +1,7 @@
 import { ActivityIndicator, ScrollView, Text } from 'react-native';
 
-import { useCompeteWebTheme } from '@/constants/CompeteWebTheme';
-import { COMPETE_WEB_TYPE } from '@/constants/webCompeteTheme';
 import { WebSubmissionThumb } from '@/components/web/WebSubmissionThumb';
+import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 import type { MemeResponse } from '@/services/memes';
 
 interface WebSubmissionPickerProps {
@@ -14,16 +13,16 @@ interface WebSubmissionPickerProps {
 }
 
 /** Replaces native `components/SubmissionPicker.tsx` for `ChallengeDetailScreen.web.tsx` — same
- * data source (the viewer's own memes from the community feed) and behavior, new chrome via
- * `WebSubmissionThumb`. */
+ * data source (the viewer's own memes from the community feed) and behavior, now Vaporwave/
+ * Luminous chrome via `WebSubmissionThumb`. */
 export function WebSubmissionPicker({ memes, isLoading, isSubmitting, submittedMemeIds, onSubmit }: WebSubmissionPickerProps) {
-  const { colors } = useCompeteWebTheme();
+  const { colors, type } = useVaporwaveTheme();
 
   if (isLoading) return <ActivityIndicator style={{ marginVertical: 16 }} color={colors.foregroundMuted} />;
 
   if (memes.length === 0) {
     return (
-      <Text style={[COMPETE_WEB_TYPE.body, { color: colors.foregroundMuted, marginBottom: 16 }]}>
+      <Text style={[type.body, { color: colors.foregroundMuted, marginBottom: 16 }]}>
         Post a meme in this community first, then come back here to submit it.
       </Text>
     );

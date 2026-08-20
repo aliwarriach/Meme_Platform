@@ -1,3 +1,4 @@
+import datetime
 import uuid
 
 from fastapi.testclient import TestClient
@@ -7,7 +8,8 @@ from sqlalchemy import select
 from app.main import app
 from app.models.notification import NotificationType, PushToken
 from app.services import notifications as notifications_service
-from tests.conftest import TestSessionFactory, auth_header, create_user
+from app.services.notifications import PUSH_TOKEN_REASSIGN_STALE_AFTER
+from tests.conftest import TestSessionFactory, auth_header, create_user, ws_ticket
 
 
 async def _seed_notifications(user_id: str, count: int) -> None:
@@ -42,7 +44,11 @@ async def test_push_token_register_is_idempotent_upsert(client: AsyncClient):
     assert second.status_code == 204
 
 
-async def test_push_token_moves_to_new_owner_on_reregister(client: AsyncClient):
+async def test_push_token_reregister_by_new_owner_is_a_noop_while_fresh(client: AsyncClient):
+    """A still-fresh binding means the current owner is plausibly still using this
+    device, so a different account registering the same opaque token string must not
+    silently steal it — see SecurityIssues.md L-2. Legitimate reinstall/re-login is
+    covered by test_push_token_moves_to_new_owner_once_stale below."""
     alice = await create_user(client, "alice")
     bob = await create_user(client, "bob")
 
@@ -51,7 +57,6 @@ async def test_push_token_moves_to_new_owner_on_reregister(client: AsyncClient):
         json={"token": "shared-device", "platform": "ios"},
         headers=auth_header(alice),
     )
-    # bob logs into the same device — the token must move to him, not duplicate.
     response = await client.post(
         "/notifications/push-token",
         json={"token": "shared-device", "platform": "ios"},
@@ -62,6 +67,45 @@ async def test_push_token_moves_to_new_owner_on_reregister(client: AsyncClient):
     async with TestSessionFactory() as session:
         rows = (
             await session.execute(select(PushToken).where(PushToken.token == "shared-device"))
+        ).scalars().all()
+    assert len(rows) == 1
+    assert str(rows[0].user_id) == alice["user"]["id"]
+
+
+async def test_push_token_moves_to_new_owner_once_stale(client: AsyncClient):
+    """The realistic reinstall/re-login case: the previous binding has gone quiet for
+    the full staleness window, so a different account registering it now is trusted."""
+    alice = await create_user(client, "alice")
+    bob = await create_user(client, "bob")
+
+    await client.post(
+        "/notifications/push-token",
+        json={"token": "shared-device-2", "platform": "ios"},
+        headers=auth_header(alice),
+    )
+
+    stale_at = (
+        datetime.datetime.now(datetime.timezone.utc)
+        - PUSH_TOKEN_REASSIGN_STALE_AFTER
+        - datetime.timedelta(minutes=1)
+    )
+    async with TestSessionFactory() as session:
+        row = (
+            await session.execute(select(PushToken).where(PushToken.token == "shared-device-2"))
+        ).scalar_one()
+        row.updated_at = stale_at
+        await session.commit()
+
+    response = await client.post(
+        "/notifications/push-token",
+        json={"token": "shared-device-2", "platform": "ios"},
+        headers=auth_header(bob),
+    )
+    assert response.status_code == 204
+
+    async with TestSessionFactory() as session:
+        rows = (
+            await session.execute(select(PushToken).where(PushToken.token == "shared-device-2"))
         ).scalars().all()
     assert len(rows) == 1
     assert str(rows[0].user_id) == bob["user"]["id"]
@@ -155,11 +199,21 @@ def test_websocket_delivers_notification_in_real_time():
     with TestClient(app) as test_client:
         alice = test_client.post(
             "/auth/register",
-            json={"email": "alice@notif.com", "username": "alice", "password": "password123"},
+            json={
+                "email": "alice@notif.com",
+                "username": "alice",
+                "password": "password123",
+                "date_of_birth": "2000-01-01",
+            },
         ).json()
         bob = test_client.post(
             "/auth/register",
-            json={"email": "bob@notif.com", "username": "bob", "password": "password123"},
+            json={
+                "email": "bob@notif.com",
+                "username": "bob",
+                "password": "password123",
+                "date_of_birth": "2000-01-01",
+            },
         ).json()
 
         friendship_id = test_client.post(
@@ -167,7 +221,7 @@ def test_websocket_delivers_notification_in_real_time():
         ).json()["id"]
         test_client.post(f"/friends/requests/{friendship_id}/accept", headers=auth_header(bob))
 
-        with test_client.websocket_connect(f"/meme-sending/ws?token={bob['access_token']}") as ws:
+        with test_client.websocket_connect(f"/meme-sending/ws?ticket={ws_ticket(test_client, bob)}") as ws:
             propose = test_client.post(
                 f"/challenges/duels/{bob['user']['id']}",
                 json={

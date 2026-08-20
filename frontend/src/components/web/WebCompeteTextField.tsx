@@ -1,7 +1,8 @@
+import { useMemo } from 'react';
 import { StyleSheet, Text, TextInput, View, type KeyboardTypeOptions } from 'react-native';
 
-import { useCompeteWebTheme } from '@/constants/CompeteWebTheme';
-import { COMPETE_WEB_RADIUS, COMPETE_WEB_SPACING, COMPETE_WEB_TYPE } from '@/constants/webCompeteTheme';
+import type { VaporwaveTheme } from '@/constants/webFeedThemeVapor';
+import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 
 interface WebCompeteTextFieldProps {
   label: string;
@@ -13,10 +14,14 @@ interface WebCompeteTextFieldProps {
   hint?: string;
 }
 
-/** Theme-aware text input for the Compete web forms (create/propose challenge screens) —
- * block-card style with a solid border, not a pill, matching this page's "flat, hard-edged"
- * Neubrutalism style keywords. Standalone equivalent of the native-resolved shared
- * `components/TextField.tsx`. */
+/**
+ * Theme-aware text input for the Compete/Challenges web forms (create/propose challenge screens)
+ * — Vaporwave/Luminous equivalent of the retired independent-theme `WebCompeteTextField`. Uses
+ * `surfaceElevated` (a near-opaque panel tone in both modes) rather than `surfaceGlass`
+ * (10%/75%-opacity translucent) for the input fill, since typed text needs a stable, legible
+ * surface behind it, not a see-through one — no other Vaporwave screen has needed a text input
+ * yet, so this is this migration's own grounded choice, not a copied precedent.
+ */
 export function WebCompeteTextField({
   label,
   value,
@@ -26,13 +31,12 @@ export function WebCompeteTextField({
   keyboardType,
   hint,
 }: WebCompeteTextFieldProps) {
-  const { colors } = useCompeteWebTheme();
+  const { colors, type, radius, spacing } = useVaporwaveTheme();
+  const styles = useMemo(() => createStyles(radius, spacing), [radius, spacing]);
 
   return (
     <View style={styles.wrap}>
-      <Text style={[COMPETE_WEB_TYPE.label, { color: colors.foregroundMuted, marginBottom: COMPETE_WEB_SPACING.xs }]}>
-        {label}
-      </Text>
+      <Text style={[type.label, { color: colors.foregroundMuted, marginBottom: spacing.xs }]}>{label}</Text>
       <TextInput
         value={value}
         onChangeText={onChangeText}
@@ -43,37 +47,34 @@ export function WebCompeteTextField({
         autoCorrect={false}
         accessibilityLabel={label}
         style={[
-          COMPETE_WEB_TYPE.body,
+          type.body,
           styles.input,
           {
-            color: colors.cardForeground,
-            backgroundColor: colors.card,
-            borderColor: error ? colors.destructiveText : colors.border,
+            color: colors.foreground,
+            backgroundColor: colors.surfaceElevated,
+            borderColor: error ? colors.error : colors.border,
           },
         ]}
       />
       {error ? (
-        <Text style={[COMPETE_WEB_TYPE.meta, { color: colors.destructiveText, marginTop: COMPETE_WEB_SPACING.xs }]}>
-          {error}
-        </Text>
+        <Text style={[type.meta, { color: colors.error, marginTop: spacing.xs }]}>{error}</Text>
       ) : hint ? (
-        <Text style={[COMPETE_WEB_TYPE.meta, { color: colors.foregroundMuted, marginTop: COMPETE_WEB_SPACING.xs }]}>
-          {hint}
-        </Text>
+        <Text style={[type.meta, { color: colors.foregroundMuted, marginTop: spacing.xs }]}>{hint}</Text>
       ) : null}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: {
-    marginBottom: COMPETE_WEB_SPACING.lg,
-  },
-  input: {
-    minHeight: 48,
-    borderWidth: 1.5,
-    borderRadius: COMPETE_WEB_RADIUS.chip,
-    paddingHorizontal: COMPETE_WEB_SPACING.lg,
-    paddingVertical: COMPETE_WEB_SPACING.md,
-  },
-});
+const createStyles = (radius: VaporwaveTheme['radius'], spacing: VaporwaveTheme['spacing']) =>
+  StyleSheet.create({
+    wrap: {
+      marginBottom: spacing.lg,
+    },
+    input: {
+      minHeight: 48,
+      borderWidth: 1.5,
+      borderRadius: radius.chip,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+    },
+  });

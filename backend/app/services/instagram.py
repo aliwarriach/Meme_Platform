@@ -32,7 +32,7 @@ from app.models.meme import Meme
 from app.models.meme_container import ContainerMetadataStatus, ContainerPlatform, MemeContainer
 from app.models.meme_vote import MemeVote
 from app.models.user import User
-from app.schemas.auth import UserOut
+from app.schemas.auth import PublicUserOut
 from app.schemas.instagram import (
     ContainerCommentCreate,
     ContainerCommentOut,
@@ -50,8 +50,11 @@ _INSTAGRAM_URL_RE = re.compile(r"^https?://(www\.)?instagram\.com/", re.IGNORECA
 
 
 def _validate_instagram_url(source_url: str) -> None:
+    # https-only (SecurityIssues.md L-4): this URL is rendered directly in an in-app
+    # WebView (frontend/src/features/instagram-companion/ContainerCard.tsx), so an
+    # `http://` container would load plaintext, attacker-tamperable content inside the app.
     parsed = urllib.parse.urlparse(source_url)
-    if parsed.scheme not in ("http", "https") or not _INSTAGRAM_URL_RE.match(source_url):
+    if parsed.scheme != "https" or not _INSTAGRAM_URL_RE.match(source_url):
         raise InvalidSourceUrlError("Only instagram.com links are supported")
 
 
@@ -70,7 +73,7 @@ def _build_container_out(
     can_see_views = viewer_id is not None and container.submitter_id == viewer_id
     return MemeContainerOut(
         id=container.id,
-        submitter=UserOut.model_validate(container.submitter),
+        submitter=PublicUserOut.model_validate(container.submitter),
         platform=container.platform,
         source_url=container.source_url,
         title=container.title,

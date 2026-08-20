@@ -1,8 +1,10 @@
+import { MaterialIcons } from '@expo/vector-icons';
+import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { useCompeteWebTheme } from '@/constants/CompeteWebTheme';
-import { COMPETE_WEB_RADIUS, COMPETE_WEB_SPACING, COMPETE_WEB_TYPE } from '@/constants/webCompeteTheme';
 import WebCompeteButton from '@/components/web/WebCompeteButton';
+import type { VaporwaveTheme } from '@/constants/webFeedThemeVapor';
+import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 import type { ChallengeSideResponse } from '@/services/challenges';
 
 interface WebChallengeSideCardProps {
@@ -20,10 +22,13 @@ interface WebChallengeSideCardProps {
 }
 
 /**
- * One half of the VS matchup shown on `DuelDetailScreen`/`ChallengeDetailScreen`. The winning
- * side (once evaluated) gets this page's `outline` emphasis border — no hard shadow here, kept
- * one step quieter than the primary CTA/status cluster so it doesn't compete with the dedicated
- * `WebResultBanner` above it for "loudest element on screen."
+ * One half of the VS matchup shown on `DuelDetailScreen`/`ChallengeDetailScreen`. Vaporwave/
+ * Luminous equivalent of the retired independent-theme `WebChallengeSideCard`. The winning side
+ * (once evaluated) gets a small solid `indigoSecondary` + `onAccent` "Winner" chip — the same
+ * "solid fill, never a colored border/text-on-tint" convention this whole migration follows (a
+ * colored border here would repeat the exact contrast failure the accessibility pass ruled out
+ * for `indigoSecondary` against a dark card, ~1.6-1.9:1, under 3:1) — kept one step quieter than
+ * `WebResultBanner` above it so the banner stays "loudest element on screen."
  */
 export function WebChallengeSideCard({
   side,
@@ -35,54 +40,63 @@ export function WebChallengeSideCard({
   joinLabel,
   joinLoading,
 }: WebChallengeSideCardProps) {
-  const { colors } = useCompeteWebTheme();
+  const { colors, type, radius, spacing } = useVaporwaveTheme();
+  const styles = useMemo(() => createStyles(radius, spacing), [radius, spacing]);
 
   return (
-    <View
-      style={[
-        styles.card,
-        { backgroundColor: colors.card, borderColor: colors.border },
-        isWinner && { borderColor: colors.outline, borderWidth: 2 },
-      ]}>
-      <Text style={[COMPETE_WEB_TYPE.cardTitle, { color: colors.cardForeground }]} numberOfLines={1}>
+    <View style={[styles.card, { backgroundColor: colors.surfaceGlass, borderColor: colors.border }]}>
+      {isWinner ? (
+        <View style={[styles.winnerChip, { backgroundColor: colors.indigoSecondary }]}>
+          <MaterialIcons name="emoji-events" size={12} color={colors.onAccent} />
+          <Text style={[type.meta, styles.winnerChipText, { color: colors.onAccent }]}>Winner</Text>
+        </View>
+      ) : null}
+      <Text style={[type.title, { color: colors.foreground }]} numberOfLines={1}>
         {side.name} {isViewerSide ? '(you)' : ''}
       </Text>
       {typeof side.score === 'number' ? (
-        <Text style={[COMPETE_WEB_TYPE.meta, { color: colors.primaryText }]}>Score: {side.score}</Text>
+        <Text style={[type.meta, { color: colors.foreground }]}>Score: {side.score}</Text>
       ) : null}
       {showMemberCount ? (
-        <Text style={[COMPETE_WEB_TYPE.meta, { color: colors.foregroundMuted }]}>
+        <Text style={[type.meta, { color: colors.foregroundMuted }]}>
           {side.member_ids.length} member{side.member_ids.length === 1 ? '' : 's'}
         </Text>
       ) : null}
       {showParticipantCount ? (
-        <Text style={[COMPETE_WEB_TYPE.meta, { color: colors.foregroundMuted }]}>
-          {side.participant_count} joined
-        </Text>
+        <Text style={[type.meta, { color: colors.foregroundMuted }]}>{side.participant_count} joined</Text>
       ) : null}
       {onJoin ? (
         <View style={styles.joinButtonWrap}>
-          <WebCompeteButton
-            label={joinLabel ?? `Join ${side.name}`}
-            variant="outline"
-            onPress={onJoin}
-            loading={joinLoading}
-          />
+          <WebCompeteButton label={joinLabel ?? `Join ${side.name}`} variant="outline" onPress={onJoin} loading={joinLoading} />
         </View>
       ) : null}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    flex: 1,
-    gap: 4,
-    borderRadius: COMPETE_WEB_RADIUS.card,
-    borderWidth: 1,
-    padding: COMPETE_WEB_SPACING.md,
-  },
-  joinButtonWrap: {
-    marginTop: COMPETE_WEB_SPACING.sm,
-  },
-});
+const createStyles = (radius: VaporwaveTheme['radius'], spacing: VaporwaveTheme['spacing']) =>
+  StyleSheet.create({
+    card: {
+      flex: 1,
+      gap: 4,
+      borderRadius: radius.card,
+      borderWidth: 1,
+      padding: spacing.md,
+    },
+    winnerChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      alignSelf: 'flex-start',
+      gap: 4,
+      borderRadius: 999,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 2,
+      marginBottom: 2,
+    },
+    winnerChipText: {
+      textTransform: 'uppercase',
+    },
+    joinButtonWrap: {
+      marginTop: spacing.sm,
+    },
+  });

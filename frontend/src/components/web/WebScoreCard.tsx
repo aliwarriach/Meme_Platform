@@ -1,48 +1,90 @@
+import { MaterialIcons } from '@expo/vector-icons';
+import { useMemo } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
-import { useProfileWebTheme } from '@/constants/ProfileWebTheme';
-import { PROFILE_WEB_RADIUS, PROFILE_WEB_SPACING, PROFILE_WEB_TYPE } from '@/constants/webProfileTheme';
+import type { VaporwaveTheme } from '@/constants/webFeedThemeVapor';
+import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 
 interface WebScoreCardProps {
   label: string;
   value: number | undefined;
   isLoading: boolean;
-  accentColor?: string;
+  icon: keyof typeof MaterialIcons.glyphMap;
 }
 
-/** Single stat card (Meme Score, badge count) — a Meme Score hero number deserves more visual
- * weight than the native screen's plain centered text block, since it's the single most
- * scannable proof of standing on this screen (grounded in the audit's "returning core user"
- * lens: a member checks their score before anything else). Uses `PROFILE_WEB_TYPE.stat` (34px
- * Anton), a size not present in the native version, sized between voting-web's `display` (26px)
- * and this screen's own need for a larger hero digit. */
-export default function WebScoreCard({ label, value, isLoading, accentColor }: WebScoreCardProps) {
-  const { colors } = useProfileWebTheme();
+/**
+ * Single stat card (Meme Score, badge count) — Vaporwave/Luminous equivalent of the retired
+ * independent-theme `WebScoreCard`. Preserves the one real UX addition that card made over the
+ * native screen's single centered-text score block: a Meme Score hero number gets more visual
+ * weight than a plain text line, since it's the most scannable proof of standing on this screen
+ * (the "returning core user" checks their score before anything else). Additive only, no new
+ * fetch — both numbers come from queries the native screen already runs.
+ *
+ * The stat digit itself always stays `colors.foreground` — never `indigoPrimary`/`indigoSecondary`
+ * as text-bearing foreground — per this system's own established rule (`voting-web.md`/
+ * `leaderboard-web.md`: "no color-coded text sits directly on a background... differentiation is
+ * carried by badge/border fills, never by tinting body text"). Differentiation between the two
+ * cards is carried by the icon chip (solid `indigoSecondary` fill + `onAccent` icon, the same
+ * measured 9.0:1 dark / 6.46:1 light pairing every badge/rank chip in this system reuses), not by
+ * recoloring the number.
+ */
+export default function WebScoreCard({ label, value, isLoading, icon }: WebScoreCardProps) {
+  const { colors, type, radius, spacing, fontStack } = useVaporwaveTheme();
+  const styles = useMemo(() => createStyles(colors, radius, spacing, fontStack), [colors, radius, spacing, fontStack]);
 
   return (
-    <View style={[styles.root, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: PROFILE_WEB_RADIUS.card }]}>
-      <Text style={[PROFILE_WEB_TYPE.label, { color: colors.foregroundMuted }]}>{label}</Text>
+    <View style={styles.root}>
+      <View style={styles.iconChip}>
+        <MaterialIcons name={icon} size={16} color={colors.onAccent} />
+      </View>
+      <Text style={[type.label, styles.label, { color: colors.foregroundMuted }]}>{label}</Text>
       {isLoading ? (
         <ActivityIndicator style={styles.spinner} color={colors.foregroundMuted} />
       ) : (
-        <Text style={[PROFILE_WEB_TYPE.stat, { color: accentColor ?? colors.foreground, marginTop: PROFILE_WEB_SPACING.xs }]}>
-          {value ?? 0}
-        </Text>
+        <Text style={[styles.stat, { color: colors.foreground }]}>{value ?? 0}</Text>
       )}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    paddingVertical: PROFILE_WEB_SPACING.xl,
-    paddingHorizontal: PROFILE_WEB_SPACING.lg,
-  },
-  spinner: {
-    marginTop: PROFILE_WEB_SPACING.sm,
-  },
-});
+const createStyles = (
+  colors: VaporwaveTheme['colors'],
+  radius: VaporwaveTheme['radius'],
+  spacing: VaporwaveTheme['spacing'],
+  fontStack: string,
+) =>
+  StyleSheet.create({
+    root: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceGlass,
+      borderRadius: radius.card,
+      paddingVertical: spacing.xl,
+      paddingHorizontal: spacing.lg,
+    },
+    iconChip: {
+      width: 28,
+      height: 28,
+      borderRadius: radius.chip,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.indigoSecondary,
+      marginBottom: spacing.sm,
+    },
+    label: {
+      textAlign: 'center',
+    },
+    stat: {
+      fontFamily: fontStack,
+      fontWeight: '700',
+      fontSize: 30,
+      letterSpacing: -0.2,
+      marginTop: spacing.xs,
+    },
+    spinner: {
+      marginTop: spacing.sm,
+    },
+  });

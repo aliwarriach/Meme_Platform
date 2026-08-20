@@ -1,7 +1,8 @@
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { useCompeteWebTheme } from '@/constants/CompeteWebTheme';
-import { COMPETE_WEB_RADIUS, COMPETE_WEB_SPACING, COMPETE_WEB_TYPE, type WebPressableState } from '@/constants/webCompeteTheme';
+import type { VaporwaveTheme } from '@/constants/webFeedThemeVapor';
+import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 
 export interface CompeteTabOption<T extends string> {
   key: T;
@@ -14,15 +15,30 @@ interface WebCompeteTabsProps<T extends string> {
   onChange: (value: T) => void;
 }
 
-/** Connected pill-track segmented control for `CompeteScreen`'s Challenges/Leaderboards toggle —
- * replaces the native `Chip` row, same "block-based" affordance precedent every prior web page
- * used for its own tab rows. Built independently (generic, not imported from any other page's
- * theme-coupled segmented control). */
+interface WebPressableState {
+  pressed: boolean;
+  hovered?: boolean;
+  focused?: boolean;
+}
+
+/**
+ * Connected pill-track segmented control for `CompeteScreen`'s Challenges/Leaderboards toggle —
+ * Vaporwave/Luminous equivalent of the retired independent-theme `WebCompeteTabs`. Built locally
+ * (not imported from `WebVotingTabs.tsx` or `WebSegmentedControl.tsx`, both still hard-coupled to
+ * their own screens/themes) — same "independent tree" precedent every Vaporwave web pilot
+ * follows, even though this one and `WebVotingTabs` end up structurally identical.
+ *
+ * Selected fill is `indigoSecondary` + `onAccent` (9.0:1 dark / 6.46:1 light, both ≥4.5:1 AA) —
+ * never `indigoPrimary`, which fails as a white-text fill in both modes (~1.4:1 dark / ~1.7:1
+ * light) — same contrast reasoning as every other selected-state fill in this migration.
+ */
 export function WebCompeteTabs<T extends string>({ options, value, onChange }: WebCompeteTabsProps<T>) {
-  const { colors } = useCompeteWebTheme();
+  const { colors, type, radius, spacing, mode } = useVaporwaveTheme();
+  const styles = useMemo(() => createStyles(colors, radius, spacing), [colors, radius, spacing]);
+  const ringColor = mode === 'dark' ? colors.indigoPrimary : colors.indigoSecondary;
 
   return (
-    <View accessibilityRole="tablist" style={[styles.track, { backgroundColor: colors.elevated, borderColor: colors.border }]}>
+    <View accessibilityRole="tablist" style={styles.track}>
       {options.map((option) => {
         const selected = option.key === value;
         return (
@@ -34,11 +50,11 @@ export function WebCompeteTabs<T extends string>({ options, value, onChange }: W
             onPress={() => onChange(option.key)}
             style={({ hovered, focused }: WebPressableState) => [
               styles.segment,
-              selected && { backgroundColor: colors.primary },
-              hovered && !selected && { backgroundColor: colors.elevatedHover },
-              focused && { outlineColor: colors.ring, outlineWidth: 2, outlineOffset: 1 },
+              selected && { backgroundColor: colors.indigoSecondary },
+              hovered && !selected && { backgroundColor: colors.hoverTint },
+              focused && { outlineColor: ringColor, outlineWidth: 2, outlineOffset: 1 },
             ]}>
-            <Text style={[COMPETE_WEB_TYPE.title, { color: selected ? colors.onPrimary : colors.cardForeground }]}>
+            <Text style={[type.title, { color: selected ? colors.onAccent : colors.foreground }]}>
               {option.label}
             </Text>
           </Pressable>
@@ -48,21 +64,28 @@ export function WebCompeteTabs<T extends string>({ options, value, onChange }: W
   );
 }
 
-const styles = StyleSheet.create({
-  track: {
-    flexDirection: 'row',
-    borderRadius: COMPETE_WEB_RADIUS.pill,
-    borderWidth: 1,
-    padding: 4,
-    gap: 4,
-  },
-  segment: {
-    flex: 1,
-    minHeight: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: COMPETE_WEB_RADIUS.pill,
-    paddingHorizontal: COMPETE_WEB_SPACING.md,
-    paddingVertical: COMPETE_WEB_SPACING.sm,
-  },
-});
+const createStyles = (
+  colors: VaporwaveTheme['colors'],
+  radius: VaporwaveTheme['radius'],
+  spacing: VaporwaveTheme['spacing'],
+) =>
+  StyleSheet.create({
+    track: {
+      flexDirection: 'row',
+      borderRadius: radius.pill,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceElevated,
+      padding: 4,
+      gap: 4,
+    },
+    segment: {
+      flex: 1,
+      minHeight: 40,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+    },
+  });

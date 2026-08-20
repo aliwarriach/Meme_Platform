@@ -2,6 +2,8 @@ from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 
+from app.core.logging import log_security_event
+
 
 class DomainError(Exception):
     status_code = status.HTTP_400_BAD_REQUEST
@@ -65,6 +67,18 @@ class MediaUploadFailedError(DomainError):
 
 class MemeNotFoundError(DomainError):
     status_code = status.HTTP_404_NOT_FOUND
+
+
+class NotMemeAuthorError(DomainError):
+    status_code = status.HTTP_403_FORBIDDEN
+
+
+class CommentNotFoundError(DomainError):
+    status_code = status.HTTP_404_NOT_FOUND
+
+
+class NotCommentAuthorError(DomainError):
+    status_code = status.HTTP_403_FORBIDDEN
 
 
 class InvalidCursorError(DomainError):
@@ -186,6 +200,30 @@ class NotFriendsError(DomainError):
     status_code = status.HTTP_403_FORBIDDEN
 
 
+class CannotBlockSelfError(DomainError):
+    status_code = status.HTTP_400_BAD_REQUEST
+
+
+class BlockNotFoundError(DomainError):
+    status_code = status.HTTP_404_NOT_FOUND
+
+
+class UnderMinimumAgeError(DomainError):
+    """Registration rejected outright for an under-13 signup (SecurityFeatures.md F-13)
+    — no row is ever created, so there is nothing to delete or retain afterward."""
+
+    status_code = status.HTTP_400_BAD_REQUEST
+
+
+class UserBlockedError(DomainError):
+    """A block exists between the two users (either direction). Message text is
+    deliberately generic ("can't send this request") rather than confirming a block
+    exists — telling a harasser specifically that they've been blocked can itself invite
+    retaliation, so this fails the same way a request to a nonexistent flow would."""
+
+    status_code = status.HTTP_403_FORBIDDEN
+
+
 class ConversationNotFoundError(DomainError):
     status_code = status.HTTP_404_NOT_FOUND
 
@@ -210,9 +248,62 @@ class NotificationNotFoundError(DomainError):
     status_code = status.HTTP_404_NOT_FOUND
 
 
+class EmailNotVerifiedError(DomainError):
+    """The action requires a verified email — see SecurityFeatures.md F-1. Deliberately
+    never raised by login/registration itself, only by the specific capabilities gated
+    on verification (AI captions, voting, starting a new DM, creating a community)."""
+
+    status_code = status.HTTP_403_FORBIDDEN
+
+
+class EmailAlreadyVerifiedError(DomainError):
+    status_code = status.HTTP_409_CONFLICT
+
+
+class NoVerificationCodeRequestedError(DomainError):
+    status_code = status.HTTP_400_BAD_REQUEST
+
+
+class InvalidVerificationCodeError(DomainError):
+    status_code = status.HTTP_400_BAD_REQUEST
+
+
+class TooManyVerificationAttemptsError(DomainError):
+    status_code = status.HTTP_429_TOO_MANY_REQUESTS
+
+
+class InvalidGoogleTokenError(DomainError):
+    """The Google ID token failed verification (bad signature per Google, wrong
+    audience, unverified email, or Google sign-in isn't configured) — see
+    SecurityFeatures.md F-7. Never distinguishes *why* in the response message; the
+    reason is only in the security log."""
+
+    status_code = status.HTTP_401_UNAUTHORIZED
+
+
+class InvalidPendingRegistrationError(DomainError):
+    """The pending-registration ticket from `POST /auth/google` is missing, expired, or
+    already used — the client needs to restart the Google sign-in flow."""
+
+    status_code = status.HTTP_400_BAD_REQUEST
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(DomainError)
     async def _handle_domain_error(request: Request, exc: DomainError) -> JSONResponse:
+        if exc.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN):
+            # Every domain-level auth/authorization rejection, caught at one choke
+            # point rather than instrumented per-service (SecurityFeatures.md F-6).
+            # Never includes exc.message itself here beyond the error type — it's
+            # already returned to the caller; the log's value is the who/where/when.
+            log_security_event(
+                "security.forbidden",
+                status_code=exc.status_code,
+                error_type=type(exc).__name__,
+                path=request.url.path,
+                method=request.method,
+                client_ip=request.client.host if request.client else None,
+            )
         return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
 
     @app.exception_handler(IntegrityError)

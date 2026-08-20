@@ -4,7 +4,7 @@ import uuid
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.models.message import MessageKind
-from app.schemas.auth import UserOut
+from app.schemas.auth import PublicUserOut
 from app.schemas.memes import MemeOut
 
 MAX_MESSAGE_LENGTH = 2000
@@ -43,7 +43,7 @@ class MessageOut(BaseModel):
 
     id: uuid.UUID
     conversation_id: uuid.UUID
-    sender: UserOut
+    sender: PublicUserOut
     kind: MessageKind
     body: str | None
     # Null on a text message, and also on a meme message whose meme was deleted after
@@ -57,7 +57,7 @@ class ConversationOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    other_user: UserOut
+    other_user: PublicUserOut
     last_message: MessageOut | None
     unread_count: int
     last_message_at: datetime.datetime | None

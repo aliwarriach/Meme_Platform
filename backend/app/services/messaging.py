@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
     ConversationNotFoundError,
+    EmailNotVerifiedError,
     NotConversationParticipantError,
     NotFriendsError,
 )
@@ -67,8 +68,9 @@ async def _require_participant(
 
 
 async def _get_or_create_conversation(
-    db: AsyncSession, viewer_id: uuid.UUID, other_user_id: uuid.UUID
+    db: AsyncSession, current_user: User, other_user_id: uuid.UUID
 ) -> Conversation:
+    viewer_id = current_user.id
     if not await friends_service.are_friends(db, viewer_id, other_user_id):
         raise NotFriendsError("You can only message accepted friends")
 
@@ -78,6 +80,13 @@ async def _get_or_create_conversation(
     conversation = await db.scalar(select(Conversation).where(*pair_clause))
     if conversation is not None:
         return conversation
+
+    # Only reached when genuinely creating a *new* thread — reusing an existing one
+    # (the branch above) never requires verification (SecurityFeatures.md F-1). Both
+    # `/messaging/conversations` and the legacy `/meme-sending/send` shim funnel through
+    # this one function, so gating here covers both entry points for free.
+    if current_user.email_verified_at is None:
+        raise EmailNotVerifiedError("Verify your email to start a new conversation")
 
     conversation = Conversation(user_a_id=user_a_id, user_b_id=user_b_id)
     db.add(conversation)
@@ -99,9 +108,8 @@ async def _get_or_create_conversation(
 async def get_or_create_conversation(
     db: AsyncSession, current_user: User, other_user_id: uuid.UUID
 ) -> ConversationOut:
-    viewer_id = current_user.id
-    conversation = await _get_or_create_conversation(db, viewer_id, other_user_id)
-    return await _to_conversation_out(db, conversation, viewer_id)
+    conversation = await _get_or_create_conversation(db, current_user, other_user_id)
+    return await _to_conversation_out(db, conversation, current_user.id)
 
 
 async def _to_conversation_out(
@@ -288,7 +296,7 @@ async def send_meme_message(
     """Backs the `/meme-sending/send` shim: resolve (or open) the thread with `recipient_id`
     and post a meme message into it. Also returns the recipient and whether they had an
     open socket, since that endpoint's legacy response shape reports delivery state."""
-    conversation = await _get_or_create_conversation(db, current_user.id, recipient_id)
+    conversation = await _get_or_create_conversation(db, current_user, recipient_id)
     recipient = conversation.other_participant(current_user.id)
 
     out = await send_message(

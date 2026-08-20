@@ -31,8 +31,10 @@ source venv/Scripts/activate   # Windows Git Bash: source venv/Scripts/activate
 # venv\Scripts\activate.bat    # Windows cmd.exe
 # source venv/bin/activate     # macOS/Linux
 
-pip install -r requirements/dev.txt   # dev.txt pulls in base.txt + test/lint tools
+pip install -r requirements/dev.lock --require-hashes   # pinned + hash-verified; dev.lock pulls in base + test/lint tools
 ```
+
+`requirements/*.txt` are the pinned, human-edited inputs; `requirements/*.lock` are the fully-resolved, hash-verified files actually installed from (regenerate after editing a `.txt` — see the comment in `dev.txt`).
 
 Copy the env template and fill in real values:
 
@@ -43,11 +45,16 @@ cp .env.example .env
 `backend/.env`:
 
 ```env
+ENVIRONMENT=development
 DATABASE_URL=postgresql+asyncpg://USER:PASSWORD@localhost:5432/meme_platform
 REDIS_URL=redis://localhost:6379/0
 JWT_SECRET=changeme
 CORS_ALLOWED_ORIGINS=http://localhost:8081,http://localhost:19006
 ```
+
+Set `ENVIRONMENT=production` for any non-local deployment — it disables the interactive
+`/docs`/`/redoc`/`/openapi.json` endpoints and requires `CORS_ALLOWED_ORIGINS` to be set to
+real origins (the app refuses to start with the localhost default in production).
 
 Create the database (name must match `DATABASE_URL`), then run migrations:
 

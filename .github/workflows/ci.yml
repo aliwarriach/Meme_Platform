@@ -1,0 +1,122 @@
+name: CI
+
+# SecurityFeatures.md F-11 — automated security/quality gate on every push and PR.
+# Was completely absent before this (no CI of any kind existed in the repo).
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: meme_platform_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      ENVIRONMENT: development
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/meme_platform_test
+      TEST_DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/meme_platform_test
+      REDIS_URL: redis://localhost:6379/0
+      JWT_SECRET: ci-test-secret-not-for-production
+      CLOUDINARY_CLOUD_NAME: test
+      CLOUDINARY_API_KEY: test
+      CLOUDINARY_API_SECRET: test
+      GROQ_API_KEY: test
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      # Hash-verified install from the pinned lockfile (SecurityIssues.md M-5) — a
+      # dependency-confusion or compromised-release attempt fails the install outright
+      # rather than silently landing.
+      - name: Install dependencies (hash-verified)
+        run: pip install -r requirements/dev.lock --require-hashes
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Run migrations
+        run: alembic upgrade head
+
+      - name: Test
+        run: pytest -q
+
+      # Informational, not blocking: SecurityIssues.md M-5 confirmed today's pinned
+      # versions are current. This catches newly-disclosed CVEs in future runs without
+      # making every PR fail on an advisory nobody has triaged yet.
+      - name: Dependency audit (advisory)
+        run: |
+          pip install --quiet pip-audit
+          pip-audit -r requirements/base.txt --desc || true
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      # Informational, not blocking: SecurityIssues.md L-6 tracks the current residual
+      # findings (all in build/dev-time tooling, not the shipped app) as a deliberate,
+      # accepted gap pending the next Expo SDK bump — this step exists so a *new*
+      # high-severity advisory still shows up in CI output without failing every PR on
+      # the already-known, already-triaged residue.
+      - name: Dependency audit (advisory)
+        run: npm audit --audit-level=high || true
+
+  secrets-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scan for committed secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

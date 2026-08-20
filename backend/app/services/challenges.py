@@ -66,7 +66,7 @@ from app.models.meme import Meme
 from app.models.notification import NotificationType
 from app.models.post_audience import AudienceType, PostAudience
 from app.models.user import User
-from app.schemas.auth import UserOut
+from app.schemas.auth import PublicUserOut
 from app.schemas.challenges import (
     ChallengeCreate,
     ChallengeOut,
@@ -259,9 +259,9 @@ async def _build_challenge_out(db: AsyncSession, challenge: Challenge) -> Challe
         opponent_community_id=challenge.opponent_community_id,
         opponent_community_name=opponent.name if opponent else None,
         hashtag=hashtag.slug if hashtag else None,
-        creator=UserOut.model_validate(creator),
+        creator=PublicUserOut.model_validate(creator),
         invitee_id=challenge.invitee_id,
-        invitee=UserOut.model_validate(invitee) if invitee else None,
+        invitee=PublicUserOut.model_validate(invitee) if invitee else None,
         title=challenge.title,
         challenge_type=challenge.challenge_type,
         status=challenge.status,
@@ -943,7 +943,7 @@ async def submit_to_challenge(
     return ChallengeSubmissionOut(
         id=submission.id,
         side_id=side_id,
-        submitter=UserOut.model_validate(submitter),
+        submitter=PublicUserOut.model_validate(submitter),
         meme=build_meme_out(
             submission.meme, upvote_count=0, downvote_count=0, comment_count=0, viewer_vote=None
         ),
@@ -1010,7 +1010,7 @@ async def create_and_submit_to_challenge(
     return ChallengeSubmissionOut(
         id=submission.id,
         side_id=side.id,
-        submitter=UserOut.model_validate(current_user),
+        submitter=PublicUserOut.model_validate(current_user),
         meme=build_meme_out(
             meme,
             upvote_count=0,
@@ -1187,7 +1187,7 @@ async def get_results(
             ChallengeSubmissionOut(
                 id=submission.id,
                 side_id=submission.side_id,
-                submitter=UserOut.model_validate(submitter),
+                submitter=PublicUserOut.model_validate(submitter),
                 meme=build_meme_out(
                     submission.meme,
                     upvote_count=0,
@@ -1205,7 +1205,12 @@ async def get_results(
 
 
 async def _get_or_create_platform_user(db: AsyncSession) -> User:
-    user = await db.scalar(select(User).where(User.username == PLATFORM_USERNAME))
+    # Resolved by the `is_platform_account` flag, not by username: `PLATFORM_USERNAME` is
+    # an ordinary, user-registerable string, so looking it up by username would let
+    # whoever registers it first (e.g. before this cron's first run, or after a database
+    # reset) become "the platform account" for every subsequent weekly challenge
+    # (SecurityIssues.md M-6). The flag is never settable through any user-facing path.
+    user = await db.scalar(select(User).where(User.is_platform_account.is_(True)))
     if user is not None:
         return user
 
@@ -1216,6 +1221,7 @@ async def _get_or_create_platform_user(db: AsyncSession) -> User:
         # exists as a `creator_id` for platform-run challenges.
         hashed_password=hash_password(uuid.uuid4().hex),
         bio="Official MemeVerse account — runs the weekly platform challenge.",
+        is_platform_account=True,
     )
     db.add(user)
     try:

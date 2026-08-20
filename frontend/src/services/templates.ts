@@ -1,10 +1,10 @@
 import { api } from '@/services/api';
-import type { AuthUserResponse } from '@/services/auth';
+import type { PublicUserResponse } from '@/services/auth';
 import { appendImageToFormData } from '@/utils/multipartImage';
 
 export interface TemplateResponse {
   id: string;
-  uploader: AuthUserResponse;
+  uploader: PublicUserResponse;
   community_id: string | null;
   name: string;
   image_url: string;

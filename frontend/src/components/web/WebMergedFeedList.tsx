@@ -1,8 +1,10 @@
+import { useMemo } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text } from 'react-native';
 
 import { WebContainerCard } from '@/components/web/WebContainerCard';
 import { WebMemeCard } from '@/components/web/WebMemeCard';
-import { FEED_WEB_COLORS, FEED_WEB_SPACING, FEED_WEB_TYPE } from '@/constants/webFeedTheme';
+import type { VaporwaveTheme } from '@/constants/webFeedThemeVapor';
+import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 import type { MergedFeedItem } from '@/services/memes';
 
 interface WebMergedFeedListProps {
@@ -38,6 +40,9 @@ export function WebMergedFeedList({
   onRefresh,
   emptyMessage,
 }: WebMergedFeedListProps) {
+  const { colors: FEED_WEB_COLORS, type: FEED_WEB_TYPE, spacing: FEED_WEB_SPACING } = useVaporwaveTheme();
+  const styles = useMemo(() => createStyles(FEED_WEB_COLORS, FEED_WEB_SPACING), [FEED_WEB_COLORS, FEED_WEB_SPACING]);
+
   return (
     <FlatList
       data={items}
@@ -67,7 +72,8 @@ export function WebMergedFeedList({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (FEED_WEB_COLORS: VaporwaveTheme['colors'], FEED_WEB_SPACING: VaporwaveTheme['spacing']) =>
+  StyleSheet.create({
   content: {
     paddingHorizontal: FEED_WEB_SPACING.lg,
     paddingTop: FEED_WEB_SPACING.lg,

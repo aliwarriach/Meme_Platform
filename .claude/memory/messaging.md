@@ -27,7 +27,7 @@ All under `/messaging`, Bearer-auth-gated. JSON is snake_case on the wire as usu
 - `GET /messaging/conversations/{id}/messages?cursor=&limit=` (limit 1–100, default 30) → `200` `{items: [MessageOut], next_cursor}` — **newest-first keyset** page, same base64 `created_at|id` cursor as the feed (`core/pagination.py`). `403` non-participant.
 - `POST /messaging/conversations/{id}/messages` body `{kind, body?, meme_id?}` → `201` `MessageOut`. Rate-limited 60/min. Pushes `message_received` to the other participant.
 - `POST /messaging/conversations/{id}/read` → `200` `{conversation_id, read_count, read_at}`. Idempotent (`read_count: 0` when nothing was unread). Pushes `message_read` to the other participant **only when something actually changed**.
-- `WS /meme-sending/ws?token=<jwt>` — unchanged path, see Gotchas. Frames:
+- `WS /meme-sending/ws?ticket=<ticket>` — unchanged path, see Gotchas. As of the 2026-08-19 audit fix (`[[hardening]]`, finding M-1) this takes a single-use ticket from `POST /meme-sending/ws-ticket`, not the session JWT directly — the JWT no longer travels in a URL/query string. Frames:
   - `{type: "message_received", conversation_id, message: MessageOut}`
   - `{type: "message_read", conversation_id, reader_id, read_at}`
 
@@ -70,6 +70,7 @@ The downgrade is deliberately lossy (text messages and read receipts have no rep
 ## Key files
 - backend: `app/models/conversation.py`, `app/models/message.py`, `app/schemas/messaging.py`, `app/services/messaging.py`, `app/routers/messaging.py`, `app/services/meme_sending.py` (shim), `app/routers/meme_sending.py` (shim + WS), `app/websockets/connection_manager.py`, `alembic/versions/e1d2c3b4a596_create_conversations_and_messages.py`.
 - frontend: `src/services/messaging.ts`, `src/services/messagingCache.ts`, `src/services/useMessaging.ts`, `src/services/memeSendingSocket.ts`, `src/services/useMemeSending.ts` (shim hook), `src/features/messaging/*`, `src/app/inbox.tsx`, `src/app/inbox/[conversationId].tsx`, `src/components/web/DesktopInboxPanel.tsx`.
+- **2026-08-20 Vaporwave web migration** (UI-only, no data/cache-layer change): `src/features/messaging/InboxScreen.web.tsx` + `ThreadScreen.web.tsx` (platform-extension siblings of the native screens above, picked up automatically by Metro for the web bundle — native files untouched) + `src/components/web/WebInboxTopBar.tsx`/`WebThreadTopBar.tsx`/`WebConversationRow.tsx`/`WebNewChatModal.tsx`/`WebMessageBubble.tsx`/`WebMessageComposer.tsx`. Full record, including the `DesktopInboxPanel`-is-now-dead-code finding: `design-system/meme-platform/pages/inbox-web.md`.
 
 ## Tests
 - `backend/tests/test_messaging.py` (13): non-friend rejection, get-or-create idempotent from both directions, text round-trip with unread count, meme message payload, **IDOR regression**, non-participant read/write 403, send-after-unfriend 403, mark-read + idempotency, read receipt visible to sender, kind/payload validation (3 cases), keyset pagination across 3 pages, list ordering by activity, and a real WS test covering both `message_received` and `message_read`.

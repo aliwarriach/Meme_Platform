@@ -1,11 +1,11 @@
 import { api } from '@/services/api';
-import type { AuthUserResponse } from '@/services/auth';
+import type { PublicUserResponse } from '@/services/auth';
 
 export type ContainerMetadataStatus = 'pending' | 'ready' | 'failed';
 
 export interface MemeContainerResponse {
   id: string;
-  submitter: AuthUserResponse;
+  submitter: PublicUserResponse;
   platform: 'instagram';
   source_url: string;
   title: string | null;
@@ -29,7 +29,7 @@ export interface ContainerViewResponse {
 
 export interface ContainerCommentResponse {
   id: string;
-  author: AuthUserResponse;
+  author: PublicUserResponse;
   body: string;
   created_at: string;
 }

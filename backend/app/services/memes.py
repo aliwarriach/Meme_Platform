@@ -1,3 +1,4 @@
+import datetime
 import uuid
 
 from fastapi import UploadFile
@@ -5,7 +6,11 @@ from sqlalchemy import ColumnElement, and_, exists, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import InvalidAudienceSelectionError, MemeNotFoundError
+from app.core.exceptions import (
+    InvalidAudienceSelectionError,
+    MemeNotFoundError,
+    NotMemeAuthorError,
+)
 from app.core.pagination import decode_cursor, encode_cursor
 from app.models.community import Community, CommunityPrivacy
 from app.models.community_membership import CommunityMembership, MembershipStatus
@@ -16,10 +21,11 @@ from app.models.meme_vote import MemeVote
 from app.models.post_audience import AudienceType, PostAudience
 from app.models.comment import Comment
 from app.models.user import User
-from app.schemas.auth import UserOut
+from app.schemas.auth import PublicUserOut
 from app.schemas.memes import CommunityBadge, FeedPage, HotFeedPage, MemeOut, MemeViewOut
+from app.services.blocks import is_blocked_clause
 from app.services.communities import require_active_membership
-from app.services.media import validate_and_upload_image
+from app.services.media import delete_uploaded_image, validate_and_upload_image
 from app.services.scoring import hot_score_expr
 
 
@@ -51,8 +57,20 @@ def meme_visibility_clause(viewer_id: uuid.UUID):
         CommunityMembership.user_id == viewer_id,
         CommunityMembership.status == MembershipStatus.active,
     )
-    return or_(
-        Meme.author_id == viewer_id, is_public, is_friends_only_visible, is_visible_via_community
+    # A block between the viewer and the author hides the author's content from the
+    # viewer regardless of audience/friendship status — including the viewer's own
+    # accepted friendship with them, which blocking overrides for visibility purposes.
+    # Never applies to the viewer's own memes: no self-block can exist (SecurityFeatures.md F-5).
+    is_not_blocked_by_or_blocking_author = ~is_blocked_clause(viewer_id, Meme.author_id)
+    return and_(
+        Meme.deleted_at.is_(None),
+        is_not_blocked_by_or_blocking_author,
+        or_(
+            Meme.author_id == viewer_id,
+            is_public,
+            is_friends_only_visible,
+            is_visible_via_community,
+        ),
     )
 
 
@@ -83,7 +101,7 @@ def build_meme_out(
     can_see_views = viewer_id is not None and _can_view_meme_view_count(meme, community_row, viewer_id)
     return MemeOut(
         id=meme.id,
-        author=UserOut.model_validate(meme.author),
+        author=PublicUserOut.model_validate(meme.author),
         image_url=meme.image_url,
         caption=meme.caption,
         audiences=list(dict.fromkeys(a.audience_type for a in meme.audiences)),
@@ -234,7 +252,10 @@ async def get_meme_out_for_viewer(
     query behind both the feed and meme-sending, so a send's embedded meme is never a
     stale/zeroed-out snapshot."""
     meme = await db.get(Meme, meme_id)
-    if meme is None:
+    if meme is None or meme.deleted_at is not None:
+        # A deleted meme's message attachment degrades to a null-meme placeholder
+        # client-side, same as messaging.py's pre-existing null-meme handling
+        # (SecurityFeatures.md F-4) — not a new failure mode, just a new way to reach it.
         return None
 
     upvote_count = await db.scalar(
@@ -424,6 +445,19 @@ async def get_visible_meme(db: AsyncSession, current_user: User, meme_id: uuid.U
     if meme is None:
         raise MemeNotFoundError("Meme not found")
     return meme
+
+
+async def delete_meme(db: AsyncSession, current_user: User, meme_id: uuid.UUID) -> None:
+    """Author-only soft delete (SecurityFeatures.md F-4). Goes through
+    `get_visible_meme` first, so a nonexistent/already-deleted/not-visible meme 404s the
+    same way any other lookup does, rather than leaking existence via a distinct error."""
+    meme = await get_visible_meme(db, current_user, meme_id)
+    if meme.author_id != current_user.id:
+        raise NotMemeAuthorError("Only the author can delete this meme")
+
+    meme.deleted_at = datetime.datetime.now(datetime.timezone.utc)
+    await db.commit()
+    await delete_uploaded_image(meme.image_public_id)
 
 
 async def record_meme_view(

@@ -1,9 +1,10 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { useVotingWebTheme } from '@/constants/VotingWebTheme';
-import { VOTING_WEB_RADIUS, VOTING_WEB_SPACING, VOTING_WEB_TYPE, type WebPressableState } from '@/constants/webVotingTheme';
+import type { VaporwaveTheme } from '@/constants/webFeedThemeVapor';
+import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 import type { StandingContent, StandingEntryResponse } from '@/services/competitions';
 
 interface WebStandingRowProps {
@@ -11,14 +12,32 @@ interface WebStandingRowProps {
   onPress: (content: StandingContent) => void;
 }
 
+interface WebPressableState {
+  pressed: boolean;
+  hovered?: boolean;
+  focused?: boolean;
+}
+
 /**
- * UX improvement over the native `StandingRow`: top-3 ranks get a gold-tinted numeral + badge
- * chip so scanning "who's winning" is faster at a glance — a real gap in the native row, which
- * renders every rank in identical plain text regardless of position. Ranks 4+ stay visually quiet
- * (muted numeral, no chip) so the top of the list keeps its priority.
+ * Vaporwave/Luminous equivalent of the retired independent-theme `WebStandingRow`. Preserves the
+ * one genuine UX addition that theme made over the native `StandingRow` (a real, not decorative,
+ * finding — kept because it's still true under the new visual system): ranks 1-3 get a filled
+ * badge chip so scanning "who's currently doing well" is faster than the native row, which
+ * renders every rank identically. Ranks 4+ stay visually quiet (muted numeral, no chip) so the
+ * top of the list keeps priority.
+ *
+ * Top-3 badge is a solid `indigoSecondary` fill + `onAccent` text (not `indigoPrimary`, and not a
+ * low-alpha tint) — same contrast reasoning as `WebVotingTabs`: cyan fails as a white-text fill in
+ * both modes, and a tinted background reintroduces exactly the under-4.5:1 risk the prior voting
+ * system's own audit found with tinted gold. Score text stays `foreground` (not brand-colored) in
+ * every row — differentiation is carried by the badge and a bolder weight for top-3, not by
+ * color-as-the-only-signal on the number itself.
  */
 export function WebStandingRow({ entry, onPress }: WebStandingRowProps) {
-  const { colors } = useVotingWebTheme();
+  const { colors, type, radius, spacing, mode } = useVaporwaveTheme();
+  const styles = useMemo(() => createStyles(colors, radius, spacing), [colors, radius, spacing]);
+  const ringColor = mode === 'dark' ? colors.indigoPrimary : colors.indigoSecondary;
+
   const { content } = entry;
   const isContainer = content.kind === 'container';
   const imageUrl = isContainer ? content.container.thumbnail_url : content.meme.image_url;
@@ -33,16 +52,11 @@ export function WebStandingRow({ entry, onPress }: WebStandingRowProps) {
       onPress={() => onPress(content)}
       style={({ hovered, focused }: WebPressableState) => [
         styles.row,
-        { backgroundColor: colors.card, borderColor: colors.border },
-        hovered && { backgroundColor: colors.elevatedHover },
-        focused && { outlineColor: colors.ring, outlineWidth: 2, outlineOffset: 1 },
+        hovered && { backgroundColor: colors.surfaceHover },
+        focused && { outlineColor: ringColor, outlineWidth: 2, outlineOffset: 1 },
       ]}>
-      {/* Top-3 badge is a SOLID gold fill + dark text (same safe fill/onColor pairing as the
-          trophy badge), not a tinted background with colored text — the tint variant measured
-          under 4.5:1 AA for gold-on-tint in light mode (see webVotingTheme.ts). Ranks 4+ stay
-          transparent, text sits directly on the card surface. */}
-      <View style={[styles.rankWrap, isTopThree && { backgroundColor: colors.gold }]}>
-        <Text style={[VOTING_WEB_TYPE.rankNumeral, { color: isTopThree ? colors.onGold : colors.foregroundMuted }]}>
+      <View style={[styles.rankWrap, isTopThree && { backgroundColor: colors.indigoSecondary }]}>
+        <Text style={[type.title, { color: isTopThree ? colors.onAccent : colors.foregroundMuted }]}>
           {entry.rank}
         </Text>
       </View>
@@ -50,57 +64,68 @@ export function WebStandingRow({ entry, onPress }: WebStandingRowProps) {
       {imageUrl ? (
         <Image source={{ uri: imageUrl }} style={styles.thumb} contentFit="cover" />
       ) : (
-        <View style={[styles.thumb, styles.thumbFallback, { backgroundColor: colors.elevated }]}>
+        <View style={[styles.thumb, styles.thumbFallback]}>
           <MaterialIcons name="camera-alt" size={16} color={colors.foregroundMuted} />
         </View>
       )}
 
       <View style={styles.textWrap}>
-        <Text style={[VOTING_WEB_TYPE.title, { color: colors.foreground }]} numberOfLines={1}>
+        <Text style={[type.title, { color: colors.foreground }]} numberOfLines={1}>
           {authorName}
         </Text>
         {caption ? (
-          <Text style={[VOTING_WEB_TYPE.meta, { color: colors.foregroundMuted }]} numberOfLines={1}>
+          <Text style={[type.meta, { color: colors.foregroundMuted }]} numberOfLines={1}>
             {caption}
           </Text>
         ) : null}
       </View>
 
-      <Text style={[VOTING_WEB_TYPE.title, { color: isTopThree ? colors.goldText : colors.primaryText }]}>{entry.score}</Text>
+      <Text style={[isTopThree ? type.h2 : type.title, { color: colors.foreground, fontSize: isTopThree ? 18 : 15 }]}>
+        {entry.score}
+      </Text>
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: VOTING_WEB_SPACING.md,
-    borderRadius: VOTING_WEB_RADIUS.card,
-    borderWidth: 1,
-    paddingHorizontal: VOTING_WEB_SPACING.md,
-    paddingVertical: VOTING_WEB_SPACING.sm,
-    marginHorizontal: VOTING_WEB_SPACING.lg,
-    marginBottom: VOTING_WEB_SPACING.sm,
-  },
-  rankWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: VOTING_WEB_RADIUS.chip,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  thumb: {
-    width: 48,
-    height: 48,
-    borderRadius: VOTING_WEB_RADIUS.chip,
-  },
-  thumbFallback: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  textWrap: {
-    flex: 1,
-    gap: 1,
-  },
-});
+const createStyles = (
+  colors: VaporwaveTheme['colors'],
+  radius: VaporwaveTheme['radius'],
+  spacing: VaporwaveTheme['spacing'],
+) =>
+  StyleSheet.create({
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      borderRadius: radius.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceGlass,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      marginHorizontal: spacing.lg,
+      marginBottom: spacing.sm,
+    },
+    rankWrap: {
+      width: 32,
+      height: 32,
+      borderRadius: radius.chip,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.surfaceElevated,
+    },
+    thumb: {
+      width: 48,
+      height: 48,
+      borderRadius: radius.chip,
+    },
+    thumbFallback: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.surfaceElevated,
+    },
+    textWrap: {
+      flex: 1,
+      gap: 1,
+    },
+  });

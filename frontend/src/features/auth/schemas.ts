@@ -6,6 +6,23 @@ export const loginSchema = z.object({
 });
 export type LoginFormValues = z.infer<typeof loginSchema>;
 
+// SecurityFeatures.md F-13 — mirrors the backend's own 13+ check (services/auth.py's
+// register_user) so a too-young signup gets a clear inline error before it ever reaches
+// the server; the server-side check is still the one that actually enforces it.
+const MINIMUM_AGE_YEARS = 13;
+
+function isAtLeast13(dateOfBirth: string): boolean {
+  const dob = new Date(dateOfBirth);
+  if (Number.isNaN(dob.getTime())) return false;
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  const hadBirthdayThisYear =
+    today.getMonth() > dob.getMonth() ||
+    (today.getMonth() === dob.getMonth() && today.getDate() >= dob.getDate());
+  if (!hadBirthdayThisYear) age -= 1;
+  return age >= MINIMUM_AGE_YEARS;
+}
+
 export const registerSchema = z.object({
   email: z.string().email('Enter a valid email address'),
   username: z
@@ -14,5 +31,10 @@ export const registerSchema = z.object({
     .max(32, 'At most 32 characters')
     .regex(/^[a-zA-Z0-9_]+$/, 'Letters, numbers, and underscores only'),
   password: z.string().min(8, 'At least 8 characters'),
+  dateOfBirth: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD')
+    .refine((value) => !Number.isNaN(new Date(value).getTime()), 'Enter a valid date')
+    .refine(isAtLeast13, `You must be ${MINIMUM_AGE_YEARS} or older to sign up`),
 });
 export type RegisterFormValues = z.infer<typeof registerSchema>;

@@ -4,7 +4,7 @@ import uuid
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.friendship import FriendshipStatus
-from app.schemas.auth import UserOut
+from app.schemas.auth import PublicUserOut
 
 
 class FriendRequestCreate(BaseModel):
@@ -16,11 +16,11 @@ class FriendshipOut(BaseModel):
 
     id: uuid.UUID
     status: FriendshipStatus
-    requester: UserOut
-    addressee: UserOut
+    requester: PublicUserOut
+    addressee: PublicUserOut
     created_at: datetime.datetime
 
 
 class FriendOut(BaseModel):
     friendship_id: uuid.UUID
-    user: UserOut
+    user: PublicUserOut

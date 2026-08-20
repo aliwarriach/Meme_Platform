@@ -5,14 +5,14 @@ from pydantic import BaseModel, ConfigDict
 
 from app.models.community import CommunityPrivacy
 from app.models.community_membership import MembershipRole, MembershipStatus
-from app.schemas.auth import UserOut
+from app.schemas.auth import PublicUserOut
 
 
 class CommunityOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    owner: UserOut
+    owner: PublicUserOut
     name: str
     description: str | None
     icon_url: str | None
@@ -33,7 +33,7 @@ class MembershipOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    user: UserOut
+    user: PublicUserOut
     role: MembershipRole
     status: MembershipStatus
     created_at: datetime.datetime

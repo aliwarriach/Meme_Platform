@@ -3,12 +3,12 @@ import uuid
 from sqlalchemy import ForeignKey, Index, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base, TimestampMixin, UUIDPKMixin
+from app.db.base import Base, SoftDeleteMixin, TimestampMixin, UUIDPKMixin
 from app.models.post_audience import PostAudience
 from app.models.user import User
 
 
-class Meme(UUIDPKMixin, TimestampMixin, Base):
+class Meme(UUIDPKMixin, TimestampMixin, SoftDeleteMixin, Base):
     __tablename__ = "memes"
 
     author_id: Mapped[uuid.UUID] = mapped_column(

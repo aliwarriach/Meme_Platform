@@ -1,5 +1,6 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -7,8 +8,9 @@ import WebCompeteButton from '@/components/web/WebCompeteButton';
 import { WebCompeteTextField } from '@/components/web/WebCompeteTextField';
 import WebCompeteTopBar from '@/components/web/WebCompeteTopBar';
 import { WebDurationPresets } from '@/components/web/WebDurationPresets';
-import { CompeteThemeProvider, useCompeteWebTheme } from '@/constants/CompeteWebTheme';
-import { COMPETE_WEB_SPACING, COMPETE_WEB_TYPE } from '@/constants/webCompeteTheme';
+import type { VaporwaveTheme } from '@/constants/webFeedThemeVapor';
+import { injectFeedWebFont } from '@/constants/webFeedThemeVapor';
+import { VaporwaveThemeProvider, useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 import { useHashtagSearch } from '@/services/useHashtags';
 import { useCreateOpenChallengeMutation } from '@/services/useChallenges';
 
@@ -25,11 +27,13 @@ function normalize(raw: string): string {
 }
 
 /** Web-only sibling of `features/challenges/CreateOpenChallengeScreen.tsx` (native-resolved,
- * untouched). See compete-web.md's "UX improvements" for the shared `WebDurationPresets`
- * addition (identical gap/fix across all three create/propose screens). */
+ * untouched). Migrated off the retired independent Neubrutalism theme onto the project-standard
+ * Vaporwave/Luminous glass system — see `design-system/meme-platform/pages/compete-web.md` for
+ * the shared `WebDurationPresets` addition history (unchanged this pass, carried forward). */
 function CreateOpenChallengeScreenContent() {
   const router = useRouter();
-  const { colors } = useCompeteWebTheme();
+  const { colors, type, spacing } = useVaporwaveTheme();
+  const styles = useMemo(() => createStyles(colors, spacing), [colors, spacing]);
   const createOpenChallenge = useCreateOpenChallengeMutation();
 
   const [title, setTitle] = useState('');
@@ -38,6 +42,10 @@ function CreateOpenChallengeScreenContent() {
   const [sideBName, setSideBName] = useState('Team B');
   const [durationMinutes, setDurationMinutes] = useState(String(DEFAULT_DURATION_MINUTES));
   const [formError, setFormError] = useState<string | null>(null);
+
+  useEffect(() => {
+    injectFeedWebFont();
+  }, []);
 
   const normalizedTag = useMemo(() => normalize(hashtag), [hashtag]);
   const tagSearchQuery = useHashtagSearch(normalizedTag);
@@ -85,11 +93,12 @@ function CreateOpenChallengeScreenContent() {
   };
 
   return (
-    <View style={[styles.root, { backgroundColor: colors.background }]}>
+    <View style={styles.root}>
+      <LinearGradient colors={[colors.gradientTop, colors.gradientMid, colors.gradientBottom]} style={StyleSheet.absoluteFill} />
       <SafeAreaView style={styles.safe} edges={['top']}>
         <WebCompeteTopBar title="Start an Open Challenge" />
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-          <Text style={[COMPETE_WEB_TYPE.body, { color: colors.foregroundMuted, marginBottom: COMPETE_WEB_SPACING.lg }]}>
+          <Text style={[type.body, { color: colors.foregroundMuted, marginBottom: spacing.lg }]}>
             Anyone can join — no community required. Entry is by posting with your reserved tag.
           </Text>
 
@@ -114,9 +123,7 @@ function CreateOpenChallengeScreenContent() {
             <ActivityIndicator size="small" color={colors.foregroundMuted} style={styles.tagSpinner} />
           ) : null}
 
-          <Text style={[COMPETE_WEB_TYPE.label, { color: colors.foregroundMuted, marginBottom: COMPETE_WEB_SPACING.xs }]}>
-            Duration
-          </Text>
+          <Text style={[type.label, { color: colors.foregroundMuted, marginBottom: spacing.xs }]}>Duration</Text>
           <WebDurationPresets minutesValue={durationMinutes} onSelect={(m) => setDurationMinutes(String(m))} />
           <WebCompeteTextField
             label="Custom duration (minutes)"
@@ -127,15 +134,9 @@ function CreateOpenChallengeScreenContent() {
           <WebCompeteTextField label="Side A name" value={sideAName} onChangeText={setSideAName} />
           <WebCompeteTextField label="Side B name" value={sideBName} onChangeText={setSideBName} />
 
-          {formError ? (
-            <Text style={[COMPETE_WEB_TYPE.body, { color: colors.destructiveText, marginBottom: COMPETE_WEB_SPACING.sm }]}>
-              {formError}
-            </Text>
-          ) : null}
+          {formError ? <Text style={[type.body, { color: colors.error, marginBottom: spacing.sm }]}>{formError}</Text> : null}
           {createOpenChallenge.isError ? (
-            <Text style={[COMPETE_WEB_TYPE.body, { color: colors.destructiveText, marginBottom: COMPETE_WEB_SPACING.sm }]}>
-              {createOpenChallenge.error?.message}
-            </Text>
+            <Text style={[type.body, { color: colors.error, marginBottom: spacing.sm }]}>{createOpenChallenge.error?.message}</Text>
           ) : null}
 
           <View style={styles.submitWrap}>
@@ -154,17 +155,18 @@ function CreateOpenChallengeScreenContent() {
 
 export default function CreateOpenChallengeScreen() {
   return (
-    <CompeteThemeProvider>
+    <VaporwaveThemeProvider>
       <CreateOpenChallengeScreenContent />
-    </CompeteThemeProvider>
+    </VaporwaveThemeProvider>
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1 },
-  safe: { flex: 1 },
-  scroll: { flex: 1, paddingHorizontal: COMPETE_WEB_SPACING.lg },
-  scrollContent: { paddingTop: COMPETE_WEB_SPACING.lg, paddingBottom: 48 },
-  tagSpinner: { marginTop: -COMPETE_WEB_SPACING.md, marginBottom: COMPETE_WEB_SPACING.lg },
-  submitWrap: { marginTop: COMPETE_WEB_SPACING.sm },
-});
+const createStyles = (colors: VaporwaveTheme['colors'], spacing: VaporwaveTheme['spacing']) =>
+  StyleSheet.create({
+    root: { flex: 1 },
+    safe: { flex: 1 },
+    scroll: { flex: 1, paddingHorizontal: spacing.lg },
+    scrollContent: { paddingTop: spacing.lg, paddingBottom: 48 },
+    tagSpinner: { marginTop: -spacing.md, marginBottom: spacing.lg },
+    submitWrap: { marginTop: spacing.sm },
+  });

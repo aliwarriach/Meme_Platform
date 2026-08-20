@@ -1,28 +1,50 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { useVotingWebTheme } from '@/constants/VotingWebTheme';
-import { VOTING_WEB_SPACING, VOTING_WEB_TYPE, type WebPressableState } from '@/constants/webVotingTheme';
+import type { VaporwaveTheme } from '@/constants/webFeedThemeVapor';
+import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 
 interface WebVotingTopBarProps {
   title: string;
 }
 
-/** Per-page header for the voting web screen — back button + title + a light/dark toggle.
- * Rebuilds the native `TopBar`'s data/behavior with new chrome, since that component is
- * native-resolved and aliases the old token set (same precedent as `WebCommunityTopBar`/
- * `WebFeedTopBar`, built independently rather than imported — see scope boundary note in
- * `webVotingTheme.ts`). No bottom-nav destination exists for this screen (Voting is reached via
- * the desktop sidebar or an in-app menu link, not a `FloatingBottomNav` tab) so, matching the
- * native screen's own navigation model, this bar's back button is the only way back on narrow
- * viewports — intentionally no `FloatingBottomNav` mounted here. */
+/** react-native-web extends Pressable's style-callback state with `hovered`/`focused` at
+ * runtime, but core `react-native`'s `PressableStateCallbackType` type only declares `pressed`
+ * — annotate web-only Pressable style callbacks with this type instead of relying on inference.
+ * Defined locally (not shared) per this codebase's established precedent — every independent
+ * web-theme tree (compete/community/profile) keeps its own copy rather than importing a shared
+ * one. */
+interface WebPressableState {
+  pressed: boolean;
+  hovered?: boolean;
+  focused?: boolean;
+}
+
+/**
+ * Per-page header for the web Voting/Competitions screen — back button + title + the
+ * Vaporwave/Luminous light-dark toggle, same shape as `WebFriendsTopBar`/`WebFeedTopBar`
+ * (cross-screen nav-pattern precedent: drill-in web screens with no `FloatingBottomNav`
+ * destination use back-button-only chrome, matched here rather than inventing a new one).
+ * Replaces the retired independent-theme `WebVotingTopBar` (see voting-web.md migration notes).
+ * No bottom-nav destination exists for Voting (`FloatingBottomNav`'s `NavDestination` union
+ * doesn't include it, `DesktopSidebarNav` has its own separate "Voting" link) — matches Friends,
+ * which is also nav-less for the same reason.
+ */
 export default function WebVotingTopBar({ title }: WebVotingTopBarProps) {
   const router = useRouter();
-  const { mode, colors, toggleMode } = useVotingWebTheme();
+  const { colors, type, radius, spacing, mode, toggleMode } = useVaporwaveTheme();
+  const styles = useMemo(() => createStyles(colors, radius, spacing), [colors, radius, spacing]);
+  // Focus-ring color must be mode-conditional, not a fixed token: indigoPrimary (bright cyan)
+  // measures ~11.7:1 against the dark canvas but only ~1.7:1 against the light canvas (fails
+  // WCAG 1.4.11's 3:1 non-text minimum) — indigoSecondary (magenta) is the inverse, ~6.5:1 on
+  // light vs too-close-in-luminance on dark. Picking the token that actually clears 3:1 in each
+  // mode, computed via the standard relative-luminance formula, not eyeballed.
+  const ringColor = mode === 'dark' ? colors.indigoPrimary : colors.indigoSecondary;
 
   return (
-    <View style={[styles.root, { borderBottomColor: colors.border }]}>
+    <View style={styles.root}>
       <View style={styles.left}>
         <Pressable
           accessibilityRole="button"
@@ -30,14 +52,14 @@ export default function WebVotingTopBar({ title }: WebVotingTopBarProps) {
           onPress={() => router.back()}
           style={({ hovered, focused }: WebPressableState) => [
             styles.iconButton,
-            hovered && { backgroundColor: colors.elevatedHover },
-            focused && { outlineColor: colors.ring, outlineWidth: 2, outlineOffset: 1 },
+            hovered && styles.iconButtonHovered,
+            focused && { outlineColor: ringColor, outlineWidth: 2, outlineOffset: 1 },
           ]}>
           <MaterialIcons name="arrow-back" size={22} color={colors.foreground} />
         </Pressable>
       </View>
 
-      <Text style={[VOTING_WEB_TYPE.h2, styles.title, { color: colors.foreground }]} numberOfLines={1}>
+      <Text style={[type.h2, styles.title]} numberOfLines={1}>
         {title}
       </Text>
 
@@ -48,9 +70,8 @@ export default function WebVotingTopBar({ title }: WebVotingTopBarProps) {
           onPress={toggleMode}
           style={({ hovered, focused }: WebPressableState) => [
             styles.iconButton,
-            { backgroundColor: colors.elevated },
-            hovered && { backgroundColor: colors.elevatedHover },
-            focused && { outlineColor: colors.ring, outlineWidth: 2, outlineOffset: 1 },
+            hovered && styles.iconButtonHovered,
+            focused && { outlineColor: ringColor, outlineWidth: 2, outlineOffset: 1 },
           ]}>
           <MaterialIcons name={mode === 'dark' ? 'light-mode' : 'dark-mode'} size={20} color={colors.foreground} />
         </Pressable>
@@ -59,35 +80,46 @@ export default function WebVotingTopBar({ title }: WebVotingTopBarProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  root: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: VOTING_WEB_SPACING.lg,
-    paddingVertical: VOTING_WEB_SPACING.lg,
-    borderBottomWidth: 1,
-  },
-  left: {
-    minWidth: 44,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  title: {
-    flex: 1,
-    textAlign: 'center',
-  },
-  right: {
-    minWidth: 44,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-  },
-  iconButton: {
-    height: 40,
-    width: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 999,
-  },
-});
+const createStyles = (
+  colors: VaporwaveTheme['colors'],
+  radius: VaporwaveTheme['radius'],
+  spacing: VaporwaveTheme['spacing'],
+) =>
+  StyleSheet.create({
+    root: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.lg,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    left: {
+      minWidth: 44,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    title: {
+      flex: 1,
+      textAlign: 'center',
+      color: colors.foreground,
+    },
+    right: {
+      minWidth: 44,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'flex-end',
+      gap: spacing.sm,
+    },
+    iconButton: {
+      height: 40,
+      width: 40,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: radius.pill,
+    },
+    iconButtonHovered: {
+      backgroundColor: colors.hoverTint,
+    },
+  });

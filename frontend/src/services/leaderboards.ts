@@ -1,9 +1,9 @@
 import { api } from '@/services/api';
-import type { AuthUserResponse } from '@/services/auth';
+import type { PublicUserResponse } from '@/services/auth';
 
 export interface IndividualLeaderboardEntryResponse {
   rank: number;
-  user: AuthUserResponse;
+  user: PublicUserResponse;
   score: number;
 }
 
@@ -45,7 +45,7 @@ export function getInternalCommunityLeaderboardRequest(
 // A user's lifetime, all-time cumulative MemeScore (the "Snapchat Score") — distinct from
 // the 30-day-windowed individual leaderboard above. See backend services/scoring.py.
 export interface ProfileScoreResponse {
-  user: AuthUserResponse;
+  user: PublicUserResponse;
   score: number;
 }
 

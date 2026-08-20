@@ -1,7 +1,8 @@
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { useCompeteWebTheme } from '@/constants/CompeteWebTheme';
-import { COMPETE_WEB_RADIUS, COMPETE_WEB_SPACING, COMPETE_WEB_TYPE, type WebPressableState } from '@/constants/webCompeteTheme';
+import type { VaporwaveTheme } from '@/constants/webFeedThemeVapor';
+import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 
 interface WebDurationPresetsProps {
   /** Currently-entered minutes, as a string (matches the screens' own `durationMinutes` state) —
@@ -17,17 +18,25 @@ const PRESETS: { label: string; minutes: number }[] = [
   { label: '3 days', minutes: 60 * 24 * 3 },
 ];
 
+interface WebPressableState {
+  pressed: boolean;
+  hovered?: boolean;
+  focused?: boolean;
+}
+
 /**
  * UX addition shared identically across all three create/propose screens
- * (`CreateOpenChallengeScreen`, `CreateChallengeScreen`, `ProposeVsChallengeScreen`) — see
- * compete-web.md's "UX improvements" section. Real, identical gap on all three native screens:
- * each requires typing a raw minutes value with no unit hint, the same friction this app's own
- * `DuelProposeModal` already solved with presets for its own challenge-creation flow. Additive
- * only — the manual minutes field stays for custom durations.
+ * (`CreateOpenChallengeScreen`, `CreateChallengeScreen`, `ProposeVsChallengeScreen`) — carried
+ * forward unchanged from the retired system's own genuine finding (see compete-web.md's "UX
+ * improvements" history): each native screen requires typing a raw minutes value with no unit
+ * hint, the same friction this app's own `DuelProposeModal` already solved with presets.
+ * Additive only — the manual minutes field stays for custom durations. Now Vaporwave-themed.
  */
 export function WebDurationPresets({ minutesValue, onSelect }: WebDurationPresetsProps) {
-  const { colors } = useCompeteWebTheme();
+  const { colors, type, radius, spacing, mode } = useVaporwaveTheme();
+  const styles = useMemo(() => createStyles(radius, spacing), [radius, spacing]);
   const currentMinutes = Number(minutesValue);
+  const ringColor = mode === 'dark' ? colors.indigoPrimary : colors.indigoSecondary;
 
   return (
     <View style={styles.row}>
@@ -42,12 +51,12 @@ export function WebDurationPresets({ minutesValue, onSelect }: WebDurationPreset
             onPress={() => onSelect(preset.minutes)}
             style={({ hovered, focused }: WebPressableState) => [
               styles.chip,
-              { borderColor: colors.border, backgroundColor: colors.card },
-              selected && { backgroundColor: colors.primary, borderColor: colors.outline, borderWidth: 2 },
-              hovered && !selected && { backgroundColor: colors.elevatedHover },
-              focused && { outlineColor: colors.ring, outlineWidth: 2, outlineOffset: 1 },
+              { borderColor: colors.border, backgroundColor: colors.surfaceElevated },
+              selected && { backgroundColor: colors.indigoSecondary, borderColor: colors.indigoSecondary },
+              hovered && !selected && { backgroundColor: colors.surfaceHover },
+              focused && { outlineColor: ringColor, outlineWidth: 2, outlineOffset: 1 },
             ]}>
-            <Text style={[COMPETE_WEB_TYPE.meta, { color: selected ? colors.onPrimary : colors.foregroundMuted }]}>
+            <Text style={[type.meta, { color: selected ? colors.onAccent : colors.foregroundMuted }]}>
               {preset.label}
             </Text>
           </Pressable>
@@ -57,20 +66,21 @@ export function WebDurationPresets({ minutesValue, onSelect }: WebDurationPreset
   );
 }
 
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: COMPETE_WEB_SPACING.sm,
-    marginBottom: COMPETE_WEB_SPACING.lg,
-  },
-  chip: {
-    minHeight: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: COMPETE_WEB_RADIUS.pill,
-    borderWidth: 1,
-    paddingHorizontal: COMPETE_WEB_SPACING.md,
-    paddingVertical: COMPETE_WEB_SPACING.xs,
-  },
-});
+const createStyles = (radius: VaporwaveTheme['radius'], spacing: VaporwaveTheme['spacing']) =>
+  StyleSheet.create({
+    row: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.sm,
+      marginBottom: spacing.lg,
+    },
+    chip: {
+      minHeight: 36,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: radius.pill,
+      borderWidth: 1,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.xs,
+    },
+  });

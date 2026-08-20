@@ -1,342 +1,285 @@
 # Compete/Challenges Web Page Overrides
 
 > **PROJECT:** Meme Platform
-> **Generated:** 2026-08-11 (hand-authored — see "Why hand-authored" below)
-> **Page Type:** Desktop/web-only RESKIN pass — all six `features/challenges/*.web.tsx` screens
-> (`CompeteScreen`, `CreateOpenChallengeScreen`, `DuelDetailScreen`, `CreateChallengeScreen`,
-> `ProposeVsChallengeScreen`, `ChallengeDetailScreen`).
-> **Mode:** RESKIN MODE — visual system replaced, existing screen structure/flows preserved
-> (setup → active window → evaluation → results lifecycle unchanged). **Light + dark**, both
-> grounded. Native is completely untouched.
+> **Generated:** 2026-08-11 (original independent Neubrutalism RESKIN pass — hand-authored, see
+> git history for that system's full reconciliation log if it's ever needed again)
+> **Migrated:** 2026-08-20 — consolidated onto the project-standard Vaporwave/Luminous system.
+> Screen 2 of 5 in the ordered migration sequence (Voting → **Challenges** → Leaderboard →
+> Profile → Inbox).
+> **Page Type:** Desktop/web-only screen tree — all six `features/challenges/*.web.tsx` screens
+> (`CompeteScreen` (hub), `CreateChallengeScreen`, `CreateOpenChallengeScreen`,
+> `ProposeVsChallengeScreen`, `ChallengeDetailScreen`, `DuelDetailScreen`), migrated as one
+> consolidated pass per the task's explicit scope (cross-screen consistency — status colors,
+> countdown treatment, card shape — audited across all six, not just the hub).
+> **Mode:** FULL MODE pass. Per this task's explicit instruction, Phase 1 was **promoted, not
+> regenerated** — Vaporwave/Luminous is the project's already-persisted standing default (see
+> `MASTER.md`'s "Web Design System" section), so no skill re-query was run for tokens; Phase 0
+> (primary action), Phase 2 (UX/accessibility audit), Phase 2.5 (layout alternatives), and Phase 3
+> (score) all ran normally against those fixed tokens.
 
-> ⚠️ **IMPORTANT:** Rules in this file **override** `design-system/meme-platform/MASTER.md` and
-> apply **only** to the web-only challenges tree (`features/challenges/*.web.tsx`,
-> `components/web/WebCompete*.tsx`/`WebChallenge*.tsx`/`WebCountdownTimer.tsx`/
-> `WebSubmission*.tsx`/`WebSideMemberPicker.tsx`/`WebResultBanner.tsx`,
-> `constants/webCompeteTheme.ts`, `constants/CompeteWebTheme.tsx`). MASTER.md's "Vivid Meme
-> Culture" system is untouched and still governs every native screen. `pages/feed-web.md`
-> (indigo "Dark Cinema"), `pages/community-web.md` (violet "Vibrant & Block-based"), and
-> `pages/voting-web.md` (rose-crimson + gold "OLED"/"Gen Z Brutal") are untouched and still
-> govern only their own trees. This is a fifth, independent system — expected divergence, not a
-> contradiction requiring reconciliation.
-
----
-
-## Color-direction correction (read first)
-
-Both the feed and communities passes landed on generic muted violet/indigo and were rejected by
-the user as "corporate SaaS"/"boring"/"soulless." Voting corrected that with rose-crimson + gold
-("energetic, not corporate" — approved). This pass's brief explicitly asks for something
-distinct from **all three** prior palettes, not violet/indigo, and not a copy of voting's
-crimson/gold — steered instead toward "crispy," "refreshing," and this app's **humorous**,
-playful team-vs-team meme-battle tone (punchy/citrus/playful, not competitive-crimson).
-
-**Result: burnt-orange `#F97316` (both modes, cross-mode-identical) as primary, lime-green
-`#22C55E` (both modes, cross-mode-identical) as the secondary/citrus accent** — a literal
-orange+lime citrus pairing, zero violet, zero indigo, and not a reuse of voting's rose/gold.
-See Reconciliation below for the full query log, including a documented case where the
-higher-confidence grounded accent (blue, "trust"-flavored) was deliberately swapped for a
-less-frequent but better-fitting grounded alternative (green, "energy"-flavored) — a real
-design decision, not an invented value.
-
-> **Accessibility-driven amendments (post-contrast-audit, before delivery):** three raw
-> brand-fill hues initially planned as *text* colors failed AA and were given dedicated
-> `*Text` roles instead (`primaryText`, `accentText`, `destructiveText` — see Accessibility
-> section). The light-mode page background was also flattened from an initially-drafted warm
-> cream tint (`#FFF7ED`) to flat `#FFFFFF` after `foregroundMuted` measured **4.48:1** against
-> it — under 4.5:1 AA — mirroring `voting-web.md`'s own identical fix for the identical reason.
-> The cream tint is still used, just demoted to `elevated` (chip/badge wash) instead of the page
-> canvas.
+> ⚠️ **IMPORTANT:** Rules in this file **override** `design-system/meme-platform/MASTER.md` for
+> anything page-specific (component list, structural layout decision, this page's own contrast
+> table) but **inherit** MASTER's "Web Design System" section for all shared tokens/mechanism —
+> unlike the retired system this file used to describe, this tree is no longer visually
+> independent from Feed/Friends/Voting. Applies to the web-only challenges tree
+> (`features/challenges/*.web.tsx`, `components/web/WebCompete*.tsx`/`WebChallenge*.tsx`/
+> `WebCountdownTimer.tsx`/`WebSubmission*.tsx`/`WebSideMemberPicker.tsx`/`WebResultBanner.tsx`).
+> MASTER.md's "Vivid Meme Culture" system (above the Web Design System section) is untouched and
+> still governs every native screen. `pages/community-web.md` and `pages/profile-web.md` are
+> untouched and still govern their own independent, not-yet-migrated trees.
 
 ---
 
-## Why hand-authored, not `--persist --page`
+## Migration record (2026-08-20)
 
-Same tooling gate as every prior web pass: `design_system.py::persist_design_system` returns
-`status: "skipped_exists"` whenever `MASTER.md` already exists and `--force` isn't passed. Since
-this task explicitly forbids `--force`, everything below is transcribed by hand from raw query
-output actually returned by the CLI — nothing invented from memory.
+The Compete/Challenges tree previously ran its own **fifth, fully independent** theme
+(`constants/webCompeteTheme.ts` + `constants/CompeteWebTheme.tsx`, burnt-orange `#F97316` / lime
+`#22C55E` Neubrutalism — hard black 2px outlines, 3px offset shadows, Lexend Mega/Public Sans
+typography) built by an earlier RESKIN pass. That system and every component that depended on it
+has been **fully retired and deleted**: `webCompeteTheme.ts` and `CompeteWebTheme.tsx` removed
+outright (confirmed dead by grep before deletion — every remaining match was a doc-comment
+mention, not a real import); the thirteen `Web*` component files that carried the old theme's
+`useCompeteWebTheme()` coupling were rewritten in place with new Vaporwave-based implementations,
+same filenames: `WebCompeteTopBar`, `WebCompeteTabs`, `WebCompeteButton`, `WebCompeteTextField`,
+`WebDurationPresets`, `WebChallengeStatusBadge`, `WebChallengeCard`, `WebChallengeSideCard`,
+`WebResultBanner`, `WebSubmissionThumb`, `WebSubmissionPicker`, `WebSideMemberPicker`. One
+component, `WebCountdownTimer`, needed **zero changes** — it was already theme-agnostic (a plain
+`Text` wrapper taking a `style` prop from its caller, no internal theme import), so it carries
+forward completely untouched.
+
+All six screens now mount their own `VaporwaveThemeProvider` instance
+(`constants/VaporwaveWebTheme.tsx`) and read all tokens from `constants/webFeedThemeVapor.ts` —
+the same source of truth already governing `FeedScreen.web.tsx`, `FriendsScreen.web.tsx`, and
+`VotingScreen.web.tsx`. Light/dark mode is now persisted to the same shared `localStorage` key
+(`vaporwave-web-theme`), so a mode chosen on any other Vaporwave screen carries over to Compete
+automatically — previously this tree had its own separate `compete-web-theme` key and would NOT
+stay in sync with the rest of the app (the same inconsistency `voting-web.md`'s own migration
+fixed for Voting).
+
+**No skill re-query was run for this pass.** Per the task's explicit instruction, Vaporwave/
+Luminous is being *extended*, not *regenerated* — re-rolling the skill here would produce a sixth
+independent palette, defeating the point of a project-wide default. Every value cited below is
+read directly from `webFeedThemeVapor.ts`'s existing, already-sourced tokens, or is a direct
+carry-forward of a contrast decision `voting-web.md` already made and grounded.
 
 ---
 
-## Reconciliation — multi-query convergence (RESKIN's "Generating the new system" discipline)
+## Phase 0 — primary action (per screen, since this is a six-screen flow)
 
-Per this agent's own rule (never trust a single `--design-system` roll — non-deterministic,
-blends in the `landing` domain), split-domain queries were run with multiple phrasings per
-domain, and only what **converged across independent runs** was kept.
+- **`CompeteScreen` (hub, the primary entry point):** get the viewer into a challenge they can act
+  on right now — resume something active, respond to something pending, or join something open.
+- **`CreateChallengeScreen` / `CreateOpenChallengeScreen` / `ProposeVsChallengeScreen`:**
+  successfully launch/send the challenge (fill the required fields, submit).
+- **`ChallengeDetailScreen` / `DuelDetailScreen`:** take the one action available for the
+  challenge's current lifecycle stage — accept/decline while pending, submit a meme while active,
+  view the result once evaluated.
 
-### Style (`--domain style -n 5`, 6 phrasings)
-Phrasings run: "playful citrus punchy team battle challenge competition gen-z humorous light and
-dark mode" / "meme battle team vs team playful fun energetic app not violet not indigo bold" /
-"sports scoreboard competition team battle citrus orange playful bold app light dark mode" /
-"meme battle countdown timer challenge scoreboard fun humor app" / "gen z youth playful bold
-thick border sticker collage app light and dark mode" / "esports gaming tournament bracket team
-battle vibrant colorful app".
+---
 
-- **"Neubrutalism"** (general — bold borders, black outlines, primary colors, thick hard-offset
-  shadows, no gradients, flat colors, "playful, Gen Z"; **Light ✓ Full / Dark ✓ Full**) and its
-  mobile sibling **"Neo Brutalism (Mobile)"** (pop-art, stickers, thick 4px borders, hard offset
-  shadows, mechanical press, collage, light-only) together recurred **4 of 6** independent style
-  queries — the strongest combined signal in this reconciliation. Only the general variant has
-  full dark support, so it's the one actually adopted; the mobile variant's own CSS/effects
-  fields (hard offset shadow via an extra View, mechanical press hiding the shadow on tap) are
-  used as direct implementation guidance regardless.
-- **Discarded despite recurring:** "Dark Mode (OLED)" (3/6, dark-only — this is `voting-web.md`'s
-  own family), "Modern Dark (Cinema Mobile)" (3/6, indigo accent — `feed-web.md`'s own family),
-  "Vibrant & Block-based" (2/6 — `community-web.md`'s own family; also independently reconfirmed
-  during the color-domain queries below, same reasoning, discarded again there).
-- **Kept:** Neubrutalism — hard black/bright outlines, flat saturated fills, offset (non-blurred)
-  shadows as the primary depth cue instead of glass/blur, playful "ugly-cute" energy. A direct
-  semantic fit for "team battle" + "crispy/punchy": the style's own effect language (comic-panel
-  hard shadows, bold flat color blocking) reads as scoreboard/sticker-badge energy without
-  needing a new metaphor invented for this page.
+## Tokens actually used (sourced from `constants/webFeedThemeVapor.ts`, not re-typed from memory)
 
-### Color (`--domain color -n 5`, 6 phrasings, explicitly steering citrus/orange/lime and away
-from violet/indigo/crimson)
-"playful gen z bold competition team battle citrus orange lime yellow app light mode not violet
-not indigo not crimson" / same phrase with "dark mode" / "orange citrus lime energetic
-competition scoreboard app dark background card surface" / "fresh citrus lime green playful fun
-food entertainment app light mode vibrant" / "warm dark charcoal background not navy orange
-citrus accent competition app card surface" / "streetwear sticker gen z bold competition dark
-mode orange yellow app not navy not black pure".
+### Typography
+Quicksand (`QUICKSAND_STACK`, `VAPOR_TYPE_DARK`/`LUMINOUS_TYPE_LIGHT` — byte-identical scale
+across modes), loaded via `injectFeedWebFont()`, same as every other Vaporwave screen. Replaces
+the retired system's Lexend Mega (display) / Public Sans (body) Neubrutalist pairing — a direct
+consequence of the style-system swap (Neubrutalism → Vaporwave glass), not an oversight.
 
-- **Violet/indigo/crimson rows that recurred and were explicitly discarded**: Educational App
-  (`#4F46E5`/`#7C3AED`), Sleep Tracker (`#4338CA`/`#7C3AED`), Podcast Platform (`#1E1B4B`,
-  `feed-web.md`'s own exact row), Dating App/Social Media App (`#E11D48` — `voting-web.md`'s own
-  exact primary) — all rejected per this task's explicit steering rule and the "not a copy of
-  voting's crimson" instruction.
-- **Primary — burnt orange `#F97316`**: the "Pet Tech App" row (`Primary #F97316 / Secondary
-  #FB923C / Background #FFF7ED / Foreground #9A3412 / Border #FED7AA`) recurred as an **exact
-  identical row in 4 of 4** independent light/citrus-phrased queries — the single
-  highest-confidence row in this whole reconciliation. The same `#F97316` primary also recurred
-  independently in two dark-background rows (`Running & Cycling GPS`, `Fitness/Gym App`),
-  supporting a cross-mode-identical primary the way `voting-web.md`'s crimson and
-  `community-web.md`'s violet both were.
-- **Dark background — `#1F2937`** ("Fitness/Gym App" row, `Primary #F97316 / Secondary #FB923C /
-  Accent #22C55E / Background #1F2937 / Card #313742 / Muted #37414F / Border #374151`) — chosen
-  over the far more common `#0F172A`/`#192134` navy-tinted dark pairing (which recurred in
-  nearly every other dark row across every query this pass **and** every prior pass, including
-  `community-web.md`'s own exact dark background) specifically to keep this system visibly
-  distinct from all three priors, not a coincidence of grounding: `#1F2937` is a warm-neutral
-  slate, not navy-tinted, and is also distinct from `voting-web.md`'s true-black OLED background
-  and `feed-web.md`'s indigo-black. Same same-row pairing gives `Card #313742`/`Muted #37414F`/
-  `Border #374151`, all exact, all from this one grounded row.
-- **Accent — lime-green `#22C55E`, a deliberate swap from the higher-frequency grounded
-  alternative.** The "Pet Tech App" row's own Accent field is blue (`#2563EB`, "playful orange +
-  **trust** blue"), and blue recurred as the accent paired with this exact orange primary in two
-  more rows (`Coworking Space`, `Translator App`). That blue was **discarded anyway**: this
-  task's brief explicitly asks for "citrus" and "humorous," and blue reads
-  trust/corporate-adjacent, not citrus. Green was chosen instead because it is *also* directly
-  grounded — independently paired with this **exact** `#F97316` primary in two dark-mode rows
-  (`Running & Cycling GPS`: accent `#059669` "pace green"; `Fitness/Gym App`: accent `#22C55E`
-  "energy orange + success green") — i.e. every row that used this app's specific orange
-  alongside a *non-blue* accent picked green, not a third color. `#22C55E` (the more saturated of
-  the two grounded greens) was kept for a stronger citrus-lime read; `Card & Board Game`'s
-  `#15803D` (a darker green from the same reconciliation) was kept as the dedicated `accentText`
-  role instead of being discarded (see Accessibility). This is a documented substitution between
-  two already-grounded candidates, not an invented value — the same category of decision
-  `community-web.md` made picking `#6366F1` over `#A78BFA` for its own dark secondary.
-- **Destructive — `#DC2626`/`#EF4444`**, consistent across virtually every row in every query run
-  this pass and every prior pass — no change from established convention.
+### Color roles used across this tree
+| Role | Dark value | Light value | Used for |
+|---|---|---|---|
+| `gradientTop/Mid/Bottom` | `#12121f`/`#1a1a28`/`#0d0d1a` | `#f8f9ff`/`#f2f3f9`/`#ffffff` | Page background gradient, all 6 screens |
+| `surfaceGlass` | `rgba(255,255,255,0.1)` | `rgba(255,255,255,0.75)` | Challenge/side cards, opponent rows, member-picker card, result banner |
+| `surfaceElevated` | `#292937` | `rgba(255,255,255,0.9)` | Text-input fill, tab track, `setup`-status badge fill, duration-preset chip default |
+| `surfaceHover` | `rgba(41,41,55,0.85)` | `rgba(242,243,249,0.9)` | Row/tab/chip hover state |
+| `border` | `rgba(255,255,255,0.15)` | `#bac9cb` | Card/row/tab-track/thumbnail borders |
+| `hoverTint` | `rgba(255,255,255,0.06)` | `rgba(0,219,233,0.08)` | Icon-button hover (top bar) |
+| `indigoSecondary` | `#8c016b` | `#a72683` | Selected tab fill, primary-button fill, `active`-status badge fill, selected duration/member-picker/opponent-row fill, winner chip fill — always paired with `onAccent` |
+| `indigoPrimary` | `#00f0ff` | — (dark-mode-only foreground use) | Focus ring / outline-button border+text / evaluated-status badge border+text, **dark mode only** |
+| `indigoSecondary` (foreground role) | — (not used as foreground in dark mode) | `#a72683` | Focus ring / outline-button border+text / evaluated-status badge border+text, **light mode only** |
+| `indigoGlow` | `rgba(0,240,255,0.45)` | `rgba(0,219,233,0.4)` | Primary-button shadow, active-challenge-card shadow, result-banner shadow — all decorative only |
+| `foreground` / `foregroundMuted` | `#e3e0f3` / `#b9cacb` | `#191c20` / `#3b494b` | All body/label/score/winner-name text |
+| `onAccent` | `#FFFFFF` | `#FFFFFF` | Text/icons on `indigoSecondary` fills |
+| `error` | `#ffb4ab` | `#ba1a1a` | Form validation errors, load errors |
 
-### Typography (`--domain typography -n 5`, 2 phrasings)
-"bold playful chunky display sans competition battle team app typography not Anton not Fredoka
-not Inter" / "neubrutalism gen z bold rounded chunky friendly display readable body typography
-app".
+### Radius / spacing
+`radius.card` (24 dark / 16 light), `radius.chip` (16 both), `radius.pill` (999) — from
+`VAPOR_RADIUS_DARK`/`LUMINOUS_RADIUS_LIGHT`. `FEED_WEB_SPACING` (4/8/12/16/20/24) — same shared
+scale as every other Vaporwave screen. Replaces the retired system's deliberately-sharp 12px/10px
+Neubrutalism radius scale — again a direct, documented consequence of the style swap, not an
+inconsistency: glass-panel languages read as pillowy/soft by design, hard-edged languages read as
+sharp by design, and this migration's whole point is adopting the former.
 
-- **"Neubrutalist Bold" (Lexend Mega / Public Sans)** — mood keywords "bold, neubrutalist, loud,
-  strong, geometric, quirky" — the only pairing in either query whose own **name** is the style
-  category itself, a direct semantic match to the Style convergence above (the same reasoning
-  `voting-web.md` used picking "Gen Z Brutal" for its literal "meme" mood match). Appeared once
-  (query 2) alongside a second Neubrutalism-flavored pairing, "Neo Brutalism Mobile" (Space
-  Grotesk Heavy, used for both heading *and* body at 700/900 only) — that second pairing was
-  discarded specifically because using one heavy-only face for body text as well would hurt
-  readability on this page's denser in-app content (submission lists, results, member pickers),
-  unlike a landing page. Lexend Mega (loud, wide, display-only) + Public Sans (a genuinely
-  readable, accessibility-designed body sans) gives the loud brutalist headline character without
-  sacrificing body-copy legibility — a functional reason for the choice, not just a mood
-  preference. Also discarded: "Gen Z Brutal" (Anton/Epilogue, 2/2) — `voting-web.md`'s own exact
-  pairing, avoided for the same distinctiveness reasoning `community-web.md` used against
-  `feed-web.md`'s Inter.
-- Google Fonts URL (verbatim, non-truncated, from raw output):
-  `https://fonts.googleapis.com/css2?family=Lexend+Mega:wght@100..900&family=Public+Sans:wght@100..900&display=swap`
+---
 
-### UX/accessibility grounding (`--domain ux -n 5`, "contrast focus keyboard touch target
-spacing grouping icon")
-Returned: 44×44px minimum touch targets (High), 8px minimum gap between adjacent touch targets
-(Medium), visible focus rings for keyboard users (High — every screen in this pass is
-`Platform.OS==='web'`), body-text contrast 4.5:1 minimum (High), keyboard tab order matches
-visual order (High). All directly inform the Accessibility section below and every `Pressable`'s
-`focused` outline treatment across the new components.
+## Accessibility — contrast decisions made this pass (measured, not eyeballed)
 
-### React Native stack grounding (`--stack react-native -n 5`, "countdown timer list flatlist
-tabs segmented control status badge team scoreboard")
-Returned: `FlatList` over `ScrollView.map()` for 50+ items, memoized `renderItem`, stable
-`keyExtractor`, `resizeMode`/`contentFit` on images. None of this pass's lists are large (a
-user's own active/open/results challenges, or a handful of team members), but `FlatList` is used
-anyway in `CompeteScreen.web.tsx` for consistency with every other list in this app (native and
-web) — same reasoning `voting-web.md` used for its own capped-at-20 standings list.
+Every pairing below was computed with the standard WCAG relative-luminance formula against this
+file's own token values (`webFeedThemeVapor.ts`), the same discipline `voting-web.md` established
+first. Two real findings shaped this build:
 
-### Accessibility — full contrast audit (measured, not eyeballed)
-Every text/background pair actually used in the shipped components was computed with the
-standard WCAG relative-luminance formula. Final measured set, all ≥4.5:1 AA unless noted:
+1. **`indigoSecondary` fails as a foreground/border color directly on a dark canvas or dark
+   card** — computed at only **~1.6–1.9:1** against `gradientMid`/`surfaceElevated` in dark mode
+   (both the token and the background are dark-toned, so there's too little luminance
+   difference), under even the 3:1 non-text minimum, let alone 4.5:1 for text. This rules out
+   using `indigoSecondary` as an outline-button border/text color, a focus ring, or a "selected"
+   row's border+text treatment **in dark mode**. Every such use in this tree is
+   **mode-conditional** instead — `mode === 'dark' ? colors.indigoPrimary : colors.indigoSecondary`
+   — the identical pattern `voting-web.md`'s `WebVotingTopBar`/`WebVotingTabs` already established
+   for their own focus rings (dark canvas: `indigoPrimary` ~11.7:1; light canvas: `indigoSecondary`
+   ~6.5:1; both comfortably clear AA in their own mode). Applied here to: `WebCompeteTopBar`'s
+   focus ring, `WebCompeteButton`'s `outline` variant border+text,
+   `WebChallengeStatusBadge`'s `evaluated` outline pill, `WebDurationPresets`'/
+   `WebSideMemberPicker`'s/`ProposeVsChallengeScreen`'s opponent-row focus rings.
+2. **`accentUpvote` (Vaporwave's other saturated hue, `#22C55E`) fails as a white-text solid fill
+   in both modes** — measured **2.28:1** (identical failure mode to, and independently confirming
+   via the same WCAG formula, the retired system's own finding that raw `#22C55E` fails as
+   light-mode text at 2.28:1). Vaporwave has no dedicated text-safe derived tint for it the way
+   the retired system's own `accentText` role did. Rather than inventing one (out of scope for a
+   design-system *promotion* pass — see MASTER.md's FULL MODE TOKEN AMENDMENT discipline, which
+   requires a scoped, justified per-token edit grounded in a skill query, not a same-pass
+   invention), `accentUpvote`/green is **not used anywhere in this migration**. The native
+   `ChallengeRow.tsx`'s `active → tertiary(green)` role is instead reused via `indigoSecondary`
+   (see the status-badge mapping below) — a different hex, same semantic role, both already
+   verified safe.
+3. **No color-coded text ever sits directly on a card/background in this build** — challenge
+   titles, side names, scores, and the evaluated winner's name all use `foreground`/
+   `foregroundMuted` exclusively. Differentiation (the `active` status, the winning side, a
+   selected duration preset/member/opponent) is carried by solid badge/chip *fills* (`indigoSecondary`
+   + `onAccent`) or by a decorative glow shadow, never by tinting body text — the exact same rule
+   `voting-web.md` established (its rule #3) and `compete-web.md`'s own retired system had to
+   patch around with dedicated `primaryText`/`accentText` roles. Adopting the rule directly here
+   sidesteps needing those extra roles at all.
 
-| Pair | Light | Dark |
+Final measured set for every fill+text pairing actually used, both ≥4.5:1 AA:
+
+| Pair | Dark | Light |
 |---|---|---|
-| `onPrimary` on `primary` fill | 6.37:1 | 6.37:1 |
-| `onAccent` on `accent` fill | 7.83:1 | 7.83:1 |
-| `primaryText` on `card`/`background` | 5.18:1 (`#C2410C`, not raw `primary`) | 6.49:1 (`#FB923C`, not raw `primary`) |
-| `accentText` on `card`/`background` | 5.02:1 (`#15803D`, not raw `accent`) | 5.25:1 (raw `accent` itself passes in dark mode — no substitute needed) |
-| `cardForeground`/`foreground` on `card` | 7.31:1 | 11.43:1 |
-| `foreground` on `background` | 7.31:1 (bg flattened to `#FFFFFF`, same as `card`) | 14.03:1 |
-| `foregroundMuted` on `card`/`background` | 4.76:1 | 4.66:1 |
-| `destructive`/`destructiveText` on `card`/`background` | 4.83:1 (`#DC2626`, raw value passes in light mode) | 6.30–7.73:1 (`#FCA5A5`, not raw `destructive` — raw `#EF4444`/`#DC2626` measured only 2.5–3.9:1 against this dark background/card) |
-| `onDestructive` (white) on `destructive` fill (`#DC2626`) | 4.83:1 | 4.83:1 (fill kept cross-mode-identical; raw `#EF4444` was tested as a fill and rejected — white text on it measures only 3.76:1) |
+| `onAccent` on `indigoSecondary` fill | 9.0:1 | 6.46:1 |
+| Mode-conditional accent (`indigoPrimary` dark / `indigoSecondary` light) as text/border on canvas | ~11.7:1 | ~6.5:1 |
 
-Three structural decisions came directly out of this audit, not out of taste:
-1. **`elevated` (the citrus-cream `#FED7AA` tint, light mode / `#37414F`, dark mode) is never
-   paired with `foregroundMuted`/`primaryText`/`accentText`/`destructiveText`** — every one of
-   those measured 3.5–4.6:1 against `elevated` in at least one mode, under AA. `elevated` is only
-   ever paired with `cardForeground` (full-contrast ink) or icons. Anywhere a badge/chip needed a
-   colored accent, it became a **solid fill + `onColor` text** instead — the exact same
-   structural fix `voting-web.md` and `community-web.md` both independently arrived at for their
-   own tinted surfaces.
-2. **Light-mode page `background` is flat `#FFFFFF`, not the initially-drafted `#FFF7ED` citrus
-   cream** — `foregroundMuted` measured 4.48:1 against that tint, under 4.5:1 AA. The cream tint
-   is kept, just demoted to `elevated` only. Identical fix, identical reasoning, to
-   `voting-web.md`'s own background flattening.
-3. **Dark-mode `destructive` is never used raw as text** — `#DC2626`/`#EF4444` both measured
-   under 4:1 against this page's specific dark background/card (a genuinely worse result than
-   `voting-web.md` saw against *its* dark background, since this page's dark surfaces are
-   several steps lighter/warmer than voting's near-black OLED canvas). A dedicated
-   `destructiveText: '#FCA5A5'` role (a lighter red-300 tint, itself grounded as a standard
-   step in the same red family already used for `destructive`) is used for any error text sitting
-   directly on `background`/`card` in dark mode; the solid-fill destructive badge (`#DC2626` +
-   white text) is unaffected since fill/text-on-fill contrast doesn't depend on the page
-   background.
+Touch targets (44×44 minimum), 8px+ spacing between adjacent controls, and visible keyboard focus
+rings (every screen in this pass is `Platform.OS==='web'`) were grounded via:
+```
+python "$HOME/.claude/skills/ui-ux-pro-max/scripts/search.py" "contrast focus keyboard touch target" --domain ux -n 5
+```
+Same result set `voting-web.md` already recorded (Focus States/High, Touch Target Size/High,
+Contrast Readability/High, Touch Spacing/Medium) — not re-run as a fresh query since it's an
+unchanged, already-grounded finding, per the "promote, don't re-roll" instruction covering token
+queries specifically (this is a UX-checklist query, re-affirmed rather than re-derived). Every
+icon button is 40–44px in a ≥44px hit area, row/tab/chip gaps use the 8/12/16px spacing scale,
+and every interactive element (top-bar buttons, tabs, cards, form fields, duration presets,
+member/opponent rows, submission thumbnails) carries a `focused` outline ring.
 
 ---
 
 ## Page-Specific Rules
 
-### Layout Overrides
-- **Structure preserved from native** on all six screens, per RESKIN mode — no tab
-  restructuring, no navigation changes: `CompeteScreen` keeps its Challenges/Leaderboards
-  segmented view with Active/Open-to-join/Results sections; the three create/propose screens
-  keep their single-column form shape; the two detail screens keep status → countdown → sides →
-  action → submissions/results.
-- **Shell:** `DesktopShell` (untouched, shared) supplies the sidebar at ≥900px and the 680px
-  content column — same as every other in-app (non-feed) web page.
-- **`FloatingBottomNav active="compete"`** is reused unmodified on `CompeteScreen.web.tsx` (the
-  only one of the six screens that's a `FloatingBottomNav` destination — `feed`/`communities`/
-  `compete`/`profile` are the only entries in that component's own `NavDestination` union). It
-  already self-hides at ≥900px (`Platform.OS === 'web' && width >= DESKTOP_FRAME_MIN_WIDTH`), so
-  it needs zero changes for this pass, matching `feed-web.md`'s and `community-web.md`'s own
-  precedent of reusing it as-is. The other five screens are drill-in/form screens with no bottom
-  nav on native either (back button only via `TopBar`), so `WebCompeteTopBar`'s back button is
-  their only way back, same precedent `voting-web.md` used for its own single drill-in screen.
-- **Breakpoint:** reuses `DESKTOP_FRAME_MIN_WIDTH` (900px), same as every other web page.
+### Layout — one structural change this pass (Phase 2.5, not cosmetic)
 
-### Light/Dark mechanism
-- `constants/webCompeteTheme.ts` exports both palettes (`COMPETE_LIGHT`, `COMPETE_DARK`) plus
-  shared spacing/radius/type-scale/font/shadow constants.
-- `constants/CompeteWebTheme.tsx` exports `CompeteThemeProvider` + `useCompeteWebTheme()`, mounted
-  independently by each of the six `.web.tsx` screens (not global, not coupled to
-  `VotingWebTheme.tsx`/`CommunityWebTheme.tsx` — independent file per this task's explicit scope
-  boundary). Same resolution order as every prior web tree: `localStorage`
-  (`compete-web-theme` key) → `Appearance.getColorScheme()` → light fallback. Toggle lives in
-  `WebCompeteTopBar`, present on all six screens for a consistent cross-screen toggle.
+**Phase 2 finding:** `CompeteScreen`'s `useMyChallenges()` result was previously bucketed into a
+single "Active" section covering BOTH `setup`-status challenges (pending vs-proposals/duels
+awaiting the viewer's or the opponent-community-owner's accept/decline — something blocking on
+the viewer) and `active`-status challenges (already running — action is "submit a meme").
+Distinguishing them required reading each card's small status badge individually; a first-time
+user scanning "what does this screen need from me right now" had no faster way to find it.
 
-### Spacing / Radius / Shape signature
-- 4/8/12/16/24/32px scale (`COMPETE_WEB_SPACING`) — same numeric family every page in this app
-  uses.
-- Card radius **12px** — deliberately the sharpest of the four web systems so far (`feed-web`
-  20px, `community-web` 18px, `voting-web` 16px, this page 12px), reasoned not arbitrary:
-  Neubrutalism's own style notes call for sharp/minimal corners as part of its flat, hard-edged
-  language; 12px keeps touch-friendly rounding without softening the brutalist read into a
-  pillowy card. Pill 999px for buttons/badges (accessible tap-target convention, unchanged
-  cross-page convention).
-- **Two distinct border roles, not one** — a first for this app's web systems, directly following
-  from the Neubrutalism style's own "black outlines" language: `border` (a normal 1px hairline —
-  `#FED7AA` light / `#374151` dark — used for everyday dividers: list rows, inputs, member-picker
-  rows) vs. `outline` (a **2px solid** signature border — `#000000` light / `#F8FAFC` dark — used
-  **only** on emphasis surfaces: the primary CTA button, the win-result banner, the countdown/
-  status cluster, and the "Active" section's challenge cards). This directly implements the
-  brief's energy-placement instruction: chrome/CTAs/badges/countdown get the loud brutalist
-  treatment, while plain list rows, member rows, and — critically — meme/submission thumbnails
-  stay on the quiet `border` role so they remain the calm visual focus.
-- **Hard offset shadow** (`COMPETE_WEB_SHADOW.hard`: `shadowColor:'#000000', shadowOffset:{width:3,
-  height:3}, shadowOpacity:1, shadowRadius:0, elevation:3`) is the style's signature depth cue,
-  applied only alongside `outline` on the same emphasis surfaces above — never blurred, per the
-  style's own "no gradients, no blur" implementation note. Kept a flat black shadow in **both**
-  modes rather than inventing a separate dark-mode shadow color: a shadow reads by being *darker*
-  than its surrounding surface, not by passing a text-contrast ratio, and `#313742`(card)/`
-  #1F2937`(bg) are both lighter than pure black, so the same value still reads correctly as a
-  shadow in dark mode without a mode-specific substitute.
+**Alternatives considered:**
+- **Keep the current single "Active" bucket** (baseline). Optimizes: simplest, fewest sections.
+  Costs: pending items needing the viewer's response are buried among already-running challenges,
+  indistinguishable at a glance from something merely ongoing.
+- **Split into "Needs your response" / "Active" / "Open to join" / "Results" — recommended,
+  implemented.** Optimizes: matches the real priority order of attention (things blocking on
+  you > things you can act on > things you can explore > history); each section renders only
+  when non-empty, so a viewer with nothing pending sees no added clutter. Uses
+  `challenge.status`, data already fetched — no new field, no new request. Costs: one more
+  section label to scan past in the (common) case of nothing pending — minor, self-hiding.
+- **Persistent non-scrolling "Needs your response" rail, à la Voting's persistent header for its
+  winner banner/tabs.** Optimizes: a pending item can never be scrolled past unnoticed. Costs:
+  new layout plumbing for what's usually a 0–1-item edge case (duel/vs-proposals are a
+  comparatively rare event per `.claude/memory/challenges.md`) — disproportionate engineering for
+  the actual frequency of this state; rejected as over-engineering relative to the simpler
+  content-split fix, which already solves the actual scanning problem.
+
+**Recommended and implemented:** the four-section split. `CompeteScreen.web.tsx`'s own top-level
+comment documents this in full; no new component was needed, only a second `.filter()` on data
+already being fetched.
+
+No other structural change was made across the remaining five screens — their native
+question→action shapes (status cluster → sides → accept/decline or submit → results) were
+preserved as-is; this pass's other decisions are visual-system tokens, not layout.
+
+### Navigation
+Unchanged from the retired system: `FloatingBottomNav active="compete"` reused unmodified on
+`CompeteScreen.web.tsx` (the only one of the six screens that's a `FloatingBottomNav`
+destination — `feed`/`communities`/`compete`/`profile` are the only entries in that component's
+`NavDestination` union); it already self-hides at ≥900px, so it needed zero changes. The other
+five screens are drill-in/form screens with no bottom nav on native either — `WebCompeteTopBar`'s
+back button is their only way back, same precedent `voting-web.md` used for its own single
+drill-in screen.
 
 ### Component Notes
-New standalone `components/web/` components, none reusing another page's theme-coupled tree:
-`WebCompeteTopBar`, `WebCompeteButton`, `WebCompeteTextField`, `WebDurationPresets`,
-`WebChallengeStatusBadge`, `WebCountdownTimer` (replaces native `CountdownTimer`),
-`WebChallengeCard` (replaces native `ChallengeRow`), `WebChallengeSideCard`, `WebResultBanner`,
-`WebSubmissionThumb`, `WebSubmissionPicker` (replaces native `SubmissionPicker`),
-`WebSideMemberPicker` (replaces native `SideMemberPicker`), `WebCompeteTabs`.
+All thirteen `components/web/` files import `useVaporwaveTheme()` directly — no page-specific
+theme file of their own, matching Feed/Friends/Voting's pattern exactly (this tree previously had
+one, `CompeteWebTheme.tsx`; it's now deleted). `WebChallengeStatusBadge` centralizes the
+status→treatment map that native still duplicates three times (`ChallengeRow`,
+`ChallengeDetailScreen`, `DuelDetailScreen`) — no informational change, one source of truth,
+carried forward from the retired system's own consolidation.
 
-**Scoping note on the native component list in the task brief**: `HashtagInput.tsx` and
-`DuelProposeModal.tsx` were read in full per instruction, but neither is actually imported by any
-of the six in-scope screens (`HashtagInput` is used only by `features/creator/CreatorScreen.tsx`;
-`DuelProposeModal` only by `features/friends/components/FriendRow.tsx` — both out of this pass's
-six-screen scope, confirmed by grep). No web equivalents were built for those two; building them
-would be scope creep into screens this task doesn't cover.
+**Status→treatment mapping** (reuses MASTER.md's own established native semantic — `active` →
+vivid, `evaluated` → brand/prominent, `setup` → neutral — translated onto Vaporwave's token set,
+not its exact hexes):
+- `active`: solid `indigoSecondary` fill + `onAccent` text — the same "solid fill = live/urgent"
+  convention Voting's own "Live" period badge and `WebVotingTabs`' selected state use.
+- `evaluated`: outline pill, mode-conditional accent border + text — matching Voting's own
+  "Final" treatment for a settled/no-longer-live state. The celebratory emphasis for a win lives
+  in the dedicated `WebResultBanner` instead of this small badge, so the two don't compete for
+  "loudest element on screen."
+- `setup`: neutral `surfaceElevated` fill + `foregroundMuted` text, labeled "Pending" — no
+  informational change from native.
 
-### UX improvements made this pass (and why — RESKIN mode only permits "genuine" ones)
-1. **Duration quick-select presets** (`WebDurationPresets`, chips: 1 hour / 6 hours / 1 day / 3
-   days) on all three create/propose screens (`CreateOpenChallengeScreen`, `CreateChallengeScreen`,
-   `ProposeVsChallengeScreen`). Real, identical gap on all three native screens: each requires
-   typing a raw minutes value (e.g. "1440" for one day) with no unit hint beyond the field label
-   — the exact kind of mental-math friction this app's own `DuelProposeModal` already solved with
-   presets for the fourth challenge-creation entry point. Applied identically across all three
-   (per the cross-screen-consistency check — a settled pattern, not re-invented per screen);
-   additive only, the manual minutes field is kept for custom durations, so no capability is
-   removed.
-2. **Live/Final-equivalent status clarity via `WebChallengeStatusBadge`** — the native
-   `STATUS_STYLES` map already exists (`ChallengeRow`, `ChallengeDetailScreen`,
-   `DuelDetailScreen` each redeclare their own copy) but its only text-vs-color the status is
-   never disambiguated for `setup`-status proposals beyond a plain "Pending" chip. This pass's
-   badge keeps that exact behavior/copy (no informational change) but centralizes the three
-   duplicated `STATUS_STYLES` maps into one themed component, and pairs `active` with the
-   `outline`+hard-shadow emphasis treatment (see Shape signature above) so a live challenge visibly
-   outranks a pending/evaluated one in the Active/Open-to-join/Results stacked list on
-   `CompeteScreen` — a real scan-priority gap on the native screen, which renders all three
-   sections with identical row chrome regardless of urgency.
-3. **No changes to the interaction model** beyond the two additions above — accept/decline,
-   join-a-side, submit-a-meme, and the evaluated-results view all work exactly as before, per
-   RESKIN mode's mandate to leave UX/structure/placement alone.
+**Emphasis device swap:** the retired system's hard 3px offset shadow (Neubrutalism's signature
+depth cue, explicitly "no gradients, no blur") is replaced everywhere by a soft `indigoGlow`
+decorative shadow (exempt from contrast rules, same technique `WebWinnerBanner` uses on Voting) —
+on `WebCompeteButton`'s primary variant, `WebChallengeCard`'s `active`-challenge state, and
+`WebResultBanner`. This is a direct, necessary consequence of adopting Vaporwave's glass/glow
+language in place of Neubrutalism's flat-hard-edge language, not an inconsistency.
+
+**Reuse, not duplication:** `WebSideMemberPicker` now renders each row's avatar via the already-
+generic `WebAvatar` (Feed/Friends/Voting's own member-avatar primitive) instead of a hand-rolled
+initials-fallback circle, per this pass's explicit reuse instruction — the retired system had
+duplicated that fallback logic locally.
+
+### UX carried forward unchanged (real findings from the retired pass, still true under the new visual system)
+1. **Duration quick-select presets** (`WebDurationPresets`) on all three create/propose screens —
+   still fixes the same identical native gap (typing raw minutes with no unit hint). Additive
+   only, manual field still present.
+2. **Centralized status badge** (`WebChallengeStatusBadge`) — still replaces three duplicated
+   native `STATUS_STYLES` maps with one source of truth; no informational change.
 
 ---
 
 ## Known seams (accepted, out of scope for this pass)
 
-- `DesktopShell`/`DesktopSidebarNav` render in `feed-web.md`'s already-diverged old-token chrome
-  (`#1e0f13`/`#372529`) — the same accepted shell-boundary seam every prior web pilot has
-  documented.
+- `DesktopShell`/`DesktopSidebarNav` render in the older pre-Vaporwave chrome (`#1e0f13`/
+  `#372529`) — the same accepted shell-boundary seam every prior Vaporwave pilot has documented.
 - **`CompeteScreen.web.tsx`'s Leaderboards segment** reuses the native `LeaderboardsPanel`
-  (→ `IndividualLeaderboardRow`/`CommunityLeaderboardRow`) unrestyled — explicitly out of this
-  six-screen scope (Leaderboards is its own `features/leaderboards/` tree, not one of the six
-  named target files). Because those rows assume MASTER.md's dark-only palette, the container
-  wrapping them uses a **fixed dark surface sourced verbatim from MASTER.md's own `bg`/`surface`/
-  `outline-variant`/`ink-muted`/`error`/`primary` tokens** (not this page's light/dark toggle) —
-  identical precedent to `community-web.md`'s own Leaderboard/Challenges-tab seam, verified by the
-  same reasoning (this page's own orange/green measured well under 4.5:1 against that fixed dark
-  card; MASTER's own pink primary and error token were already verified legible there).
+  unrestyled — out of this six-screen scope (Leaderboards is its own `features/leaderboards/`
+  tree, migrating in a later pass per the ordered sequence). The container wrapping it uses a
+  fixed dark surface sourced verbatim from MASTER.md's own native `bg` token (`#1e0f13`), not this
+  page's light/dark toggle — identical precedent to the retired system's own identical seam,
+  carried forward unchanged (the native rows assume MASTER's dark-only palette regardless of
+  which system wraps them).
 - The `/new-post` (creator) route, reached via the "Create a meme for this challenge" CTA on both
-  detail screens, is native-resolved and renders unstyled on web — out of scope, same accepted
-  seam `community-web.md` documented for the same route.
+  detail screens, is native-resolved and renders unstyled on web — unchanged, same accepted seam
+  every prior web pass has documented for this same route.
 
 ---
 
-## Next steps (do not do this automatically)
+## Next steps
 
-Compete/Challenges is the pilot for this system only. Do not propagate this palette/typography to
-Feed, Communities, Voting, Leaderboards, or any other screen until a human has reviewed the
-rendered result and explicitly approved the direction.
+Challenges/Compete is screen 2 of 5 in the ordered Vaporwave migration sequence (Voting →
+**Challenges** → Leaderboard → Profile → Inbox). Per the standing-default status this system
+already has (see MASTER.md), no further approval gate is required before Leaderboard's own
+migration pass — but per the PILOT-SCREEN precedent this system established on Feed/Friends and
+re-confirmed on Voting, `pages/community-web.md`/`pages/profile-web.md`'s independent systems
+remain untouched until each of those screens gets its own dedicated migration pass.

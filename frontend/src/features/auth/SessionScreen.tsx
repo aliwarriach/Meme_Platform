@@ -7,6 +7,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import Avatar from '@/components/Avatar';
 import FloatingBottomNav from '@/components/FloatingBottomNav';
 import PillButton from '@/components/PillButton';
+import { EmailVerificationBanner } from '@/features/auth/EmailVerificationBanner';
 import { useMyBadges } from '@/services/useBadges';
 import { useProfileScore } from '@/services/useLeaderboards';
 import { signOut } from '@/store/authSlice';
@@ -47,6 +48,8 @@ export default function SessionScreen() {
             <Text className="mt-2 text-center font-body text-sm text-ink">{user.bio}</Text>
           ) : null}
         </View>
+
+        {!user.emailVerifiedAt ? <EmailVerificationBanner /> : null}
 
         <View className="mb-6 items-center rounded-card border border-outline-variant/30 bg-surface py-4">
           <Text className="font-label text-xs uppercase tracking-wide text-ink-muted">Meme Score</Text>

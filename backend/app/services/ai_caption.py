@@ -13,16 +13,30 @@ from app.core.redis import get_arq_pool
 from app.schemas.ai_caption import CaptionSuggestionOut
 
 JOB_RESULT_TIMEOUT_SECONDS = 15
+# Enforced server-side on the *response*, independent of whether the model actually
+# honors the system prompt's "max 100 characters" instruction — see M-4.
+MAX_CAPTION_LENGTH = 100
 
 
 def _build_prompt(context: str, current_caption: str | None) -> str:
+    # `context` and `current_caption` are attacker-controlled (any authenticated user).
+    # Fencing them in a <user_data> block, and telling the model as much in the system
+    # prompt (integrations/llm_client.py), stops a crafted context/caption from being
+    # read as an instruction and hijacking the completion (SecurityIssues.md M-4).
     if current_caption:
         return (
+            "<user_data>\n"
             f'Meme context: "{context}"\n'
             f'Current caption: "{current_caption}"\n'
-            "Make this caption funnier. Keep it short."
+            "</user_data>\n"
+            "Make the current caption above funnier. Keep it short."
         )
-    return f'Meme context: "{context}"\nWrite a funny caption for this meme.'
+    return (
+        "<user_data>\n"
+        f'Meme context: "{context}"\n'
+        "</user_data>\n"
+        "Write a funny caption for the meme context above."
+    )
 
 
 async def generate_meme_caption(context: str, current_caption: str | None) -> CaptionSuggestionOut:
@@ -39,4 +53,4 @@ async def generate_meme_caption(context: str, current_caption: str | None) -> Ca
         raise CaptionGenerationFailedError(
             "Couldn't generate a caption suggestion right now — try again or write your own."
         ) from exc
-    return CaptionSuggestionOut(caption=caption)
+    return CaptionSuggestionOut(caption=caption[:MAX_CAPTION_LENGTH])

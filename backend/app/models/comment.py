@@ -3,11 +3,11 @@ import uuid
 from sqlalchemy import ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base, TimestampMixin, UUIDPKMixin
+from app.db.base import Base, SoftDeleteMixin, TimestampMixin, UUIDPKMixin
 from app.models.user import User
 
 
-class Comment(UUIDPKMixin, TimestampMixin, Base):
+class Comment(UUIDPKMixin, TimestampMixin, SoftDeleteMixin, Base):
     __tablename__ = "comments"
 
     meme_id: Mapped[uuid.UUID] = mapped_column(

@@ -2,7 +2,7 @@ import uuid
 
 from fastapi import APIRouter, Request
 
-from app.core.deps import CurrentUser, DbSession
+from app.core.deps import CurrentUser, CurrentVerifiedUser, DbSession
 from app.core.rate_limit import limiter
 from app.schemas.instagram import (
     ContainerCommentCreate,
@@ -40,9 +40,11 @@ async def cast_container_vote(
     request: Request,
     container_id: uuid.UUID,
     data: VoteCast,
-    current_user: CurrentUser,
+    current_user: CurrentVerifiedUser,
     db: DbSession,
 ) -> MemeContainerOut:
+    # Requires a verified email (SecurityFeatures.md F-1), same rationale as the native
+    # meme vote endpoint — one vote-farming abuse surface, two content types.
     return await instagram_service.cast_container_vote(db, current_user, container_id, data.value)
 
 

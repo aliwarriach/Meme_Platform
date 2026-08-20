@@ -1,8 +1,16 @@
 import asyncio
+import datetime
 
 from httpx import AsyncClient
 
 from tests.conftest import register as _register
+
+
+def _dob_for_age(years: int) -> str:
+    """A date of birth that makes someone exactly `years` old today (a day or two of
+    slack doesn't matter for these tests — well clear of the 13-year boundary either way)."""
+    today = datetime.date.today()
+    return today.replace(year=today.year - years).isoformat()
 
 
 async def test_register_creates_user_and_returns_token(client: AsyncClient):
@@ -12,6 +20,21 @@ async def test_register_creates_user_and_returns_token(client: AsyncClient):
     assert body["user"]["email"] == "alice@test.com"
     assert body["user"]["username"] == "alice"
     assert "access_token" in body
+
+
+async def test_register_rejects_under_13(client: AsyncClient):
+    """SecurityFeatures.md F-13 — no row is created for a rejected under-13 signup."""
+    response = await _register(client, date_of_birth=_dob_for_age(12))
+    assert response.status_code == 400
+
+    # Confirmed nothing was persisted: the same email can still register as an adult.
+    retry = await _register(client, date_of_birth=_dob_for_age(20))
+    assert retry.status_code == 201
+
+
+async def test_register_accepts_exactly_13(client: AsyncClient):
+    response = await _register(client, date_of_birth=_dob_for_age(13))
+    assert response.status_code == 201
 
 
 async def test_register_rejects_duplicate_email(client: AsyncClient):
@@ -74,11 +97,21 @@ async def test_concurrent_duplicate_registration_never_returns_500(client: Async
     responses = await asyncio.gather(
         client.post(
             "/auth/register",
-            json={"email": "race@test.com", "username": "racer1", "password": "password123"},
+            json={
+                "email": "race@test.com",
+                "username": "racer1",
+                "password": "password123",
+                "date_of_birth": "2000-01-01",
+            },
         ),
         client.post(
             "/auth/register",
-            json={"email": "race@test.com", "username": "racer2", "password": "password123"},
+            json={
+                "email": "race@test.com",
+                "username": "racer2",
+                "password": "password123",
+                "date_of_birth": "2000-01-01",
+            },
         ),
     )
     assert sorted(r.status_code for r in responses) == [201, 409]

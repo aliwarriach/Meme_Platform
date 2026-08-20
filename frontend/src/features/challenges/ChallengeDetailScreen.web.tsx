@@ -1,4 +1,6 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import { useEffect, useMemo } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
@@ -11,8 +13,9 @@ import { WebCountdownTimer } from '@/components/web/WebCountdownTimer';
 import { WebResultBanner } from '@/components/web/WebResultBanner';
 import { WebSubmissionPicker } from '@/components/web/WebSubmissionPicker';
 import { WebSubmissionThumb } from '@/components/web/WebSubmissionThumb';
-import { CompeteThemeProvider, useCompeteWebTheme } from '@/constants/CompeteWebTheme';
-import { COMPETE_WEB_SHADOW, COMPETE_WEB_SPACING, COMPETE_WEB_TYPE } from '@/constants/webCompeteTheme';
+import type { VaporwaveTheme } from '@/constants/webFeedThemeVapor';
+import { injectFeedWebFont } from '@/constants/webFeedThemeVapor';
+import { VaporwaveThemeProvider, useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 import type { MemeResponse } from '@/services/memes';
 import { useCommunityFeed } from '@/services/useMemes';
 import { useMyCommunities } from '@/services/useCommunities';
@@ -33,13 +36,21 @@ interface ChallengeDetailScreenProps {
 /**
  * Web-only sibling of `features/challenges/ChallengeDetailScreen.tsx` (native-resolved,
  * untouched) — community-scoped challenge detail, covering both `intra_community` and
- * `community_vs_community` shapes. Same business logic/data as native (side resolution differs
- * by shape, vs-proposal accept/decline gating, own-meme submission), new chrome.
+ * `community_vs_community` shapes. Migrated off the retired independent Neubrutalism theme onto
+ * the project-standard Vaporwave/Luminous glass system — see
+ * `design-system/meme-platform/pages/compete-web.md`. Same business logic/data as native (side
+ * resolution differs by shape, vs-proposal accept/decline gating, own-meme submission) — no
+ * interaction-model change, only chrome.
  */
 function ChallengeDetailScreenContent({ communityId, challengeId }: ChallengeDetailScreenProps) {
   const router = useRouter();
-  const { colors } = useCompeteWebTheme();
+  const { colors, type, spacing } = useVaporwaveTheme();
+  const styles = useMemo(() => createStyles(colors, spacing), [colors, spacing]);
   const currentUser = useSelector((state: RootState) => state.auth.user);
+
+  useEffect(() => {
+    injectFeedWebFont();
+  }, []);
 
   const challengeQuery = useChallenge(communityId, challengeId);
   const challenge = challengeQuery.data;
@@ -77,12 +88,11 @@ function ChallengeDetailScreenContent({ communityId, challengeId }: ChallengeDet
 
   if (challengeQuery.isLoading || !challenge) {
     return (
-      <View style={[styles.centerRoot, { backgroundColor: colors.background }]}>
+      <View style={styles.root}>
+        <LinearGradient colors={[colors.gradientTop, colors.gradientMid, colors.gradientBottom]} style={StyleSheet.absoluteFill} />
         <SafeAreaView style={styles.centerSafe}>
           {challengeQuery.isError ? (
-            <Text style={[COMPETE_WEB_TYPE.body, styles.centerPad, { color: colors.destructiveText }]}>
-              {challengeQuery.error?.message}
-            </Text>
+            <Text style={[type.body, styles.centerPad, { color: colors.error }]}>{challengeQuery.error?.message}</Text>
           ) : (
             <ActivityIndicator color={colors.foregroundMuted} />
           )}
@@ -94,20 +104,17 @@ function ChallengeDetailScreenContent({ communityId, challengeId }: ChallengeDet
   const winningSide = challenge.sides.find((side) => side.id === challenge.winning_side_id);
 
   return (
-    <View style={[styles.root, { backgroundColor: colors.background }]}>
+    <View style={styles.root}>
+      <LinearGradient colors={[colors.gradientTop, colors.gradientMid, colors.gradientBottom]} style={StyleSheet.absoluteFill} />
       <SafeAreaView style={styles.safe} edges={['top']}>
         <WebCompeteTopBar title={challenge.title} />
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-          <View
-            style={[
-              styles.statusCluster,
-              { backgroundColor: colors.card, borderColor: colors.outline, ...COMPETE_WEB_SHADOW.hard },
-            ]}>
+          <View style={[styles.statusCluster, { backgroundColor: colors.surfaceGlass, borderColor: colors.border }]}>
             <WebChallengeStatusBadge status={challenge.status} />
             {challenge.status === 'active' ? (
-              <WebCountdownTimer endTime={challenge.end_time} style={[COMPETE_WEB_TYPE.meta, { color: colors.foregroundMuted }]} />
+              <WebCountdownTimer endTime={challenge.end_time} style={[type.meta, { color: colors.foregroundMuted }]} />
             ) : isEvaluated ? (
-              <Text style={[COMPETE_WEB_TYPE.meta, { color: colors.foregroundMuted }]}>
+              <Text style={[type.meta, { color: colors.foregroundMuted }]}>
                 Ended {new Date(challenge.end_time).toLocaleString()}
               </Text>
             ) : null}
@@ -123,7 +130,7 @@ function ChallengeDetailScreenContent({ communityId, challengeId }: ChallengeDet
               showMemberCount={!isVsChallenge}
               showParticipantCount={false}
             />
-            <Text style={[COMPETE_WEB_TYPE.vsText, styles.vsText, { color: colors.foregroundMuted }]}>VS</Text>
+            <Text style={[type.h2, styles.vsText, { color: colors.foregroundMuted }]}>VS</Text>
             <WebChallengeSideCard
               side={challenge.sides[1]}
               isViewerSide={challenge.sides[1]?.id === mySideId}
@@ -151,19 +158,19 @@ function ChallengeDetailScreenContent({ communityId, challengeId }: ChallengeDet
             </View>
           ) : null}
           {acceptChallenge.isError || declineChallenge.isError ? (
-            <Text style={[COMPETE_WEB_TYPE.body, { color: colors.destructiveText, marginTop: COMPETE_WEB_SPACING.sm }]}>
+            <Text style={[type.body, { color: colors.error, marginTop: spacing.sm }]}>
               {acceptChallenge.error?.message ?? declineChallenge.error?.message}
             </Text>
           ) : null}
           {isPendingProposal && !isOpponentOwner ? (
-            <Text style={[COMPETE_WEB_TYPE.body, { color: colors.foregroundMuted, marginTop: COMPETE_WEB_SPACING.sm }]}>
+            <Text style={[type.body, { color: colors.foregroundMuted, marginTop: spacing.sm }]}>
               Waiting for the challenged community&apos;s owner to respond.
             </Text>
           ) : null}
 
           {challenge.status === 'active' && mySideId ? (
             <View style={styles.section}>
-              <Text style={[COMPETE_WEB_TYPE.label, { color: colors.foregroundMuted, marginBottom: COMPETE_WEB_SPACING.sm }]}>
+              <Text style={[type.label, { color: colors.foregroundMuted, marginBottom: spacing.sm }]}>
                 Competing for {challenge.sides.find((s) => s.id === mySideId)?.name}
               </Text>
               <WebCompeteButton
@@ -172,11 +179,7 @@ function ChallengeDetailScreenContent({ communityId, challengeId }: ChallengeDet
                 fullWidth
               />
 
-              <Text
-                style={[
-                  COMPETE_WEB_TYPE.label,
-                  { color: colors.foregroundMuted, marginTop: COMPETE_WEB_SPACING.lg, marginBottom: COMPETE_WEB_SPACING.sm },
-                ]}>
+              <Text style={[type.label, { color: colors.foregroundMuted, marginTop: spacing.lg, marginBottom: spacing.sm }]}>
                 Or submit something you already posted
               </Text>
               <WebSubmissionPicker
@@ -187,30 +190,26 @@ function ChallengeDetailScreenContent({ communityId, challengeId }: ChallengeDet
                 onSubmit={(memeId) => submitMeme.mutate(memeId)}
               />
               {submitMeme.isError ? (
-                <Text style={[COMPETE_WEB_TYPE.body, { color: colors.destructiveText, marginBottom: COMPETE_WEB_SPACING.md }]}>
-                  {submitMeme.error?.message}
-                </Text>
+                <Text style={[type.body, { color: colors.error, marginBottom: spacing.md }]}>{submitMeme.error?.message}</Text>
               ) : null}
             </View>
           ) : null}
 
           {challenge.status === 'active' && !mySideId ? (
-            <Text style={[COMPETE_WEB_TYPE.body, { color: colors.foregroundMuted, marginTop: COMPETE_WEB_SPACING.lg }]}>
+            <Text style={[type.body, { color: colors.foregroundMuted, marginTop: spacing.lg }]}>
               You are not assigned to a side in this challenge.
             </Text>
           ) : null}
 
           {isEvaluated ? (
             <View style={styles.section}>
-              <Text style={[COMPETE_WEB_TYPE.label, { color: colors.foregroundMuted, marginBottom: COMPETE_WEB_SPACING.sm }]}>
-                Submissions
-              </Text>
+              <Text style={[type.label, { color: colors.foregroundMuted, marginBottom: spacing.sm }]}>Submissions</Text>
               {resultsQuery.isLoading ? (
                 <ActivityIndicator style={{ marginVertical: 16 }} color={colors.foregroundMuted} />
               ) : resultsQuery.isError ? (
-                <Text style={[COMPETE_WEB_TYPE.body, { color: colors.destructiveText }]}>{resultsQuery.error?.message}</Text>
+                <Text style={[type.body, { color: colors.error }]}>{resultsQuery.error?.message}</Text>
               ) : submissions.length === 0 ? (
-                <Text style={[COMPETE_WEB_TYPE.body, { color: colors.foregroundMuted }]}>No submissions were made.</Text>
+                <Text style={[type.body, { color: colors.foregroundMuted }]}>No submissions were made.</Text>
               ) : (
                 <View style={styles.submissionsGrid}>
                   {submissions.map((submission) => (
@@ -233,48 +232,48 @@ function ChallengeDetailScreenContent({ communityId, challengeId }: ChallengeDet
 
 export default function ChallengeDetailScreen(props: ChallengeDetailScreenProps) {
   return (
-    <CompeteThemeProvider>
+    <VaporwaveThemeProvider>
       <ChallengeDetailScreenContent {...props} />
-    </CompeteThemeProvider>
+    </VaporwaveThemeProvider>
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1 },
-  safe: { flex: 1 },
-  centerRoot: { flex: 1 },
-  centerSafe: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  centerPad: { paddingHorizontal: COMPETE_WEB_SPACING.lg, textAlign: 'center' },
-  scroll: { flex: 1, paddingHorizontal: COMPETE_WEB_SPACING.lg },
-  scrollContent: { paddingTop: COMPETE_WEB_SPACING.lg, paddingBottom: 48 },
-  statusCluster: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: COMPETE_WEB_SPACING.sm,
-    borderRadius: 12,
-    borderWidth: 2,
-    padding: COMPETE_WEB_SPACING.md,
-    marginBottom: COMPETE_WEB_SPACING.lg,
-  },
-  sidesRow: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    gap: COMPETE_WEB_SPACING.sm,
-    marginBottom: COMPETE_WEB_SPACING.md,
-  },
-  vsText: {
-    alignSelf: 'center',
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    gap: COMPETE_WEB_SPACING.md,
-    marginTop: COMPETE_WEB_SPACING.sm,
-  },
-  section: {
-    marginTop: COMPETE_WEB_SPACING.lg,
-  },
-  submissionsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-});
+const createStyles = (colors: VaporwaveTheme['colors'], spacing: VaporwaveTheme['spacing']) =>
+  StyleSheet.create({
+    root: { flex: 1 },
+    safe: { flex: 1 },
+    centerSafe: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+    centerPad: { paddingHorizontal: spacing.lg, textAlign: 'center' },
+    scroll: { flex: 1, paddingHorizontal: spacing.lg },
+    scrollContent: { paddingTop: spacing.lg, paddingBottom: 48 },
+    statusCluster: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      borderRadius: 16,
+      borderWidth: 1,
+      padding: spacing.md,
+      marginBottom: spacing.lg,
+    },
+    sidesRow: {
+      flexDirection: 'row',
+      alignItems: 'stretch',
+      gap: spacing.sm,
+      marginBottom: spacing.md,
+    },
+    vsText: {
+      alignSelf: 'center',
+    },
+    actionsRow: {
+      flexDirection: 'row',
+      gap: spacing.md,
+      marginTop: spacing.sm,
+    },
+    section: {
+      marginTop: spacing.lg,
+    },
+    submissionsGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+    },
+  });

@@ -1,12 +1,13 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import WebAvatar from '@/components/web/WebAvatar';
 import WebVotePill from '@/components/web/WebVotePill';
-import { FEED_WEB_COLORS, FEED_WEB_RADIUS, FEED_WEB_SPACING, FEED_WEB_TYPE } from '@/constants/webFeedTheme';
+import type { VaporwaveTheme } from '@/constants/webFeedThemeVapor';
 import { CommentsSection } from '@/features/feed/components/CommentsSection';
+import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 import { SendMemeModal } from '@/features/meme-sending/SendMemeModal';
 import { shareMemeImage } from '@/features/sharing/shareMeme';
 import type { MemeResponse } from '@/services/memes';
@@ -32,6 +33,8 @@ export function WebMemeCard({ meme }: WebMemeCardProps) {
   const castVote = useCastVoteMutation();
   const recordView = useRecordMemeViewMutation();
   const cardRef = useRecordViewOnVisible(() => recordView.mutate(meme.id));
+  const { colors: FEED_WEB_COLORS, type: FEED_WEB_TYPE, radius: FEED_WEB_RADIUS, spacing: FEED_WEB_SPACING } = useVaporwaveTheme();
+  const styles = useMemo(() => createStyles(FEED_WEB_COLORS, FEED_WEB_RADIUS, FEED_WEB_SPACING), [FEED_WEB_COLORS, FEED_WEB_RADIUS, FEED_WEB_SPACING]);
 
   const isVoting = castVote.isPending;
 
@@ -148,7 +151,11 @@ export function WebMemeCard({ meme }: WebMemeCardProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (
+  FEED_WEB_COLORS: VaporwaveTheme['colors'],
+  FEED_WEB_RADIUS: VaporwaveTheme['radius'],
+  FEED_WEB_SPACING: VaporwaveTheme['spacing'],
+) => StyleSheet.create({
   card: {
     marginBottom: FEED_WEB_SPACING.lg,
     borderRadius: FEED_WEB_RADIUS.card,
@@ -202,7 +209,7 @@ const styles = StyleSheet.create({
     borderRadius: FEED_WEB_RADIUS.pill,
   },
   iconButtonHovered: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: FEED_WEB_COLORS.hoverTint,
   },
   commentButton: {
     flexDirection: 'row',

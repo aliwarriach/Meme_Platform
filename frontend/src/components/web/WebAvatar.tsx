@@ -1,7 +1,9 @@
 import { Image } from 'expo-image';
+import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { FEED_WEB_COLORS, FEED_WEB_FONT_STACK } from '@/constants/webFeedTheme';
+import type { VaporwaveTheme } from '@/constants/webFeedThemeVapor';
+import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 
 interface WebAvatarProps {
   username: string;
@@ -9,10 +11,12 @@ interface WebAvatarProps {
   size?: number;
 }
 
-/** Circular avatar for the "Dark Cinema" web feed — indigo-ring initials fallback, matching
- * this page's own token set. Not a reskin of the shared `components/Avatar.tsx` (that file
+/** Circular avatar for the web feed — indigo-ring initials fallback, matching this page's own
+ * token set (light/dark aware). Not a reskin of the shared `components/Avatar.tsx` (that file
  * is native-resolved); this is a standalone equivalent scoped to the web feed tree. */
 export default function WebAvatar({ username, avatarUrl, size = 36 }: WebAvatarProps) {
+  const { colors: FEED_WEB_COLORS, fontStack } = useVaporwaveTheme();
+  const styles = useMemo(() => createStyles(FEED_WEB_COLORS, fontStack), [FEED_WEB_COLORS, fontStack]);
   const dimension = { height: size, width: size, borderRadius: size / 2 };
 
   if (avatarUrl) {
@@ -26,7 +30,7 @@ export default function WebAvatar({ username, avatarUrl, size = 36 }: WebAvatarP
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (FEED_WEB_COLORS: VaporwaveTheme['colors'], fontStack: string) => StyleSheet.create({
   image: {
     borderWidth: 1,
     borderColor: FEED_WEB_COLORS.borderHighlight,
@@ -39,7 +43,7 @@ const styles = StyleSheet.create({
     borderColor: FEED_WEB_COLORS.borderHighlight,
   },
   initials: {
-    fontFamily: FEED_WEB_FONT_STACK,
+    fontFamily: fontStack,
     fontWeight: '600',
     color: FEED_WEB_COLORS.onAccent,
   },

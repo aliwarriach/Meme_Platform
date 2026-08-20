@@ -1,5 +1,5 @@
 import { api } from '@/services/api';
-import type { AuthUserResponse } from '@/services/auth';
+import type { PublicUserResponse } from '@/services/auth';
 import type { MemeResponse } from '@/services/memes';
 import { appendImageToFormData } from '@/utils/multipartImage';
 
@@ -21,10 +21,10 @@ export interface ChallengeResponse {
   community_id: string | null;
   opponent_community_id: string | null;
   hashtag: string | null;
-  creator: AuthUserResponse;
+  creator: PublicUserResponse;
   // `duel` only: the challenged friend, set from proposal even before they've accepted.
   invitee_id: string | null;
-  invitee: AuthUserResponse | null;
+  invitee: PublicUserResponse | null;
   title: string;
   challenge_type: ChallengeType;
   status: ChallengeStatus;
@@ -37,7 +37,7 @@ export interface ChallengeResponse {
 export interface ChallengeSubmissionResponse {
   id: string;
   side_id: string;
-  submitter: AuthUserResponse;
+  submitter: PublicUserResponse;
   meme: MemeResponse;
   created_at: string;
 }

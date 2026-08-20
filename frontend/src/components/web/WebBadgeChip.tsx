@@ -1,41 +1,50 @@
 import { MaterialIcons } from '@expo/vector-icons';
+import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { useProfileWebTheme } from '@/constants/ProfileWebTheme';
-import { PROFILE_WEB_RADIUS, PROFILE_WEB_SPACING, PROFILE_WEB_TYPE } from '@/constants/webProfileTheme';
+import type { VaporwaveTheme } from '@/constants/webFeedThemeVapor';
+import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 
 interface WebBadgeChipProps {
   label: string;
   points: number;
 }
 
-/** Solid gold-fill badge chip, not a tinted-background + colored-text chip — per the voting-web
- * accessibility audit this palette is built on, gold-as-text-on-tint measured under 4.5:1 AA, so
- * every badge/rank chip across this palette family uses a solid fill + `onGold` text instead
- * (same structural decision `voting-web.md` documents for its own top-3 rank badge). */
+/**
+ * Solid-fill badge chip — Vaporwave/Luminous equivalent of the retired independent-theme
+ * `WebBadgeChip`. Solid `indigoSecondary` fill + `onAccent` text, never a tinted background with
+ * colored text on top: the retired system's own audit found gold-as-text-on-tint failed 4.5:1, and
+ * this system's own established rule (top-3 rank badge / selected tab / "You" badge, all
+ * `voting-web.md`/`leaderboard-web.md`) is the same solid-fill treatment, reused verbatim here per
+ * the cross-screen consistency check rather than inventing a second badge-chip language.
+ */
 export default function WebBadgeChip({ label, points }: WebBadgeChipProps) {
-  const { colors } = useProfileWebTheme();
+  const { colors, type, radius, spacing } = useVaporwaveTheme();
+  const styles = useMemo(() => createStyles(colors, radius, spacing), [colors, radius, spacing]);
 
   return (
-    <View
-      style={[
-        styles.root,
-        { backgroundColor: colors.gold, borderRadius: PROFILE_WEB_RADIUS.pill },
-      ]}>
-      <MaterialIcons name="emoji-events" size={16} color={colors.onGold} />
-      <Text style={[PROFILE_WEB_TYPE.meta, { color: colors.onGold }]}>
+    <View style={styles.root}>
+      <MaterialIcons name="emoji-events" size={16} color={colors.onAccent} />
+      <Text style={[type.meta, { color: colors.onAccent }]}>
         {label} · +{points}
       </Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  root: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: PROFILE_WEB_SPACING.xs,
-    paddingHorizontal: PROFILE_WEB_SPACING.md,
-    paddingVertical: PROFILE_WEB_SPACING.sm,
-  },
-});
+const createStyles = (
+  colors: VaporwaveTheme['colors'],
+  radius: VaporwaveTheme['radius'],
+  spacing: VaporwaveTheme['spacing'],
+) =>
+  StyleSheet.create({
+    root: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+      backgroundColor: colors.indigoSecondary,
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+    },
+  });

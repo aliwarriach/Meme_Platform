@@ -7,6 +7,7 @@ import { useDispatch } from 'react-redux';
 
 import PillButton from '@/components/PillButton';
 import { TextField } from '@/components/TextField';
+import { GoogleSignInFlow } from '@/features/auth/GoogleSignInFlow';
 import { registerSchema, type RegisterFormValues } from '@/features/auth/schemas';
 import { useRegisterMutation } from '@/services/useAuth';
 import { persistCredentials } from '@/store/authSlice';
@@ -23,12 +24,17 @@ export default function RegisterScreen() {
     formState: { errors },
   } = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
-    defaultValues: { email: '', username: '', password: '' },
+    defaultValues: { email: '', username: '', password: '', dateOfBirth: '' },
   });
 
   const onSubmit = handleSubmit(async (values) => {
     try {
-      const result = await registerMutation.mutateAsync(values);
+      const result = await registerMutation.mutateAsync({
+        email: values.email,
+        username: values.username,
+        password: values.password,
+        date_of_birth: values.dateOfBirth,
+      });
       // .unwrap() so a session-persistence failure (e.g. secure storage unavailable)
       // throws instead of silently leaving the user stuck on this screen.
       await dispatch(persistCredentials({ token: result.access_token, user: result.user })).unwrap();
@@ -86,6 +92,21 @@ export default function RegisterScreen() {
             />
           )}
         />
+        <Controller
+          control={control}
+          name="dateOfBirth"
+          render={({ field }) => (
+            <TextField
+              label="Date of Birth (YYYY-MM-DD)"
+              placeholder="2000-01-31"
+              keyboardType="number-pad"
+              maxLength={10}
+              value={field.value}
+              onChangeText={field.onChange}
+              error={errors.dateOfBirth?.message}
+            />
+          )}
+        />
 
         {registerMutation.isError ? (
           <Text className="mb-4 font-body text-sm text-error">{registerMutation.error.message}</Text>
@@ -96,6 +117,8 @@ export default function RegisterScreen() {
           onPress={onSubmit}
           loading={registerMutation.isPending}
         />
+
+        <GoogleSignInFlow />
 
         <View className="mt-6 flex-row justify-center">
           <Text className="font-body text-ink-muted">Already have an account? </Text>

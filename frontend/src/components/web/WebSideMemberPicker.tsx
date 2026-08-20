@@ -1,7 +1,9 @@
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { useCompeteWebTheme } from '@/constants/CompeteWebTheme';
-import { COMPETE_WEB_RADIUS, COMPETE_WEB_SPACING, COMPETE_WEB_TYPE, type WebPressableState } from '@/constants/webCompeteTheme';
+import WebAvatar from '@/components/web/WebAvatar';
+import type { VaporwaveTheme } from '@/constants/webFeedThemeVapor';
+import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 import type { MembershipResponse } from '@/services/communities';
 
 interface WebSideMemberPickerProps {
@@ -12,16 +14,27 @@ interface WebSideMemberPickerProps {
   onToggle: (userId: string) => void;
 }
 
+interface WebPressableState {
+  pressed: boolean;
+  hovered?: boolean;
+  focused?: boolean;
+}
+
 /** Replaces native `components/SideMemberPicker.tsx` for `CreateChallengeScreen.web.tsx` — same
  * mutual-exclusion behavior (a member on Side A is disabled, not just visually differentiated, on
- * Side B's list) and data source, new chrome. Row-level, so it deliberately stays on the quiet
- * `border` role, not `outline` — this is a working checklist, not an emphasis surface. */
+ * Side B's list) and data source, now Vaporwave/Luminous chrome. Reuses the already-generic
+ * `WebAvatar` (Feed/Friends/Voting's own member-avatar primitive) for each row's avatar instead
+ * of duplicating an initials-fallback circle, per this pass's explicit reuse instruction. Row
+ * itself stays on the quiet `border`/`surfaceGlass` roles, not a glow/emphasis surface — this is
+ * a working checklist, not a celebratory moment. */
 export function WebSideMemberPicker({ members, sideName, selectedUserIds, disabledUserIds, onToggle }: WebSideMemberPickerProps) {
-  const { colors } = useCompeteWebTheme();
+  const { colors, type, radius, spacing, mode } = useVaporwaveTheme();
+  const styles = useMemo(() => createStyles(radius, spacing), [radius, spacing]);
+  const ringColor = mode === 'dark' ? colors.indigoPrimary : colors.indigoSecondary;
 
   return (
-    <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      <Text style={[COMPETE_WEB_TYPE.label, { color: colors.foregroundMuted, marginBottom: COMPETE_WEB_SPACING.sm }]}>
+    <View style={[styles.card, { backgroundColor: colors.surfaceGlass, borderColor: colors.border }]}>
+      <Text style={[type.label, { color: colors.foregroundMuted, marginBottom: spacing.sm }]}>
         {sideName || 'Unnamed side'}
       </Text>
       {members.map((member) => {
@@ -37,17 +50,13 @@ export function WebSideMemberPicker({ members, sideName, selectedUserIds, disabl
             onPress={() => onToggle(member.user.id)}
             style={({ hovered, focused }: WebPressableState) => [
               styles.row,
-              selected && { backgroundColor: colors.primary },
+              selected && { backgroundColor: colors.indigoSecondary },
               disabledByOtherSide && styles.disabledRow,
-              hovered && !selected && !disabledByOtherSide && { backgroundColor: colors.elevatedHover },
-              focused && { outlineColor: colors.ring, outlineWidth: 2, outlineOffset: 1 },
+              hovered && !selected && !disabledByOtherSide && { backgroundColor: colors.surfaceHover },
+              focused && { outlineColor: ringColor, outlineWidth: 2, outlineOffset: 1 },
             ]}>
-            <View style={[styles.avatar, { backgroundColor: selected ? colors.onPrimary : colors.elevated }]}>
-              <Text style={[COMPETE_WEB_TYPE.meta, { color: selected ? colors.primary : colors.cardForeground }]}>
-                {member.user.username.slice(0, 2).toUpperCase()}
-              </Text>
-            </View>
-            <Text style={[COMPETE_WEB_TYPE.body, { color: selected ? colors.onPrimary : colors.cardForeground }]}>
+            <WebAvatar username={member.user.username} avatarUrl={member.user.avatar_url} size={28} />
+            <Text style={[type.body, { color: selected ? colors.onAccent : colors.foreground }]}>
               {member.user.username}
             </Text>
           </Pressable>
@@ -57,30 +66,24 @@ export function WebSideMemberPicker({ members, sideName, selectedUserIds, disabl
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    marginBottom: COMPETE_WEB_SPACING.lg,
-    borderRadius: COMPETE_WEB_RADIUS.card,
-    borderWidth: 1,
-    padding: COMPETE_WEB_SPACING.md,
-  },
-  row: {
-    minHeight: 44,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: COMPETE_WEB_SPACING.sm,
-    borderRadius: COMPETE_WEB_RADIUS.pill,
-    paddingHorizontal: COMPETE_WEB_SPACING.sm,
-    marginBottom: 2,
-  },
-  disabledRow: {
-    opacity: 0.3,
-  },
-  avatar: {
-    height: 32,
-    width: 32,
-    borderRadius: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
+const createStyles = (radius: VaporwaveTheme['radius'], spacing: VaporwaveTheme['spacing']) =>
+  StyleSheet.create({
+    card: {
+      marginBottom: spacing.lg,
+      borderRadius: radius.card,
+      borderWidth: 1,
+      padding: spacing.md,
+    },
+    row: {
+      minHeight: 44,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.sm,
+      marginBottom: 2,
+    },
+    disabledRow: {
+      opacity: 0.3,
+    },
+  });

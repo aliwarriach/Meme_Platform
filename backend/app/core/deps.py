@@ -4,6 +4,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import EmailNotVerifiedError
 from app.core.security import InvalidTokenError, decode_access_token
 from app.db.session import get_db_session
 from app.models.user import User
@@ -30,7 +31,25 @@ async def get_current_user(
     if user is None or user.token_version != decoded.token_version:
         # A version mismatch means the token predates a logout-everywhere action.
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or expired token")
+    if not user.is_active:
+        # Same response as an invalid token — a disabled account shouldn't be able to
+        # distinguish "my account was disabled" from "my token expired" (SecurityFeatures.md F-3).
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or expired token")
     return user
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]
+
+
+async def get_current_verified_user(current_user: CurrentUser) -> User:
+    """Gates the abuse-relevant capabilities named in SecurityFeatures.md F-1 (AI
+    captions, voting, community creation) on email verification, without gating login
+    itself. Messaging's own gate lives in `services/messaging.py::_get_or_create_conversation`
+    instead, since both `/messaging/conversations` and the legacy `/meme-sending/send`
+    shim funnel through that one function."""
+    if current_user.email_verified_at is None:
+        raise EmailNotVerifiedError("Verify your email to use this feature")
+    return current_user
+
+
+CurrentVerifiedUser = Annotated[User, Depends(get_current_verified_user)]

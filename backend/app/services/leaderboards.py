@@ -39,7 +39,7 @@ from app.models.meme import Meme
 from app.models.meme_score import MemeScore
 from app.models.post_audience import AudienceType, PostAudience
 from app.models.user import User
-from app.schemas.auth import UserOut
+from app.schemas.auth import PublicUserOut
 from app.schemas.leaderboards import (
     CommunityLeaderboardEntry,
     CommunityLeaderboardPage,
@@ -94,7 +94,7 @@ async def get_individual_leaderboard(
 
         items = [
             IndividualLeaderboardEntry(
-                rank=offset + i + 1, user=UserOut.model_validate(user), score=score
+                rank=offset + i + 1, user=PublicUserOut.model_validate(user), score=score
             )
             for i, (user, score) in enumerate(rows)
         ]
@@ -220,7 +220,7 @@ async def get_internal_community_leaderboard(
 
         items = [
             IndividualLeaderboardEntry(
-                rank=offset + i + 1, user=UserOut.model_validate(user), score=score
+                rank=offset + i + 1, user=PublicUserOut.model_validate(user), score=score
             )
             for i, (user, score) in enumerate(rows)
         ]
@@ -250,4 +250,4 @@ async def get_profile_score(db: AsyncSession, user_id: uuid.UUID) -> ProfileScor
         .outerjoin(MemeScore, MemeScore.meme_id == Meme.id)
         .where(Meme.author_id == user_id)
     )
-    return ProfileScoreOut(user=UserOut.model_validate(user), score=int(total or 0))
+    return ProfileScoreOut(user=PublicUserOut.model_validate(user), score=int(total or 0))

@@ -1,17 +1,17 @@
 import { api } from '@/services/api';
-import type { AuthUserResponse } from '@/services/auth';
+import type { PublicUserResponse } from '@/services/auth';
 
 export interface FriendshipResponse {
   id: string;
   status: 'pending' | 'accepted';
-  requester: AuthUserResponse;
-  addressee: AuthUserResponse;
+  requester: PublicUserResponse;
+  addressee: PublicUserResponse;
   created_at: string;
 }
 
 export interface FriendResponse {
   friendship_id: string;
-  user: AuthUserResponse;
+  user: PublicUserResponse;
 }
 
 export function listFriendsRequest() {

@@ -16,9 +16,7 @@
       "android": {
         "buildType": "apk"
       },
-      "env": {
-        "EXPO_PUBLIC_API_URL": "https://salaried-negation-scheming.ngrok-free.dev"
-      }
+      "environment": "preview"
     },
     "production": {
       "autoIncrement": true

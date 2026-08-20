@@ -1,11 +1,20 @@
 import { api } from '@/services/api';
 
-export interface AuthUserResponse {
+/** Another user's public profile fields — no email. Used for authors, senders, members,
+ * leaderboard entries and every other embedded-user position the API returns. */
+export interface PublicUserResponse {
   id: string;
-  email: string;
   username: string;
   bio: string | null;
   avatar_url: string | null;
+}
+
+/** The signed-in user's own account — carries email. Only ever appears as
+ * `TokenResponse.user`; never use this for representing another user. */
+export interface AuthUserResponse extends PublicUserResponse {
+  email: string;
+  email_verified_at: string | null;
+  date_of_birth: string | null;
 }
 
 export interface TokenResponse {
@@ -14,7 +23,12 @@ export interface TokenResponse {
   user: AuthUserResponse;
 }
 
-export function registerRequest(payload: { email: string; username: string; password: string }) {
+export function registerRequest(payload: {
+  email: string;
+  username: string;
+  password: string;
+  date_of_birth: string;
+}) {
   return api.post<TokenResponse>('/auth/register', payload);
 }
 

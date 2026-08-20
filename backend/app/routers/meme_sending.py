@@ -3,9 +3,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import CurrentUser, DbSession
 from app.core.rate_limit import limiter
-from app.core.security import InvalidTokenError, decode_access_token
 from app.db.session import get_db_session
-from app.schemas.meme_sending import MemeSendCreate, MemeSendOut
+from app.schemas.meme_sending import MemeSendCreate, MemeSendOut, WsTicketOut
 from app.services import meme_sending as meme_sending_service
 from app.services import users as users_service
 from app.websockets.connection_manager import connection_manager
@@ -24,27 +23,31 @@ async def send_meme(
     return await meme_sending_service.send_meme(db, current_user, data)
 
 
+@router.post("/ws-ticket", response_model=WsTicketOut)
+@limiter.limit("30/minute")
+async def create_ws_ticket(request: Request, current_user: CurrentUser) -> WsTicketOut:
+    return await meme_sending_service.create_ws_ticket(current_user)
+
+
 @router.websocket("/ws")
 async def meme_sending_socket(
-    websocket: WebSocket, token: str, db: AsyncSession = Depends(get_db_session)
+    websocket: WebSocket, ticket: str, db: AsyncSession = Depends(get_db_session)
 ) -> None:
     # The app's single per-user socket — it carries messaging frames (`message_received`,
     # `message_read`) as of Phase 19, not just meme sends. The path stays under
     # /meme-sending so shipped clients don't have to move; it is the connection that is
     # shared, not the feature.
-    #
-    # WebSocket upgrades can't carry an Authorization header from a browser client, so the
-    # JWT travels as a query param here instead — this endpoint is the one deliberate
-    # exception to the Bearer-header convention used everywhere else in this API.
-    try:
-        decoded = decode_access_token(token)
-    except InvalidTokenError:
+    redeemed = await meme_sending_service.redeem_ws_ticket(ticket)
+    if redeemed is None:
+        # Missing, expired, or already redeemed — tickets are single-use.
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
+    user_id, token_version = redeemed
 
-    user = await users_service.get_user_by_id(db, decoded.user_id)
-    if user is None or user.token_version != decoded.token_version:
-        # A version mismatch means the token predates a logout-everywhere action.
+    user = await users_service.get_user_by_id(db, user_id)
+    if user is None or user.token_version != token_version or not user.is_active:
+        # A version mismatch means the ticket predates a logout-everywhere action; a
+        # disabled account is rejected the same way `get_current_user` rejects it.
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 

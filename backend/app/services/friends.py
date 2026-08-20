@@ -10,12 +10,14 @@ from app.core.exceptions import (
     FriendshipNotFoundError,
     FriendshipNotPendingError,
     NotFriendshipParticipantError,
+    UserBlockedError,
     UserNotFoundError,
 )
 from app.models.friendship import Friendship, FriendshipStatus
 from app.models.user import User
-from app.schemas.auth import UserOut
+from app.schemas.auth import PublicUserOut
 from app.schemas.friends import FriendOut, FriendRequestCreate
+from app.services import blocks as blocks_service
 from app.services import users as users_service
 
 
@@ -42,6 +44,9 @@ async def send_friend_request(
     target = await users_service.get_user_by_username(db, data.username)
     if target is None:
         raise UserNotFoundError("No user with that username exists")
+
+    if await blocks_service.is_blocked(db, current_user.id, target.id):
+        raise UserBlockedError("Unable to send a friend request to this user")
 
     if await _get_friendship_between(db, current_user.id, target.id) is not None:
         raise FriendshipAlreadyExistsError(
@@ -106,7 +111,7 @@ async def list_friends(db: AsyncSession, current_user: User) -> list[FriendOut]:
     return [
         FriendOut(
             friendship_id=f.id,
-            user=UserOut.model_validate(
+            user=PublicUserOut.model_validate(
                 f.addressee if f.requester_id == current_user.id else f.requester
             ),
         )
@@ -115,6 +120,11 @@ async def list_friends(db: AsyncSession, current_user: User) -> list[FriendOut]:
 
 
 async def are_friends(db: AsyncSession, user_a_id: uuid.UUID, user_b_id: uuid.UUID) -> bool:
+    """False if either side has blocked the other, even for an existing accepted
+    friendship — blocking gates every friend-gated interaction going forward (messaging,
+    duel challenges), not just new friend requests. See SecurityFeatures.md F-5."""
+    if await blocks_service.is_blocked(db, user_a_id, user_b_id):
+        return False
     friendship = await _get_friendship_between(db, user_a_id, user_b_id)
     return friendship is not None and friendship.status == FriendshipStatus.accepted
 

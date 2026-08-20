@@ -3,7 +3,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Form, Query, UploadFile
 
-from app.core.deps import CurrentUser, DbSession
+from app.core.deps import CurrentUser, CurrentVerifiedUser, DbSession
 from app.models.community import CommunityPrivacy
 from app.schemas.communities import CommunityOut, CommunityPage, MembershipOut
 from app.schemas.leaderboards import IndividualLeaderboardPage
@@ -19,7 +19,7 @@ router = APIRouter(prefix="/communities", tags=["communities"])
 
 @router.post("", response_model=CommunityOut, status_code=201)
 async def create_community(
-    current_user: CurrentUser,
+    current_user: CurrentVerifiedUser,
     db: DbSession,
     name: Annotated[str, Form(min_length=1, max_length=100)],
     privacy: Annotated[CommunityPrivacy, Form()],

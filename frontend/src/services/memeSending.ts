@@ -1,6 +1,6 @@
 import { api } from '@/services/api';
 import type { MemeResponse } from '@/services/memes';
-import type { AuthUserResponse } from '@/services/auth';
+import type { PublicUserResponse } from '@/services/auth';
 
 /**
  * The feed's "↗ Send" shortcut. Backed by a shim that posts the meme into the real
@@ -12,8 +12,8 @@ export type MemeSendStatus = 'delivered' | 'pending';
 
 export interface MemeSendResponse {
   id: string;
-  sender: AuthUserResponse;
-  recipient: AuthUserResponse;
+  sender: PublicUserResponse;
+  recipient: PublicUserResponse;
   meme: MemeResponse;
   status: MemeSendStatus;
   reaction: string | null;

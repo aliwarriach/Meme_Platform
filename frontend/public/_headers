@@ -1,0 +1,14 @@
+# Applied to the static web export (frontend/dist/, produced by `expo export --platform
+# web`) by any static host that honors the Netlify/Cloudflare Pages `_headers` convention.
+# Files in `public/` are copied verbatim into the export output — see SecurityIssues.md I-1.
+#
+# connect-src/frame-src stay broad (https:/wss:) because the backend origin is only known
+# at runtime (EXPO_PUBLIC_API_URL varies by build — local, ngrok tunnel, or a future real
+# deployment), not at build time when this file is written. Tighten to the exact backend
+# origin once one is fixed. Verify the web build still loads cleanly against this policy
+# before relying on it — it hasn't been exercised against a running export.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https: wss: ws:; frame-src https://www.instagram.com https://instagram.com; base-uri 'self'; form-action 'self'; object-src 'none'
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: no-referrer

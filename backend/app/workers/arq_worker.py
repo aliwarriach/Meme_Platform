@@ -16,6 +16,7 @@ from arq.cron import cron
 from app.core.config import settings
 from app.workers.tasks.ai_caption import generate_caption_job
 from app.workers.tasks.challenges import close_expired_challenges
+from app.workers.tasks.email_verification import send_email_otp_job
 from app.workers.tasks.instagram import fetch_container_metadata_job
 from app.workers.tasks.notifications import (
     create_weekly_open_challenge,
@@ -23,6 +24,7 @@ from app.workers.tasks.notifications import (
     notify_side_overtaken,
     send_push_job,
 )
+from app.workers.tasks.password_reset import send_password_reset_otp_job
 from app.workers.tasks.scoring import recompute_meme_scores
 
 SCORE_RECOMPUTE_INTERVAL_S = 30
@@ -37,7 +39,13 @@ _redis_settings.conn_timeout = 10
 
 
 class WorkerSettings:
-    functions = [generate_caption_job, fetch_container_metadata_job, send_push_job]
+    functions = [
+        generate_caption_job,
+        fetch_container_metadata_job,
+        send_push_job,
+        send_email_otp_job,
+        send_password_reset_otp_job,
+    ]
     cron_jobs = [
         cron(recompute_meme_scores, second=set(range(0, 60, SCORE_RECOMPUTE_INTERVAL_S))),
         cron(close_expired_challenges, second=set(range(0, 60, CHALLENGE_POLL_INTERVAL_S))),

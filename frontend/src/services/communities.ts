@@ -1,5 +1,5 @@
 import { api } from '@/services/api';
-import type { AuthUserResponse } from '@/services/auth';
+import type { PublicUserResponse } from '@/services/auth';
 import { appendImageToFormData } from '@/utils/multipartImage';
 
 export type CommunityPrivacy = 'open' | 'invite_only';
@@ -8,7 +8,7 @@ export type MembershipStatus = 'pending' | 'active';
 
 export interface CommunityResponse {
   id: string;
-  owner: AuthUserResponse;
+  owner: PublicUserResponse;
   name: string;
   description: string | null;
   icon_url: string | null;
@@ -27,7 +27,7 @@ export interface CommunityPageResponse {
 
 export interface MembershipResponse {
   id: string;
-  user: AuthUserResponse;
+  user: PublicUserResponse;
   role: MembershipRole;
   status: MembershipStatus;
   created_at: string;

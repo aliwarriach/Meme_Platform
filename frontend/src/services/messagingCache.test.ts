@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 import type { InfiniteData } from '@tanstack/react-query';
 
-import type { AuthUserResponse } from '@/services/auth';
+import type { PublicUserResponse } from '@/services/auth';
 import type {
   ConversationResponse,
   MessagePageResponse,
@@ -18,15 +18,14 @@ import {
   totalUnread,
 } from '@/services/messagingCache';
 
-const alice: AuthUserResponse = {
+const alice: PublicUserResponse = {
   id: 'user-1',
-  email: 'alice@example.test',
   username: 'alice',
   bio: null,
   avatar_url: null,
 };
 
-const bob: AuthUserResponse = { ...alice, id: 'user-2', username: 'bob', email: 'bob@example.test' };
+const bob: PublicUserResponse = { ...alice, id: 'user-2', username: 'bob' };
 
 function makeMessage(id: string, overrides: Partial<MessageResponse> = {}): MessageResponse {
   return {

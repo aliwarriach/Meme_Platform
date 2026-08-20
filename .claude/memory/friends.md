@@ -13,16 +13,17 @@ Done (Phase 2 backend + frontend built). Backend fully tested against real Postg
 
 ## Endpoints
 All under `/friends`, registered in `backend/app/routers/friends.py`. All require Bearer auth.
-- `POST /friends/requests` — body `{username}` → `201` `FriendshipOut` (`{id, status, requester: UserOut, addressee: UserOut, created_at}`). `400` self-request, `404` unknown username, `409` a friendship (any status, either direction) already exists between the two users.
+- `POST /friends/requests` — body `{username}` → `201` `FriendshipOut` (`{id, status, requester: PublicUserOut, addressee: PublicUserOut, created_at}`, no email — see `[[auth-profile]]`'s H-1 note). `400` self-request, `403` either side has blocked the other (`[[blocks]]`, generic message), `404` unknown username, `409` a friendship (any status, either direction) already exists between the two users. Rate-limited `20/minute` (SecurityIssues.md L-8).
 - `GET /friends/requests` — → `200` list of `FriendshipOut`, **incoming pending only** (current user is `addressee`) — no outgoing-requests view built (not required by Phase 2 exit test; add if a "sent requests" UI is ever needed).
 - `POST /friends/requests/{friendship_id}/accept` — → `200` `FriendshipOut` with `status: accepted`. `403` if current user isn't the `addressee`, `404` not found, `409` not pending.
 - `DELETE /friends/{friendship_id}` — → `204`. Deletes the row outright — this single endpoint covers declining a pending request, cancelling your own sent request, and unfriending an accepted one. `403` if current user isn't a participant, `404` not found.
-- `GET /friends` — → `200` list of `FriendOut` (`{friendship_id, user: UserOut}`) — deliberately **not** a bare `UserOut` list; the frontend needs `friendship_id` to call the remove endpoint from the friends list UI.
+- `GET /friends` — → `200` list of `FriendOut` (`{friendship_id, user: PublicUserOut}`) — deliberately **not** a bare user list; the frontend needs `friendship_id` to call the remove endpoint from the friends list UI.
 
 ## Business rules
 - One friendship row per unordered pair, enforced by the `user_low`/`user_high` DB constraint — sending A→B while B→A is already pending (or already accepted) is rejected with `409` regardless of which direction is checked first.
 - No "declined" status — rejecting a request and unfriending are both just `DELETE`, which frees the pair to request again later.
 - `services/friends.py` builds `FriendOut` directly (service returns response-schema instances, matching the existing `services/auth.py` pattern) rather than routers reshaping ORM objects.
+- **`are_friends()` now also returns `False` if either side has blocked the other** (2026-08-19, see `[[blocks]]`) — even for an already-accepted friendship. This function backs messaging's send/open-conversation checks and the duel-proposal check in `challenges.py`, so a block silently gates all three without those modules needing their own block-awareness. `send_friend_request` also rejects (403, generic message) if either direction is blocked, before the existing friendship/self-request checks run.
 
 ## Frontend integration notes
 - `TextField` (was `AuthTextField`, feature-local to `auth/`) was **promoted to `src/components/TextField.tsx`** as part of this phase — friends' add-friend form was the 2nd real consumer, per the project's own "promote on 2nd consumer" rule. `LoginScreen`/`RegisterScreen` imports were updated; nothing still points at the old `features/auth/components/` path (deleted).
