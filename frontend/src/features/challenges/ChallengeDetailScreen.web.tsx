@@ -1,4 +1,3 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -15,7 +14,7 @@ import { WebSubmissionPicker } from '@/components/web/WebSubmissionPicker';
 import { WebSubmissionThumb } from '@/components/web/WebSubmissionThumb';
 import type { VaporwaveTheme } from '@/constants/webFeedThemeVapor';
 import { injectFeedWebFont } from '@/constants/webFeedThemeVapor';
-import { VaporwaveThemeProvider, useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
+import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 import type { MemeResponse } from '@/services/memes';
 import { useCommunityFeed } from '@/services/useMemes';
 import { useMyCommunities } from '@/services/useCommunities';
@@ -89,7 +88,7 @@ function ChallengeDetailScreenContent({ communityId, challengeId }: ChallengeDet
   if (challengeQuery.isLoading || !challenge) {
     return (
       <View style={styles.root}>
-        <LinearGradient colors={[colors.gradientTop, colors.gradientMid, colors.gradientBottom]} style={StyleSheet.absoluteFill} />
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.gradientMid }]} />
         <SafeAreaView style={styles.centerSafe}>
           {challengeQuery.isError ? (
             <Text style={[type.body, styles.centerPad, { color: colors.error }]}>{challengeQuery.error?.message}</Text>
@@ -105,7 +104,7 @@ function ChallengeDetailScreenContent({ communityId, challengeId }: ChallengeDet
 
   return (
     <View style={styles.root}>
-      <LinearGradient colors={[colors.gradientTop, colors.gradientMid, colors.gradientBottom]} style={StyleSheet.absoluteFill} />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.gradientMid }]} />
       <SafeAreaView style={styles.safe} edges={['top']}>
         <WebCompeteTopBar title={challenge.title} />
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
@@ -232,9 +231,7 @@ function ChallengeDetailScreenContent({ communityId, challengeId }: ChallengeDet
 
 export default function ChallengeDetailScreen(props: ChallengeDetailScreenProps) {
   return (
-    <VaporwaveThemeProvider>
       <ChallengeDetailScreenContent {...props} />
-    </VaporwaveThemeProvider>
   );
 }
 

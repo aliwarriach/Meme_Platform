@@ -1,4 +1,3 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -7,7 +6,7 @@ import { useSelector } from 'react-redux';
 import { WebConversationRow } from '@/components/web/WebConversationRow';
 import WebInboxTopBar from '@/components/web/WebInboxTopBar';
 import WebNewChatModal from '@/components/web/WebNewChatModal';
-import { VaporwaveThemeProvider, useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
+import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 import type { VaporwaveTheme } from '@/constants/webFeedThemeVapor';
 import { injectFeedWebFont } from '@/constants/webFeedThemeVapor';
 import { useConversations } from '@/services/useMessaging';
@@ -18,8 +17,8 @@ import type { RootState } from '@/store/store';
  * untouched — Metro/Expo Router's platform-extension resolution prefers this file for the web
  * bundle at `app/inbox.tsx`, which needs zero changes). Full conversation-list page, reusing the
  * Vaporwave/Luminous glass design system already shipped on Feed/Friends/Voting/Challenges/
- * Leaderboard/Profile, via its own `VaporwaveThemeProvider` instance — same light/dark toggle
- * mechanism, persisted to the same `localStorage` key.
+ * Leaderboard/Profile — mode comes from the single app-wide `WebThemeModeProvider` (see
+ * `constants/WebThemeMode.tsx`), not a per-screen provider.
  *
  * Relationship to `components/web/DesktopInboxPanel.tsx` / `components/web/WebFeedRail.tsx`:
  * this is a different surface (a full standalone page, not a rail preview). Opening a thread from
@@ -35,9 +34,7 @@ import type { RootState } from '@/store/store';
  */
 export default function InboxScreen() {
   return (
-    <VaporwaveThemeProvider>
       <InboxScreenContent />
-    </VaporwaveThemeProvider>
   );
 }
 
@@ -56,7 +53,7 @@ function InboxScreenContent() {
 
   return (
     <View style={styles.root}>
-      <LinearGradient colors={[colors.gradientTop, colors.gradientMid, colors.gradientBottom]} style={StyleSheet.absoluteFill} />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.gradientMid }]} />
 
       <SafeAreaView style={styles.safe} edges={['top']}>
         <WebInboxTopBar socketStatus={socketStatus} onNewChat={() => setNewChatOpen(true)} />

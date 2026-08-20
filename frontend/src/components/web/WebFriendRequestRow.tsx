@@ -84,7 +84,10 @@ const createStyles = (
       justifyContent: 'center',
       borderRadius: radius.pill,
       paddingHorizontal: spacing.lg,
-      backgroundColor: colors.indigoPrimary,
+      // indigoSecondary, not indigoPrimary: this pairs with white (`onAccent`) text below, and
+      // indigoPrimary is the bright ring/icon-safe variant, not a safe white-text fill (fails AA
+      // in dark mode — same reasoning as every other filled element in this system).
+      backgroundColor: colors.indigoSecondary,
     },
     acceptButtonHovered: {
       opacity: 0.9,

@@ -10,6 +10,12 @@ interface WebScoreCardProps {
   value: number | undefined;
   isLoading: boolean;
   icon: keyof typeof MaterialIcons.glyphMap;
+  /** Icon-chip fill + icon-text pairing. Defaults to the brand pink pairing (`indigoSecondary`/
+   * `onAccent`) for a generic stat; pass a different pair (e.g. `[colors.accentGold,
+   * colors.onAccentInk]` for an achievement-flavored stat like badge count) so multiple cards on
+   * the same screen don't all read as one undifferentiated pink block. */
+  accentFill?: string;
+  accentText?: string;
 }
 
 /**
@@ -20,22 +26,23 @@ interface WebScoreCardProps {
  * (the "returning core user" checks their score before anything else). Additive only, no new
  * fetch — both numbers come from queries the native screen already runs.
  *
- * The stat digit itself always stays `colors.foreground` — never `indigoPrimary`/`indigoSecondary`
- * as text-bearing foreground — per this system's own established rule (`voting-web.md`/
- * `leaderboard-web.md`: "no color-coded text sits directly on a background... differentiation is
- * carried by badge/border fills, never by tinting body text"). Differentiation between the two
- * cards is carried by the icon chip (solid `indigoSecondary` fill + `onAccent` icon, the same
- * measured 9.0:1 dark / 6.46:1 light pairing every badge/rank chip in this system reuses), not by
- * recoloring the number.
+ * The stat digit itself always stays `colors.foreground` — never a brand accent as text-bearing
+ * foreground — per this system's own established rule (`voting-web.md`/`leaderboard-web.md`: "no
+ * color-coded text sits directly on a background... differentiation is carried by badge/border
+ * fills, never by tinting body text"). Differentiation between cards on the same screen is
+ * carried by the icon chip's fill (pink by default, or an explicit `accentFill`/`accentText` pair
+ * for a semantically distinct stat — e.g. Profile's Badges card uses gold, matching the
+ * achievement-tier language `WebWinnerBanner`/rank-tier badges use elsewhere), not by recoloring
+ * the number itself.
  */
-export default function WebScoreCard({ label, value, isLoading, icon }: WebScoreCardProps) {
+export default function WebScoreCard({ label, value, isLoading, icon, accentFill, accentText }: WebScoreCardProps) {
   const { colors, type, radius, spacing, fontStack } = useVaporwaveTheme();
   const styles = useMemo(() => createStyles(colors, radius, spacing, fontStack), [colors, radius, spacing, fontStack]);
 
   return (
     <View style={styles.root}>
-      <View style={styles.iconChip}>
-        <MaterialIcons name={icon} size={16} color={colors.onAccent} />
+      <View style={[styles.iconChip, { backgroundColor: accentFill ?? colors.indigoSecondary }]}>
+        <MaterialIcons name={icon} size={16} color={accentText ?? colors.onAccent} />
       </View>
       <Text style={[type.label, styles.label, { color: colors.foregroundMuted }]}>{label}</Text>
       {isLoading ? (
@@ -71,7 +78,6 @@ const createStyles = (
       borderRadius: radius.chip,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: colors.indigoSecondary,
       marginBottom: spacing.sm,
     },
     label: {

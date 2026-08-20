@@ -1,5 +1,4 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -8,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebFriendRequestRow } from '@/components/web/WebFriendRequestRow';
 import { WebFriendRow } from '@/components/web/WebFriendRow';
 import WebFriendsTopBar from '@/components/web/WebFriendsTopBar';
-import { VaporwaveThemeProvider, useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
+import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 import type { VaporwaveTheme } from '@/constants/webFeedThemeVapor';
 import { injectFeedWebFont } from '@/constants/webFeedThemeVapor';
 import DuelProposeModal from '@/features/challenges/components/DuelProposeModal';
@@ -26,18 +25,16 @@ import {
  * Web-only sibling of `features/friends/FriendsScreen.tsx` (native-resolved, byte-for-byte
  * untouched — Metro/Expo Router's platform-extension resolution prefers this file for every web
  * bundle, `app/friends.tsx` needs zero changes). Reuses the Vaporwave/Luminous glass design
- * system already shipped on the web feed (`constants/webFeedThemeVapor.ts`), via its own
- * `VaporwaveThemeProvider` instance — same light/dark toggle mechanism, persisted to the same
- * `localStorage` key, so a mode chosen on Feed carries over here on next visit.
+ * system already shipped on the web feed (`constants/webFeedThemeVapor.ts`) — mode comes from the
+ * single app-wide `WebThemeModeProvider` (see `constants/WebThemeMode.tsx`), so a mode chosen on
+ * Feed is already active here, instantly, not just on next visit.
  *
  * `DesktopShell` (mounted app-wide in `app/_layout.tsx`) already centers this screen in the
  * standard-width content column — no width handling needed here.
  */
 export default function FriendsScreen() {
   return (
-    <VaporwaveThemeProvider>
       <FriendsScreenContent />
-    </VaporwaveThemeProvider>
   );
 }
 
@@ -144,7 +141,7 @@ function FriendsScreenContent() {
 
   return (
     <View style={styles.root}>
-      <LinearGradient colors={[colors.gradientTop, colors.gradientMid, colors.gradientBottom]} style={StyleSheet.absoluteFill} />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.gradientMid }]} />
 
       <SafeAreaView style={styles.safe} edges={['top']}>
         <WebFriendsTopBar title="Friends" />

@@ -1,4 +1,3 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useState } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,7 +9,7 @@ import { WebMergedFeedList } from '@/components/web/WebMergedFeedList';
 import { injectFeedWebFont } from '@/constants/webFeedThemeVapor';
 import { DESKTOP_FRAME_MIN_WIDTH } from '@/constants/webLayout';
 import { ShareInstagramLinkModal } from '@/features/instagram-companion/ShareInstagramLinkModal';
-import { VaporwaveThemeProvider, useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
+import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 import type { MergedFeedItem } from '@/services/memes';
 import { useFeed } from '@/services/useMemes';
 
@@ -33,9 +32,7 @@ import { useFeed } from '@/services/useMemes';
  */
 export default function FeedScreen() {
   return (
-    <VaporwaveThemeProvider>
       <FeedScreenContent />
-    </VaporwaveThemeProvider>
   );
 }
 
@@ -54,10 +51,7 @@ function FeedScreenContent() {
 
   return (
     <View style={styles.root}>
-      <LinearGradient
-        colors={[colors.gradientTop, colors.gradientMid, colors.gradientBottom]}
-        style={StyleSheet.absoluteFill}
-      />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.gradientMid }]} />
 
       <SafeAreaView style={styles.safe} edges={['top']}>
         <View style={styles.body}>

@@ -1,11 +1,9 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
-import { Appearance } from 'react-native';
+import { useMemo } from 'react';
 
 import { COMMUNITY_DARK, COMMUNITY_LIGHT, type CommunityWebPalette } from '@/constants/webCommunityTheme';
+import { useWebThemeMode } from '@/constants/WebThemeMode';
 
 export type CommunityWebThemeMode = 'light' | 'dark';
-
-const STORAGE_KEY = 'community-web-theme';
 
 interface CommunityWebThemeContextValue {
   mode: CommunityWebThemeMode;
@@ -13,56 +11,24 @@ interface CommunityWebThemeContextValue {
   toggleMode: () => void;
 }
 
-const CommunityWebThemeContext = createContext<CommunityWebThemeContextValue | null>(null);
-
-function readStoredMode(): CommunityWebThemeMode | null {
-  if (typeof window === 'undefined' || !window.localStorage) return null;
-  const stored = window.localStorage.getItem(STORAGE_KEY);
-  return stored === 'light' || stored === 'dark' ? stored : null;
-}
-
-function resolveInitialMode(): CommunityWebThemeMode {
-  const stored = readStoredMode();
-  if (stored) return stored;
-  // `Appearance.getColorScheme()` is backed by `prefers-color-scheme` under react-native-web.
-  return Appearance.getColorScheme() === 'dark' ? 'dark' : 'light';
-}
-
 /**
- * Self-contained light/dark mechanism scoped ONLY to the web-only Communities tree — mounted
- * locally by each of the three `*.web.tsx` screens (not global, per this task's explicit
- * instruction; native's `app/_layout.tsx` `DarkTheme` hardcoding is untouched). Resolution
- * order: `localStorage` override -> OS `prefers-color-scheme` -> `'light'` fallback. Each of the
- * three screens is a separate Expo Router route (full unmount/remount on navigation), so
- * persistence across screens is handled by `localStorage`, not by keeping this provider mounted
- * app-wide.
+ * Reads the single app-wide light/dark mode (`useWebThemeMode`, provided once at the app root)
+ * and maps it onto the Community palette. No longer owns mode state itself — see
+ * `VaporwaveWebTheme.tsx`'s identical rationale (this and that file used to each own a completely
+ * independent, separately-persisted mode, which is what let the shell and other screens disagree
+ * with whatever Community had chosen). Same external shape as before, so every existing consumer
+ * (`CommunitiesScreen.web.tsx`, `CommunityDetailScreen.web.tsx`, `CreateCommunityScreen.web.tsx` +
+ * their `WebCommunity*` components) works unmodified.
  */
-export function CommunityThemeProvider({ children }: { children: ReactNode }) {
-  const [mode, setMode] = useState<CommunityWebThemeMode>(resolveInitialMode);
+export function useCommunityWebTheme(): CommunityWebThemeContextValue {
+  const { mode, toggleMode } = useWebThemeMode();
 
-  const value = useMemo<CommunityWebThemeContextValue>(
+  return useMemo(
     () => ({
       mode,
       colors: mode === 'dark' ? COMMUNITY_DARK : COMMUNITY_LIGHT,
-      toggleMode: () =>
-        setMode((current) => {
-          const next: CommunityWebThemeMode = current === 'dark' ? 'light' : 'dark';
-          if (typeof window !== 'undefined' && window.localStorage) {
-            window.localStorage.setItem(STORAGE_KEY, next);
-          }
-          return next;
-        }),
+      toggleMode,
     }),
-    [mode]
+    [mode, toggleMode],
   );
-
-  return <CommunityWebThemeContext.Provider value={value}>{children}</CommunityWebThemeContext.Provider>;
-}
-
-export function useCommunityWebTheme(): CommunityWebThemeContextValue {
-  const ctx = useContext(CommunityWebThemeContext);
-  if (!ctx) {
-    throw new Error('useCommunityWebTheme must be used within a CommunityThemeProvider');
-  }
-  return ctx;
 }

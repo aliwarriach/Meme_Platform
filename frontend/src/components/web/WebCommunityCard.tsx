@@ -37,6 +37,29 @@ export function WebCommunityCard({ community, onPress }: WebCommunityCardProps) 
       ]}>
       <View style={styles.headerRow}>
         <WebCommunityAvatar label={community.name} imageUrl={community.icon_url} size={48} square />
+
+        <View style={styles.headerText}>
+          <Text
+            style={[COMMUNITY_WEB_TYPE.cardTitle, styles.name, { color: colors.cardForeground }]}
+            numberOfLines={1}>
+            {community.name}
+          </Text>
+
+          {community.description ? (
+            <Text
+              style={[COMMUNITY_WEB_TYPE.meta, styles.description, { color: colors.foregroundMuted }]}
+              numberOfLines={1}
+              ellipsizeMode="tail">
+              {community.description}
+            </Text>
+          ) : null}
+
+          <Text style={[COMMUNITY_WEB_TYPE.meta, { color: colors.foregroundMuted }]}>
+            {community.member_count} member{community.member_count === 1 ? '' : 's'} ·{' '}
+            {community.privacy === 'open' ? 'Open' : 'Invite only'}
+          </Text>
+        </View>
+
         {community.viewer_membership_status ? (
           <View style={[styles.statusPill, { backgroundColor: colors.elevated }]}>
             <Text style={[COMMUNITY_WEB_TYPE.label, { color: colors.primary, fontSize: 10 }]}>
@@ -46,27 +69,14 @@ export function WebCommunityCard({ community, onPress }: WebCommunityCardProps) 
         ) : null}
       </View>
 
-      <Text style={[COMMUNITY_WEB_TYPE.cardTitle, styles.name, { color: colors.cardForeground }]} numberOfLines={1}>
-        {community.name}
-      </Text>
-      {community.description ? (
-        <Text style={[COMMUNITY_WEB_TYPE.meta, styles.description, { color: colors.foregroundMuted }]} numberOfLines={2}>
-          {community.description}
-        </Text>
-      ) : null}
-
-      <View style={styles.footerRow}>
-        <Text style={[COMMUNITY_WEB_TYPE.meta, { color: colors.foregroundMuted }]}>
-          {community.member_count} member{community.member_count === 1 ? '' : 's'} ·{' '}
-          {community.privacy === 'open' ? 'Open' : 'Invite only'}
-        </Text>
-        {community.has_active_challenge ? (
+      {community.has_active_challenge ? (
+        <View style={styles.footerRow}>
           <View style={[styles.challengeBadge, { backgroundColor: colors.accent }]}>
             <MaterialIcons name="bolt" size={12} color={colors.onAccent} />
             <Text style={[COMMUNITY_WEB_TYPE.label, { color: colors.onAccent, fontSize: 9 }]}>Active</Text>
           </View>
-        ) : null}
-      </View>
+        </View>
+      ) : null}
     </Pressable>
   );
 }
@@ -78,30 +88,39 @@ const styles = StyleSheet.create({
     minWidth: 220,
     borderRadius: COMMUNITY_WEB_RADIUS.card,
     borderWidth: 1.5,
-    padding: COMMUNITY_WEB_SPACING.lg,
+    // A shade under `xl` (24) — a small deliberate trim of the card's own outer padding, kept
+    // separate from the internal gaps between name/description/meta (those stay on the spacing
+    // scale untouched).
+    padding: COMMUNITY_WEB_SPACING.xl - 4,
   },
   headerRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    marginBottom: COMMUNITY_WEB_SPACING.md,
+    alignItems: 'center',
+    gap: COMMUNITY_WEB_SPACING.md,
+  },
+  headerText: {
+    flex: 1,
+    minWidth: 0,
+    gap: COMMUNITY_WEB_SPACING.xs,
   },
   statusPill: {
     borderRadius: COMMUNITY_WEB_RADIUS.pill,
     paddingHorizontal: COMMUNITY_WEB_SPACING.sm,
     paddingVertical: 3,
+    alignSelf: 'flex-start',
   },
   name: {
-    marginBottom: 2,
+    flexShrink: 1,
   },
   description: {
-    marginBottom: COMMUNITY_WEB_SPACING.md,
+    lineHeight: 18,
   },
   footerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     marginTop: 'auto',
+    paddingTop: COMMUNITY_WEB_SPACING.md,
     gap: COMMUNITY_WEB_SPACING.sm,
   },
   challengeBadge: {

@@ -1,4 +1,3 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -10,7 +9,7 @@ import WebCompeteTopBar from '@/components/web/WebCompeteTopBar';
 import { WebDurationPresets } from '@/components/web/WebDurationPresets';
 import type { VaporwaveTheme } from '@/constants/webFeedThemeVapor';
 import { injectFeedWebFont } from '@/constants/webFeedThemeVapor';
-import { VaporwaveThemeProvider, useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
+import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 import { useDiscoverCommunities } from '@/services/useCommunities';
 import { useProposeVsChallengeMutation } from '@/services/useChallenges';
 
@@ -92,7 +91,7 @@ function ProposeVsChallengeScreenContent({ communityId }: ProposeVsChallengeScre
 
   return (
     <View style={styles.root}>
-      <LinearGradient colors={[colors.gradientTop, colors.gradientMid, colors.gradientBottom]} style={StyleSheet.absoluteFill} />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.gradientMid }]} />
       <SafeAreaView style={styles.safe} edges={['top']}>
         <WebCompeteTopBar title="Challenge a Community" />
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
@@ -177,9 +176,7 @@ function ProposeVsChallengeScreenContent({ communityId }: ProposeVsChallengeScre
 
 export default function ProposeVsChallengeScreen(props: ProposeVsChallengeScreenProps) {
   return (
-    <VaporwaveThemeProvider>
       <ProposeVsChallengeScreenContent {...props} />
-    </VaporwaveThemeProvider>
   );
 }
 

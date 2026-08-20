@@ -8,14 +8,14 @@ import { useSelector } from 'react-redux';
 import FloatingBottomNav from '@/components/FloatingBottomNav';
 import WebPillButton from '@/components/web/WebPillButton';
 import WebCommunityTopBar from '@/components/web/WebCommunityTopBar';
+import { WebChallengeCard } from '@/components/web/WebChallengeCard';
 import { WebCommunityFeedCard } from '@/components/web/WebCommunityFeedCard';
 import { WebJoinRequestCard } from '@/components/web/WebJoinRequestCard';
+import { WebLeaderboardRow } from '@/components/web/WebLeaderboardRow';
 import { WebMemberCard } from '@/components/web/WebMemberCard';
 import { WebSegmentedControl } from '@/components/web/WebSegmentedControl';
-import { CommunityThemeProvider, useCommunityWebTheme } from '@/constants/CommunityWebTheme';
+import { useCommunityWebTheme } from '@/constants/CommunityWebTheme';
 import { COMMUNITY_WEB_RADIUS, COMMUNITY_WEB_SPACING, COMMUNITY_WEB_TYPE, injectCommunityWebFont, type WebPressableState } from '@/constants/webCommunityTheme';
-import { ChallengeRow } from '@/features/challenges/components/ChallengeRow';
-import { IndividualLeaderboardRow } from '@/features/leaderboards/components/IndividualLeaderboardRow';
 import type { RootState } from '@/store/store';
 import { timeAgo } from '@/utils/timeAgo';
 import {
@@ -38,34 +38,19 @@ interface CommunityDetailScreenProps {
 
 type Tab = 'feed' | 'members' | 'leaderboard' | 'challenges';
 
-// The reused native `IndividualLeaderboardRow`/`ChallengeRow` (see file header comment) are
-// built against MASTER.md's dark-only "Vivid Meme Culture" tokens (white heading text, no light
-// variant — MASTER.md is explicit: "this app is dark-only"). Wrapping them in this page's own
-// `colors.card` would go white-on-white in light mode. Forcing a fixed dark surface here,
-// sourced verbatim from MASTER.md's own `bg`/`surface`/`outline-variant` tokens (not invented),
-// keeps those rows exactly as legible as they are natively, independent of this page's toggle.
-const MASTER_DARK_SEAM = {
-  background: '#1e0f13',
-  card: '#2c1b1f',
-  border: '#5b3f46',
-  inkMuted: '#e3bdc5',
-  primary: '#ff3385', // MASTER's neon-pink primary — 4.7:1 on `card` above; this page's own
-  // violet primary measures only ~2.9:1 against this fixed dark card, so it is not reused here.
-  error: '#ffb4ab', // MASTER's own dark-surface error token — this page's `destructive` red
-  // measures only ~3.4:1 against this fixed dark card (fails 4.5:1 body text).
-} as const;
-
 /**
  * Web-only sibling of `features/communities/CommunityDetailScreen.tsx` (native-resolved,
  * untouched). Same data/hooks/business logic; new "Vibrant & Block-based" chrome, page-scoped to
- * `design-system/meme-platform/pages/community-web.md`.
+ * `design-system/meme-platform/pages/community-web.md` — now recolored onto Neon Plum (see
+ * `webCommunityTheme.ts`'s own header).
  *
- * Feed and Members tabs get the full new visual system (this pass's in-scope surfaces per the
- * task brief: "feed within a community + members + join requests"). Leaderboard and Challenges
- * are explicit scope exclusions — both tabs stay reachable (removing them would be a real
- * functionality regression) but render the native `IndividualLeaderboardRow`/`ChallengeRow`
- * unrestyled inside a themed container, the same "reuse nested UI as-is" precedent
- * `feed-web.md` used for its modals. See community-web.md's "Known seams".
+ * Leaderboard and Challenges tabs were an explicit scope exclusion in the original pass (rendered
+ * the native `IndividualLeaderboardRow`/`ChallengeRow` unrestyled, in a fixed dark
+ * `MASTER_DARK_SEAM` container regardless of this page's own light/dark toggle). Closed: both
+ * tabs now use `WebLeaderboardRow`/`WebChallengeCard` — the same Neon Plum row components
+ * `LeaderboardsScreen.web.tsx`/`CompeteScreen.web.tsx` already use — inside a real
+ * `colors.card`/`colors.border` container, so they respect this page's toggle like everything
+ * else.
  */
 function CommunityDetailScreenContent({ communityId }: CommunityDetailScreenProps) {
   const router = useRouter();
@@ -341,21 +326,36 @@ function CommunityDetailScreenContent({ communityId }: CommunityDetailScreenProp
         <WebCommunityTopBar title={community.name} showBack rightActions={pendingRequestsBadge} />
         <ScrollView contentContainerStyle={styles.listContent}>
           {header}
-          <View style={[styles.seamContainer, { backgroundColor: MASTER_DARK_SEAM.card, borderColor: MASTER_DARK_SEAM.border }]}>
+          <View
+            style={[
+              styles.listContainer,
+              { backgroundColor: colors.card, borderColor: colors.border, paddingTop: COMMUNITY_WEB_SPACING.sm },
+            ]}>
             {leaderboardQuery.isLoading ? (
-              <ActivityIndicator style={styles.spinner} color={MASTER_DARK_SEAM.inkMuted} />
+              <ActivityIndicator style={styles.spinner} color={colors.foregroundMuted} />
             ) : leaderboardQuery.isError ? (
-              <Text style={[COMMUNITY_WEB_TYPE.body, { color: MASTER_DARK_SEAM.error, padding: COMMUNITY_WEB_SPACING.lg }]}>
+              <Text style={[COMMUNITY_WEB_TYPE.body, { color: colors.destructive, padding: COMMUNITY_WEB_SPACING.lg }]}>
                 {leaderboardQuery.error?.message}
               </Text>
             ) : leaderboardEntries.length === 0 ? (
-              <Text style={[COMMUNITY_WEB_TYPE.body, { color: MASTER_DARK_SEAM.inkMuted, padding: COMMUNITY_WEB_SPACING.lg }]}>
+              <Text style={[COMMUNITY_WEB_TYPE.body, { color: colors.foregroundMuted, padding: COMMUNITY_WEB_SPACING.lg }]}>
                 No scores yet in this community
               </Text>
             ) : (
-              leaderboardEntries.map((entry) => (
-                <IndividualLeaderboardRow key={entry.user.id} entry={entry} isViewer={entry.user.id === currentUser?.id} />
-              ))
+              leaderboardEntries.map((entry) => {
+                const isViewer = entry.user.id === currentUser?.id;
+                return (
+                  <WebLeaderboardRow
+                    key={entry.user.id}
+                    rank={entry.rank}
+                    name={entry.user.username}
+                    score={entry.score}
+                    avatarUrl={entry.user.avatar_url}
+                    isViewer={isViewer}
+                    accessibilityLabel={`Rank ${entry.rank}, ${entry.user.username}${isViewer ? ', you' : ''}, ${entry.score} points`}
+                  />
+                );
+              })
             )}
             {leaderboardQuery.hasNextPage && !leaderboardQuery.isFetchingNextPage ? (
               <Pressable
@@ -363,7 +363,7 @@ function CommunityDetailScreenContent({ communityId }: CommunityDetailScreenProp
                 accessibilityLabel="Load more"
                 onPress={() => leaderboardQuery.fetchNextPage()}
                 style={styles.loadMore}>
-                <Text style={[COMMUNITY_WEB_TYPE.title, { color: MASTER_DARK_SEAM.primary }]}>Load more</Text>
+                <Text style={[COMMUNITY_WEB_TYPE.title, { color: colors.primary }]}>Load more</Text>
               </Pressable>
             ) : null}
           </View>
@@ -379,16 +379,16 @@ function CommunityDetailScreenContent({ communityId }: CommunityDetailScreenProp
         <WebCommunityTopBar title={community.name} showBack rightActions={pendingRequestsBadge} />
         <ScrollView contentContainerStyle={styles.listContent}>
           {header}
-          <View style={[styles.seamContainer, { backgroundColor: MASTER_DARK_SEAM.card, borderColor: MASTER_DARK_SEAM.border, padding: COMMUNITY_WEB_SPACING.lg }]}>
+          <View style={[styles.listContainer, { backgroundColor: colors.card, borderColor: colors.border, padding: COMMUNITY_WEB_SPACING.lg }]}>
             {challengesQuery.isLoading ? (
-              <ActivityIndicator color={MASTER_DARK_SEAM.inkMuted} />
+              <ActivityIndicator color={colors.foregroundMuted} />
             ) : challengesQuery.isError ? (
-              <Text style={[COMMUNITY_WEB_TYPE.body, { color: MASTER_DARK_SEAM.error }]}>{challengesQuery.error?.message}</Text>
+              <Text style={[COMMUNITY_WEB_TYPE.body, { color: colors.destructive }]}>{challengesQuery.error?.message}</Text>
             ) : (challengesQuery.data ?? []).length === 0 ? (
-              <Text style={[COMMUNITY_WEB_TYPE.body, { color: MASTER_DARK_SEAM.inkMuted }]}>No challenges yet</Text>
+              <Text style={[COMMUNITY_WEB_TYPE.body, { color: colors.foregroundMuted }]}>No challenges yet</Text>
             ) : (
               challengesQuery.data?.map((challenge) => (
-                <ChallengeRow
+                <WebChallengeCard
                   key={challenge.id}
                   challenge={challenge}
                   onPress={() =>
@@ -426,9 +426,7 @@ function CommunityDetailScreenContent({ communityId }: CommunityDetailScreenProp
 
 export default function CommunityDetailScreen(props: CommunityDetailScreenProps) {
   return (
-    <CommunityThemeProvider>
       <CommunityDetailScreenContent {...props} />
-    </CommunityThemeProvider>
   );
 }
 
@@ -561,7 +559,7 @@ const styles = StyleSheet.create({
     gap: COMMUNITY_WEB_SPACING.md,
     paddingHorizontal: COMMUNITY_WEB_SPACING.xl,
   },
-  seamContainer: {
+  listContainer: {
     marginHorizontal: COMMUNITY_WEB_SPACING.xl,
     borderRadius: COMMUNITY_WEB_RADIUS.card,
     borderWidth: 1.5,

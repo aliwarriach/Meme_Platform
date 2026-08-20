@@ -26,21 +26,15 @@ interface WebPressableState {
 
 /**
  * Theme-aware pill button for the Compete/Challenges web pages — Vaporwave/Luminous equivalent
- * of the retired independent-theme `WebCompeteButton`. Primary variant carries a soft
- * `indigoGlow` shadow (decorative, exempt from text-contrast rules, same technique
- * `WebWinnerBanner` uses on Voting) instead of the retired Neubrutalism system's hard 3px offset
- * shadow — that shadow language ("no gradients, no blur") is specific to the style this page is
- * being migrated OFF of, and is incompatible with Vaporwave's glass/glow language.
+ * of the retired independent-theme `WebCompeteButton`. Primary variant is a flat `indigoSecondary`
+ * fill (no gradient, per explicit instruction) with a soft `indigoGlow` shadow.
  *
- * `outline`/`ghost` variants use a MODE-CONDITIONAL accent for border + text, never a fixed
- * token: `indigoPrimary` (cyan) measures ~11.7:1 against the dark canvas but only ~1.7:1 against
- * light; `indigoSecondary` (magenta) is the inverse — too-close-in-luminance against a dark
- * canvas/card (~1.6-1.9:1, under even the 3:1 non-text minimum) but ~6.5:1 against light. Neither
- * token is safe as a fixed border/text color across both modes, so the mode check picks whichever
- * one actually clears AA — same reasoning `WebCompeteTopBar`'s focus ring and every other
- * mode-conditional accent in this migration uses. `indigoSecondary` is never used as outline
- * border/text directly on `card`/background in this build for that reason (see
- * compete-web.md's Accessibility section).
+ * `outline`/`ghost` variants use the fixed `accentPurple` token for border + text, not a
+ * mode-conditional pink swap: `accentPurple` clears 4.5:1 text contrast in BOTH modes on its own
+ * (6.62:1 dark / ~7:1 light — see `webFeedThemeVapor.ts`), so the old per-mode ternary was solving
+ * a problem purple doesn't have. This also gives purple its own real "secondary action" identity
+ * across every Compete screen, distinct from primary pink CTAs, instead of just reusing pink at
+ * lower emphasis.
  */
 export default function WebCompeteButton({
   label,
@@ -52,10 +46,10 @@ export default function WebCompeteButton({
   accessibilityLabel,
   fullWidth = false,
 }: WebCompeteButtonProps) {
-  const { colors, type, radius, spacing, mode } = useVaporwaveTheme();
+  const { colors, type, radius, spacing } = useVaporwaveTheme();
   const styles = useMemo(() => createStyles(radius, spacing), [radius, spacing]);
   const isDisabled = disabled || loading;
-  const accent = mode === 'dark' ? colors.indigoPrimary : colors.indigoSecondary;
+  const accent = colors.accentPurple;
 
   const variantStyle =
     variant === 'primary'

@@ -31,10 +31,9 @@ interface WebPressableState {
  * tree, no shared theme-coupled primitive" precedent every prior Vaporwave screen follows
  * (voting-web.md, compete-web.md).
  *
- * Selected fill uses `indigoSecondary` + `onAccent`, not `indigoPrimary` — the identical,
- * already-measured contrast pairing `WebVotingTabs` established (9.0:1 dark / 6.46:1 light,
- * vs `indigoPrimary`'s ~1.4:1 dark / ~1.7:1 light as a white-text fill). Carried forward, not
- * re-derived.
+ * Selected fill uses a flat `indigoSecondary` + `onAccent`, not `indigoPrimary` — the identical,
+ * already-measured contrast pairing `WebVotingTabs` established (9.0:1 dark / 6.46:1 light). No
+ * gradient, per explicit instruction.
  */
 export function WebLeaderboardTabs({ options, value, onChange }: WebLeaderboardTabsProps) {
   const { colors, type, radius, spacing, mode } = useVaporwaveTheme();

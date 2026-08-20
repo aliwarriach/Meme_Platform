@@ -1,5 +1,4 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -15,7 +14,7 @@ import WebScoreCard from '@/components/web/WebScoreCard';
 import WebSettingsRow from '@/components/web/WebSettingsRow';
 import type { VaporwaveTheme } from '@/constants/webFeedThemeVapor';
 import { injectFeedWebFont } from '@/constants/webFeedThemeVapor';
-import { VaporwaveThemeProvider, useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
+import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 import { useMyBadges } from '@/services/useBadges';
 import { useProfileScore } from '@/services/useLeaderboards';
 import { signOut } from '@/store/authSlice';
@@ -53,7 +52,7 @@ function SessionScreenContent() {
 
   return (
     <View style={styles.root}>
-      <LinearGradient colors={[colors.gradientTop, colors.gradientMid, colors.gradientBottom]} style={StyleSheet.absoluteFill} />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.gradientMid }]} />
 
       <SafeAreaView style={styles.safe} edges={['top']}>
         <WebProfileTopBar title="Profile" />
@@ -76,7 +75,14 @@ function SessionScreenContent() {
               uncounted chip row. Additive only, no new fetch. */}
           <View style={styles.statsRow}>
             <WebScoreCard label="Meme Score" value={profileScoreQuery.data?.score} isLoading={profileScoreQuery.isLoading} icon="military-tech" />
-            <WebScoreCard label="Badges" value={badges.length} isLoading={badgesQuery.isLoading} icon="emoji-events" />
+            <WebScoreCard
+              label="Badges"
+              value={badges.length}
+              isLoading={badgesQuery.isLoading}
+              icon="emoji-events"
+              accentFill={colors.accentGold}
+              accentText={colors.onAccentInk}
+            />
           </View>
 
           <Text style={[type.label, styles.sectionLabel, { color: colors.foregroundMuted }]}>Badges</Text>
@@ -121,9 +127,7 @@ function SessionScreenContent() {
  */
 export default function SessionScreen() {
   return (
-    <VaporwaveThemeProvider>
       <SessionScreenContent />
-    </VaporwaveThemeProvider>
   );
 }
 

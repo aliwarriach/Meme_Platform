@@ -1,14 +1,13 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import WebCommunityAvatar from '@/components/web/WebCommunityAvatar';
+import { WebCommentsSection } from '@/components/web/WebCommentsSection';
 import { useCommunityWebTheme } from '@/constants/CommunityWebTheme';
 import { COMMUNITY_WEB_RADIUS, COMMUNITY_WEB_SPACING, COMMUNITY_WEB_TYPE } from '@/constants/webCommunityTheme';
-import { CommentsSection } from '@/features/feed/components/CommentsSection';
 import { SendMemeModal } from '@/features/meme-sending/SendMemeModal';
-import { shareMemeImage } from '@/features/sharing/shareMeme';
 import type { MemeResponse } from '@/services/memes';
 import { useCastVoteMutation, useRecordMemeViewMutation } from '@/services/useMemes';
 import { timeAgo } from '@/utils/timeAgo';
@@ -21,36 +20,29 @@ interface WebCommunityFeedCardProps {
 /**
  * Meme card for the Community Detail Feed tab — same data/hooks as the shared
  * `features/feed/components/MemeCard.tsx` (native-resolved, untouched) and structurally similar
- * to `feed-web.md`'s `WebMemeCard`, but themed entirely from this page's own "Vibrant &
- * Block-based" tokens (not `webFeedTheme.ts`, a different page's independent system) and drops
- * the "in {community}" byline since every card here is already inside one community. Nested
- * modals (Send/Comments) reused as-is, unreskinned — same accepted scope boundary as the feed
- * pilot.
+ * to `feed-web.md`'s `WebMemeCard`, but themed through this page's own Community token structure
+ * (`useCommunityWebTheme`), which now carries the same Neon Plum color values as every other web
+ * screen (see `webCommunityTheme.ts`) — own structure/typography, shared palette. Drops the "in
+ * {community}" byline since every card here is already inside one community. Nested modals
+ * (Send/Comments) reused as-is, unreskinned — same accepted scope boundary as the feed pilot.
  */
 export function WebCommunityFeedCard({ meme }: WebCommunityFeedCardProps) {
   const { colors } = useCommunityWebTheme();
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [sendModalOpen, setSendModalOpen] = useState(false);
-  const [isSharing, setIsSharing] = useState(false);
-  const [shareError, setShareError] = useState<string | null>(null);
   const castVote = useCastVoteMutation();
   const recordView = useRecordMemeViewMutation();
   const cardRef = useRecordViewOnVisible(() => recordView.mutate(meme.id));
+  const commentsRef = useRef<View>(null);
 
   const isVoting = castVote.isPending;
   const netScore = meme.score;
 
-  const onShare = async () => {
-    setIsSharing(true);
-    setShareError(null);
-    try {
-      await shareMemeImage(meme.image_url, meme.id);
-    } catch (error) {
-      setShareError(error instanceof Error ? error.message : 'Could not share this meme.');
-    } finally {
-      setIsSharing(false);
-    }
-  };
+  useEffect(() => {
+    if (!commentsOpen) return;
+    const node = commentsRef.current as unknown as { scrollIntoView?: (opts: ScrollIntoViewOptions) => void } | null;
+    node?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
+  }, [commentsOpen]);
 
   const onVote = (value: 1 | -1) => castVote.mutate({ memeId: meme.id, value });
 
@@ -118,19 +110,7 @@ export function WebCommunityFeedCard({ meme }: WebCommunityFeedCardProps) {
             accessibilityLabel="Send to a friend"
             onPress={() => setSendModalOpen(true)}
             style={({ hovered }) => [styles.iconButton, hovered && { backgroundColor: colors.elevatedHover }]}>
-            <MaterialIcons name="send" size={18} color={colors.foregroundMuted} />
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Share this meme"
-            onPress={onShare}
-            disabled={isSharing}
-            style={({ hovered }) => [styles.iconButton, hovered && { backgroundColor: colors.elevatedHover }]}>
-            {isSharing ? (
-              <ActivityIndicator size="small" color={colors.foregroundMuted} />
-            ) : (
-              <MaterialIcons name="ios-share" size={17} color={colors.foregroundMuted} />
-            )}
+            <MaterialIcons name="send" size={18} color={colors.shareAccent} />
           </Pressable>
           <Pressable
             accessibilityRole="button"
@@ -148,15 +128,9 @@ export function WebCommunityFeedCard({ meme }: WebCommunityFeedCardProps) {
           {castVote.error?.message}
         </Text>
       ) : null}
-      {shareError ? (
-        <Text style={[COMMUNITY_WEB_TYPE.meta, { color: colors.destructive, paddingHorizontal: COMMUNITY_WEB_SPACING.lg }]}>
-          {shareError}
-        </Text>
-      ) : null}
-
       {commentsOpen ? (
-        <View style={[styles.commentsWrap, { borderTopColor: colors.border }]}>
-          <CommentsSection memeId={meme.id} />
+        <View ref={commentsRef} style={[styles.commentsWrap, { borderTopColor: colors.border }]}>
+          <WebCommentsSection memeId={meme.id} />
         </View>
       ) : null}
 

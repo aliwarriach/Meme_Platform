@@ -1,4 +1,3 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -11,7 +10,7 @@ import { WebDurationPresets } from '@/components/web/WebDurationPresets';
 import { WebSideMemberPicker } from '@/components/web/WebSideMemberPicker';
 import type { VaporwaveTheme } from '@/constants/webFeedThemeVapor';
 import { injectFeedWebFont } from '@/constants/webFeedThemeVapor';
-import { VaporwaveThemeProvider, useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
+import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 import { useMembers } from '@/services/useCommunities';
 import { useCreateChallengeMutation } from '@/services/useChallenges';
 
@@ -118,7 +117,7 @@ function CreateChallengeScreenContent({ communityId }: CreateChallengeScreenProp
 
   return (
     <View style={styles.root}>
-      <LinearGradient colors={[colors.gradientTop, colors.gradientMid, colors.gradientBottom]} style={StyleSheet.absoluteFill} />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.gradientMid }]} />
       <SafeAreaView style={styles.safe} edges={['top']}>
         <WebCompeteTopBar title="New Challenge" />
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
@@ -140,7 +139,7 @@ function CreateChallengeScreenContent({ communityId }: CreateChallengeScreenProp
           ) : membersQuery.isError ? (
             <Text style={[type.body, { color: colors.error }]}>{membersQuery.error?.message}</Text>
           ) : (
-            <>
+            <View style={styles.sidePickersRow}>
               <WebSideMemberPicker
                 members={membersQuery.data ?? []}
                 sideName={sideAName}
@@ -155,7 +154,7 @@ function CreateChallengeScreenContent({ communityId }: CreateChallengeScreenProp
                 disabledUserIds={sideAMembers}
                 onToggle={toggleSideB}
               />
-            </>
+            </View>
           )}
 
           {formError ? <Text style={[type.body, { color: colors.error, marginBottom: spacing.sm }]}>{formError}</Text> : null}
@@ -179,9 +178,7 @@ function CreateChallengeScreenContent({ communityId }: CreateChallengeScreenProp
 
 export default function CreateChallengeScreen(props: CreateChallengeScreenProps) {
   return (
-    <VaporwaveThemeProvider>
       <CreateChallengeScreenContent {...props} />
-    </VaporwaveThemeProvider>
   );
 }
 
@@ -192,5 +189,6 @@ const createStyles = (colors: VaporwaveTheme['colors'], spacing: VaporwaveTheme[
     scroll: { flex: 1, paddingHorizontal: spacing.lg },
     scrollContent: { paddingTop: spacing.lg, paddingBottom: 48 },
     spinner: { marginVertical: spacing.lg },
+    sidePickersRow: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.lg },
     submitWrap: { marginTop: spacing.sm },
   });

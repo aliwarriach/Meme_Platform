@@ -14,11 +14,11 @@ interface WebResultBannerProps {
  * consumers — extracted per this codebase's own "extract on 2nd occurrence" convention).
  * Vaporwave/Luminous equivalent of the retired independent-theme `WebResultBanner` — reuses
  * Voting's own `WebWinnerBanner` language (glass card + `indigoGlow` decorative shadow +
- * `indigoSecondary` trophy badge) for the identical semantic occasion: this is the single
- * "decided, celebratory" moment on these two screens, same reasoning `voting-web.md` documents
- * for its own winner banner. Winner name stays in plain `foreground` text (never tinted) —
- * differentiation is carried by the trophy badge fill and the surrounding glow, not by coloring
- * the headline itself, matching this migration's "never color-code body text" rule (see
+ * `accentGold` achievement-tier trophy badge) for the identical semantic occasion: this is the
+ * single "decided, celebratory" moment on these two screens, same reasoning `voting-web.md`
+ * documents for its own winner banner. Winner name stays in plain `foreground` text (never
+ * tinted) — differentiation is carried by the trophy badge fill and the surrounding glow, not by
+ * coloring the headline itself, matching this migration's "never color-code body text" rule (see
  * compete-web.md's Accessibility section, same discipline `voting-web.md` established first).
  */
 export function WebResultBanner({ winnerName }: WebResultBannerProps) {
@@ -31,8 +31,8 @@ export function WebResultBanner({ winnerName }: WebResultBannerProps) {
         styles.root,
         { backgroundColor: colors.surfaceGlass, borderColor: colors.border, shadowColor: colors.indigoGlow },
       ]}>
-      <View style={[styles.trophyBadge, { backgroundColor: colors.indigoSecondary }]}>
-        <MaterialIcons name="emoji-events" size={20} color={colors.onAccent} />
+      <View style={[styles.trophyBadge, { backgroundColor: colors.accentGold }]}>
+        <MaterialIcons name="emoji-events" size={20} color={colors.onAccentInk} />
       </View>
       <Text style={[type.display, styles.text, { color: colors.foreground }]}>
         {winnerName ? `${winnerName} wins!` : 'Tie — no winner'}

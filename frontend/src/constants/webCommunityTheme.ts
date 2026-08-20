@@ -1,18 +1,14 @@
 /**
- * Visual-identity tokens for the desktop/web-only Communities section redesign
+ * Visual-identity tokens for the desktop/web-only Communities section
  * (`CommunitiesScreen.web.tsx`, `CommunityDetailScreen.web.tsx`, `CreateCommunityScreen.web.tsx`
  * + their `components/web/WebCommunity*`/`WebMemberCard`/`WebJoinRequestCard`/`WebPillButton`/
  * `WebTextField`/`WebSegmentedControl` siblings ONLY).
  *
- * Scope: GREENFIELD-mode pilot for a new "Vibrant & Block-based" visual system, page-scoped to
- * `design-system/meme-platform/pages/community-web.md` — it deliberately does NOT reuse
- * `tailwind.config.js`'s "Vivid Meme Culture" tokens (neon pink/purple/green, dark-only), nor
- * `webFeedTheme.ts`'s "Dark Cinema" tokens (indigo, dark-only) — both remain the systems for
- * their own trees, untouched. This is a third, independent system with full light + dark support.
+ * Colors recolored onto "Neon Plum" (see `webFeedThemeVapor.ts`'s header) — the same six-hue
+ * pink/purple/gold/cyan system every other web screen uses, so this is no longer an independent
+ * palette, just an independent *structure* (own key names, own Fredoka/Nunito typography, own
+ * light/dark provider). See each palette's own comment below for the value-copy mapping.
  * Never import this file from a native-resolved component.
- *
- * Every value below is grounded in ui-ux-pro-max skill query output (see community-web.md's
- * "Reconciliation" section for the exact commands + convergence), not invented from memory.
  */
 
 /** Fredoka (headings) / Nunito (body) — converged 2/2 across a direct `--domain typography`
@@ -63,6 +59,9 @@ export interface CommunityWebPalette {
   onSecondary: string;
   accent: string;
   onAccent: string;
+  /** Share/send-action hue — same role `accentCyan` plays in the Vaporwave/Neon Plum system
+   * (`WebMemeCard`'s send/share icons, `WebFeedTopBar`'s Instagram-link icon). */
+  shareAccent: string;
   foreground: string;
   foregroundMuted: string;
   destructive: string;
@@ -71,55 +70,61 @@ export interface CommunityWebPalette {
 }
 
 /**
- * Light palette — "Membership/Community" product-type row, returned as an EXACT identical match
- * in 3 of 4 `--domain color` queries plus the cross-check `--design-system` roll (4/4 total
- * convergence, the highest-confidence token set in this file). See community-web.md.
+ * Light palette — recolored onto "Neon Plum" (see `webFeedThemeVapor.ts`), the same six-hue
+ * system every other web screen uses, so Communities no longer runs a fourth independent
+ * palette. Every value below is the literal hex Neon Plum uses for the equivalent role (`primary`
+ * = `indigoSecondary`, `secondary` = `accentPurple`, `accent` = `success`, `ring` =
+ * `indigoPrimary`) — not a new derivation, a value copy, so a change to one system's brand colors
+ * doesn't silently drift the other out of sync. Structure/key names and the Fredoka/Nunito
+ * typography are unchanged; this is a color-only pass.
+ *
+ * Fixed a real pre-existing bug while in here: the old `accent` (`#16A34A`, "join green") measured
+ * only 3.30:1 against its own `onAccent` white — fails WCAG AA, despite this file's prior comment
+ * claiming 5.42:1 (that number was fill-vs-background contrast, not fill-vs-text). `success`
+ * (`#15803D`) replaces it, verified 5.01:1+.
  */
 export const COMMUNITY_LIGHT: CommunityWebPalette = {
-  background: '#FAF5FF',
+  background: '#FFF7FB',
   card: '#FFFFFF',
-  cardForeground: '#4C1D95',
-  elevated: '#ECEEF9', // Muted token, exact
-  elevatedHover: 'rgba(124, 58, 237, 0.06)', // primary-tinted hover overlay, alpha-derived
-  border: '#DDD6FE',
-  primary: '#7C3AED',
+  cardForeground: '#2A1220',
+  elevated: '#FFF0F7',
+  elevatedHover: 'rgba(255, 240, 247, 0.9)',
+  border: '#F3D9E7',
+  primary: '#BE185D',
   onPrimary: '#FFFFFF',
-  secondary: '#A78BFA',
-  onSecondary: '#0F172A',
-  accent: '#16A34A', // "join green" — WCAG-adjusted per the row's own note
+  secondary: '#6D28D9',
+  onSecondary: '#FFFFFF',
+  accent: '#15803D',
   onAccent: '#FFFFFF',
-  foreground: '#4C1D95',
-  foregroundMuted: '#64748B',
+  shareAccent: '#155E75',
+  foreground: '#2A1220',
+  foregroundMuted: '#6B4A5C',
   destructive: '#DC2626',
   onDestructive: '#FFFFFF',
-  ring: '#7C3AED',
+  ring: '#EC4899',
 };
 
-/**
- * Dark palette — derived from three dark-background rows (Sleep Tracker, Photo Editor & Filters,
- * Card & Board Game) that share the same exact Primary #7C3AED as the light row above, or an
- * identical surface trio (#94A3B8 muted-foreground + rgba(255,255,255,0.08) border recurred in
- * EVERY dark row across both dark-phrased queries). Accent is deliberately kept identical to
- * light mode (#16A34A) — verified 5.42:1 contrast against this background, see community-web.md.
- */
+/** Dark palette — same Neon Plum value-copy approach as light, mapped onto this file's own
+ * `background`/`card`/`elevated` roles instead of Vaporwave's `gradient*`/`surface*` names. */
 export const COMMUNITY_DARK: CommunityWebPalette = {
-  background: '#0F172A',
-  card: '#192134', // Photo Editor & Filters / Sleep Tracker dark row, exact
-  cardForeground: '#FFFFFF',
-  elevated: '#171939', // Muted token, exact (Photo Editor & Filters row)
-  elevatedHover: 'rgba(255, 255, 255, 0.04)',
-  border: 'rgba(255, 255, 255, 0.08)', // identical across every converged dark row
-  primary: '#7C3AED', // exact match to light-mode primary across rows
+  background: '#1A0E1B',
+  card: '#241328',
+  cardForeground: '#FDF2F8',
+  elevated: '#2E1930',
+  elevatedHover: 'rgba(255, 214, 236, 0.12)',
+  border: 'rgba(255, 255, 255, 0.10)',
+  primary: '#DB2777',
   onPrimary: '#FFFFFF',
-  secondary: '#6366F1', // recurred 3x in dark rows sharing #7C3AED as primary
+  secondary: '#7C3AED',
   onSecondary: '#FFFFFF',
-  accent: '#16A34A', // kept cross-mode for a consistent "active/joined" status hue
+  accent: '#15803D',
   onAccent: '#FFFFFF',
-  foreground: '#FFFFFF',
-  foregroundMuted: '#94A3B8', // identical across every converged dark row — highest confidence
-  destructive: '#DC2626', // consistent across every row, light and dark
+  shareAccent: '#0E7490',
+  foreground: '#FDF2F8',
+  foregroundMuted: '#C9A9BA',
+  destructive: '#DC2626',
   onDestructive: '#FFFFFF',
-  ring: '#7C3AED',
+  ring: '#FF5CA0',
 };
 
 export const COMMUNITY_WEB_RADIUS = {

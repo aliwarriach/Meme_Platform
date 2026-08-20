@@ -43,7 +43,10 @@ export default function WebFeedTopBar({ onShareInstagramLink }: WebFeedTopBarPro
           accessibilityLabel="Share an Instagram Reel"
           onPress={onShareInstagramLink}
           style={({ hovered }) => [styles.iconButton, hovered && styles.iconButtonHovered]}>
-          <MaterialIcons name="add-link" size={20} color={FEED_WEB_COLORS.foreground} />
+          {/* accentCyan — this system's share/send-action hue (see WebMemeCard), not the neutral
+              foreground every other top-bar icon uses, since this one specifically imports
+              outside content rather than just navigating within the app. */}
+          <MaterialIcons name="add-link" size={20} color={FEED_WEB_COLORS.accentCyan} />
         </Pressable>
 
         <Pressable
@@ -69,11 +72,11 @@ const createStyles = (
   FEED_WEB_SPACING: VaporwaveTheme['spacing'],
 ) => StyleSheet.create({
   root: {
+    height: 72,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: FEED_WEB_SPACING.lg,
-    paddingVertical: FEED_WEB_SPACING.lg,
     borderBottomWidth: 1,
     borderBottomColor: FEED_WEB_COLORS.border,
   },
@@ -105,7 +108,9 @@ const createStyles = (
     justifyContent: 'center',
     borderRadius: FEED_WEB_RADIUS.pill,
     paddingHorizontal: 3,
-    backgroundColor: FEED_WEB_COLORS.accentDownvote,
+    // Brand pink, not `accentDownvote` — an unread count isn't an error/negative signal, it
+    // shouldn't borrow the vote-downvote red.
+    backgroundColor: FEED_WEB_COLORS.indigoSecondary,
   },
   badgeText: {
     fontSize: 10,

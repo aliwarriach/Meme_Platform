@@ -8,7 +8,7 @@ import WebPillButton from '@/components/web/WebPillButton';
 import { WebCommunityCard } from '@/components/web/WebCommunityCard';
 import WebCommunityTopBar from '@/components/web/WebCommunityTopBar';
 import { WebSegmentedControl } from '@/components/web/WebSegmentedControl';
-import { CommunityThemeProvider, useCommunityWebTheme } from '@/constants/CommunityWebTheme';
+import { useCommunityWebTheme } from '@/constants/CommunityWebTheme';
 import { COMMUNITY_WEB_SPACING, COMMUNITY_WEB_TYPE, injectCommunityWebFont, type WebPressableState } from '@/constants/webCommunityTheme';
 import type { CommunityResponse } from '@/services/communities';
 import { useDiscoverCommunities, useMyCommunities } from '@/services/useCommunities';
@@ -117,9 +117,7 @@ function CommunitiesScreenContent() {
 
 export default function CommunitiesScreen() {
   return (
-    <CommunityThemeProvider>
       <CommunitiesScreenContent />
-    </CommunityThemeProvider>
   );
 }
 

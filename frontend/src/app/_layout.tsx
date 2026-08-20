@@ -16,6 +16,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Provider as ReduxProvider, useDispatch, useSelector } from 'react-redux';
 
 import DesktopShell from '@/components/web/DesktopShell';
+import { WebThemeModeProvider } from '@/constants/WebThemeMode';
 import { bootstrapAuth } from '@/store/authSlice';
 import { store, type AppDispatch, type RootState } from '@/store/store';
 import { connectMemeSendingSocket, disconnectMemeSendingSocket } from '@/services/memeSendingSocket';
@@ -92,8 +93,9 @@ function AuthBoundary({ fontsLoaded }: { fontsLoaded: boolean }) {
   if (!isBootstrapped || !fontsLoaded) return null;
 
   return (
-    <DesktopShell>
-      <Stack screenOptions={{ headerShown: false }}>
+    <WebThemeModeProvider>
+      <DesktopShell>
+        <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="login" />
         <Stack.Screen name="register" />
@@ -116,8 +118,9 @@ function AuthBoundary({ fontsLoaded }: { fontsLoaded: boolean }) {
         <Stack.Screen name="compete" />
         <Stack.Screen name="compete/open/new" />
         <Stack.Screen name="tag/[slug]" />
-      </Stack>
-    </DesktopShell>
+        </Stack>
+      </DesktopShell>
+    </WebThemeModeProvider>
   );
 }
 

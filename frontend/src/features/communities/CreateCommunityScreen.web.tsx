@@ -10,7 +10,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import WebPillButton from '@/components/web/WebPillButton';
 import WebCommunityTopBar from '@/components/web/WebCommunityTopBar';
 import { WebTextField } from '@/components/web/WebTextField';
-import { CommunityThemeProvider, useCommunityWebTheme } from '@/constants/CommunityWebTheme';
+import { useCommunityWebTheme } from '@/constants/CommunityWebTheme';
 import { COMMUNITY_WEB_RADIUS, COMMUNITY_WEB_SPACING, COMMUNITY_WEB_TYPE, injectCommunityWebFont, type WebPressableState } from '@/constants/webCommunityTheme';
 import { createCommunitySchema, type CreateCommunityFormValues } from '@/features/communities/schemas';
 import type { CommunityPrivacy } from '@/services/communities';
@@ -182,9 +182,7 @@ function CreateCommunityScreenContent() {
 
 export default function CreateCommunityScreen() {
   return (
-    <CommunityThemeProvider>
       <CreateCommunityScreenContent />
-    </CommunityThemeProvider>
   );
 }
 

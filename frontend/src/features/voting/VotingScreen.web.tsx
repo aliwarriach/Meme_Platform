@@ -1,4 +1,3 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,7 +9,7 @@ import { WebVotingTabs } from '@/components/web/WebVotingTabs';
 import { WebWinnerBanner } from '@/components/web/WebWinnerBanner';
 import type { VaporwaveTheme } from '@/constants/webFeedThemeVapor';
 import { injectFeedWebFont } from '@/constants/webFeedThemeVapor';
-import { VaporwaveThemeProvider, useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
+import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 import type { CompetitionPeriodType, StandingContent } from '@/services/competitions';
 import { useCurrentStandings, useWinner } from '@/services/useCompetitions';
 import { previousPeriodKey } from '@/utils/competitionPeriods';
@@ -27,19 +26,13 @@ const TABS: { type: CompetitionPeriodType; label: string; winnerLabel: string }[
  * bundle, `app/voting.tsx` needs zero changes). Migrated off the retired independent
  * `webVotingTheme.ts`/`VotingWebTheme.tsx` system onto the Vaporwave/Luminous glass system now
  * standard for this project's web rendering — see `design-system/meme-platform/pages/voting-web.md`
- * for the full migration record and this agent's final report for the Phase 2/2.5 audit behind
- * the one structural change made this pass (winner banner promoted out of the scrolling list, see
- * below).
+ * for the full migration record.
  *
- * STRUCTURAL CHANGE (Phase 2.5, not a copy/color variant): the retired version passed the period
- * tabs + winner banner + "Top Contenders" label as the `FlatList`'s `ListHeaderComponent`, which
- * means all of it scrolled away with the standings list on anything past a handful of rows —
- * forcing a scroll back to the top to re-check the winner or switch periods, and making the
- * "yesterday's winner" banner easy to misread as sitting inside today's live ranking simply
- * because they shared one scrolling region. That block now lives in a persistent (non-scrolling)
- * header region above the `FlatList`, exactly like `WebVotingTopBar` already is — only the
- * standings rows themselves scroll. No new width/breakpoint logic or shared `DesktopShell` change
- * needed; this is a self-contained layout restructure.
+ * Period tabs + winner banner + "Top Contenders" label render as the `FlatList`'s
+ * `ListHeaderComponent` (reverted from a Phase 2.5 pass that pinned this block outside the
+ * `FlatList` in a persistent, non-scrolling region — confirmed user-reported regression: the
+ * winner card became stuck at the top and couldn't be scrolled away with the rest of the page).
+ * Only `WebVotingTopBar` stays pinned above the list now.
  */
 function VotingScreenContent() {
   const { colors, type, spacing } = useVaporwaveTheme();
@@ -81,30 +74,10 @@ function VotingScreenContent() {
 
   return (
     <View style={styles.root}>
-      <LinearGradient colors={[colors.gradientTop, colors.gradientMid, colors.gradientBottom]} style={StyleSheet.absoluteFill} />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.gradientMid }]} />
 
       <SafeAreaView style={styles.safe} edges={['top']}>
         <WebVotingTopBar title="Competitions" />
-
-        <View style={styles.headerBlock}>
-          <View style={styles.tabsWrap}>
-            <WebVotingTabs options={TABS} value={activeTab} onChange={setActiveTab} />
-          </View>
-
-          <WebWinnerBanner
-            winner={winnerQuery.data}
-            isLoading={winnerQuery.isLoading}
-            isError={winnerQuery.isError}
-            errorMessage={winnerQuery.error?.message}
-            label={activeTabMeta.winnerLabel}
-            onPress={setSelectedContent}
-          />
-
-          <View style={styles.sectionRow}>
-            <Text style={[type.label, { color: colors.foregroundMuted }]}>Top Contenders</Text>
-            {periodStatusBadge}
-          </View>
-        </View>
 
         <FlatList
           data={items}
@@ -112,6 +85,27 @@ function VotingScreenContent() {
           renderItem={({ item }) => <WebStandingRow entry={item} onPress={setSelectedContent} />}
           contentContainerStyle={styles.listContent}
           style={styles.list}
+          ListHeaderComponent={
+            <View style={styles.headerBlock}>
+              <View style={styles.tabsWrap}>
+                <WebVotingTabs options={TABS} value={activeTab} onChange={setActiveTab} />
+              </View>
+
+              <WebWinnerBanner
+                winner={winnerQuery.data}
+                isLoading={winnerQuery.isLoading}
+                isError={winnerQuery.isError}
+                errorMessage={winnerQuery.error?.message}
+                label={activeTabMeta.winnerLabel}
+                onPress={setSelectedContent}
+              />
+
+              <View style={styles.sectionRow}>
+                <Text style={[type.label, { color: colors.foregroundMuted }]}>Top Contenders</Text>
+                {periodStatusBadge}
+              </View>
+            </View>
+          }
           ListEmptyComponent={
             standingsQuery.isLoading ? (
               <ActivityIndicator style={styles.emptyPad} color={colors.foregroundMuted} />
@@ -133,9 +127,7 @@ function VotingScreenContent() {
 
 export default function VotingScreen() {
   return (
-    <VaporwaveThemeProvider>
       <VotingScreenContent />
-    </VaporwaveThemeProvider>
   );
 }
 

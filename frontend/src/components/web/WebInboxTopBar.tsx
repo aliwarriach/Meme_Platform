@@ -40,14 +40,14 @@ export default function WebInboxTopBar({ socketStatus, onNewChat }: WebInboxTopB
   // ~1.7:1 against light (fails the 3:1 non-text minimum); indigoSecondary is the inverse.
   // Same measured pairing every prior Vaporwave screen's top bar uses.
   const ringColor = mode === 'dark' ? colors.indigoPrimary : colors.indigoSecondary;
-  // Sourced from theme tokens, not hardcoded hex — no dedicated "warning/pending" role exists
-  // in this palette, so "connecting" borrows the brand accent as a neutral in-progress signal
-  // rather than inventing an ungrounded amber literal.
+  // "connecting" uses `accentAmber` (warning/in-progress), not `accentGold` (achievement/
+  // celebration only) — the two used to be the same hex doing unrelated jobs; now they're
+  // distinct, and this is the amber one, not borrowed brand pink either.
   const dotColor =
     socketStatus === 'connected'
       ? colors.accentUpvote
       : socketStatus === 'connecting'
-        ? colors.indigoSecondary
+        ? colors.accentAmber
         : colors.accentDownvote;
 
   return (
@@ -170,6 +170,7 @@ const createStyles = (
       minHeight: 40,
       flexDirection: 'row',
       alignItems: 'center',
+      justifyContent: 'center',
       gap: 6,
       borderRadius: radius.pill,
       paddingHorizontal: spacing.md,

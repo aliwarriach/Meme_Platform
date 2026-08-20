@@ -1,4 +1,3 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -14,7 +13,7 @@ import { WebResultBanner } from '@/components/web/WebResultBanner';
 import { WebSubmissionThumb } from '@/components/web/WebSubmissionThumb';
 import type { VaporwaveTheme } from '@/constants/webFeedThemeVapor';
 import { injectFeedWebFont } from '@/constants/webFeedThemeVapor';
-import { VaporwaveThemeProvider, useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
+import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 import {
   useAcceptDuelMutation,
   useChallengeFlat,
@@ -64,7 +63,7 @@ function DuelDetailScreenContent({ challengeId }: DuelDetailScreenProps) {
   if (challengeQuery.isLoading || !challenge) {
     return (
       <View style={styles.root}>
-        <LinearGradient colors={[colors.gradientTop, colors.gradientMid, colors.gradientBottom]} style={StyleSheet.absoluteFill} />
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.gradientMid }]} />
         <SafeAreaView style={styles.centerSafe}>
           {challengeQuery.isError ? (
             <Text style={[type.body, styles.centerPad, { color: colors.error }]}>{challengeQuery.error?.message}</Text>
@@ -98,7 +97,7 @@ function DuelDetailScreenContent({ challengeId }: DuelDetailScreenProps) {
 
   return (
     <View style={styles.root}>
-      <LinearGradient colors={[colors.gradientTop, colors.gradientMid, colors.gradientBottom]} style={StyleSheet.absoluteFill} />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.gradientMid }]} />
       <SafeAreaView style={styles.safe} edges={['top']}>
         <WebCompeteTopBar title={challenge.title} />
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
@@ -220,9 +219,7 @@ function DuelDetailScreenContent({ challengeId }: DuelDetailScreenProps) {
 
 export default function DuelDetailScreen(props: DuelDetailScreenProps) {
   return (
-    <VaporwaveThemeProvider>
       <DuelDetailScreenContent {...props} />
-    </VaporwaveThemeProvider>
   );
 }
 

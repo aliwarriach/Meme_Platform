@@ -52,7 +52,9 @@ export function WebCompeteTextField({
           {
             color: colors.foreground,
             backgroundColor: colors.surfaceElevated,
-            borderColor: error ? colors.error : colors.border,
+            // `borderSolid`, not the faint `border` hairline — a text input's edge needs to read
+            // clearly against its own `surfaceElevated` fill, not just ambiently divide cards.
+            borderColor: error ? colors.error : colors.borderSolid,
           },
         ]}
       />

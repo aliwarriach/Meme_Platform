@@ -28,9 +28,8 @@ interface WebPressableState {
  * their own screens/themes) — same "independent tree" precedent every Vaporwave web pilot
  * follows, even though this one and `WebVotingTabs` end up structurally identical.
  *
- * Selected fill is `indigoSecondary` + `onAccent` (9.0:1 dark / 6.46:1 light, both ≥4.5:1 AA) —
- * never `indigoPrimary`, which fails as a white-text fill in both modes (~1.4:1 dark / ~1.7:1
- * light) — same contrast reasoning as every other selected-state fill in this migration.
+ * Selected fill is a flat `indigoSecondary` + `onAccent` (9.0:1 dark / 6.46:1 light, both ≥4.5:1
+ * AA) — no gradient, per explicit instruction.
  */
 export function WebCompeteTabs<T extends string>({ options, value, onChange }: WebCompeteTabsProps<T>) {
   const { colors, type, radius, spacing, mode } = useVaporwaveTheme();

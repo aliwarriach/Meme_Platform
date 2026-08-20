@@ -18,9 +18,11 @@ interface WebMessageBubbleProps {
  * Themed equivalent of native `MessageBubble` — same data (text/meme kinds, pending/read state),
  * new Vaporwave/Luminous chrome. Own-vs-other is never signaled by text color alone (this
  * screen's own established rule, same as every prior Vaporwave migration's "no color-coded text"
- * finding): own bubbles get a `surfaceElevated` fill + a full `indigoSecondary` border, other
+ * finding): own bubbles get a `surfaceElevated` fill + a full `accentPurple` border, other
  * bubbles get a plain `surfaceGlass` fill with no border — shape + fill differ, not just a tint,
- * and message text itself always stays `foreground`.
+ * and message text itself always stays `foreground`. Purple (not the brand pink `indigoSecondary`
+ * every filled element already uses) keeps "this is my bubble" visually distinct from the rest of
+ * the system's pink-heavy chrome.
  */
 export default function WebMessageBubble({ message, isOwn, isPending }: WebMessageBubbleProps) {
   const { colors, type, radius, spacing } = useVaporwaveTheme();
@@ -81,7 +83,7 @@ const createStyles = (
     bubbleOwn: {
       backgroundColor: colors.surfaceElevated,
       borderWidth: 1,
-      borderColor: colors.indigoSecondary,
+      borderColor: colors.accentPurple,
     },
     bubbleOther: {
       backgroundColor: colors.surfaceGlass,

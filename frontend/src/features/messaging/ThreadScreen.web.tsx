@@ -1,4 +1,3 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useMemo, useRef } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -7,7 +6,7 @@ import { useSelector } from 'react-redux';
 import WebMessageBubble from '@/components/web/WebMessageBubble';
 import WebMessageComposer from '@/components/web/WebMessageComposer';
 import WebThreadTopBar from '@/components/web/WebThreadTopBar';
-import { VaporwaveThemeProvider, useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
+import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 import type { VaporwaveTheme } from '@/constants/webFeedThemeVapor';
 import { injectFeedWebFont } from '@/constants/webFeedThemeVapor';
 import type { MessageResponse } from '@/services/messaging';
@@ -35,9 +34,7 @@ import type { RootState } from '@/store/store';
  */
 export default function ThreadScreen({ conversationId }: { conversationId: string }) {
   return (
-    <VaporwaveThemeProvider>
       <ThreadScreenContent conversationId={conversationId} />
-    </VaporwaveThemeProvider>
   );
 }
 
@@ -70,7 +67,7 @@ function ThreadScreenContent({ conversationId }: { conversationId: string }) {
 
   return (
     <View style={styles.root}>
-      <LinearGradient colors={[colors.gradientTop, colors.gradientMid, colors.gradientBottom]} style={StyleSheet.absoluteFill} />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.gradientMid }]} />
 
       <SafeAreaView style={styles.safe} edges={['top']}>
         <WebThreadTopBar

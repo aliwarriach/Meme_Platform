@@ -26,12 +26,11 @@ interface WebPressableState {
  * renders every rank identically. Ranks 4+ stay visually quiet (muted numeral, no chip) so the
  * top of the list keeps priority.
  *
- * Top-3 badge is a solid `indigoSecondary` fill + `onAccent` text (not `indigoPrimary`, and not a
- * low-alpha tint) — same contrast reasoning as `WebVotingTabs`: cyan fails as a white-text fill in
- * both modes, and a tinted background reintroduces exactly the under-4.5:1 risk the prior voting
- * system's own audit found with tinted gold. Score text stays `foreground` (not brand-colored) in
- * every row — differentiation is carried by the badge and a bolder weight for top-3, not by
- * color-as-the-only-signal on the number itself.
+ * Top-3 badge is medal-tiered (gold rank 1, silver rank 2, bronze rank 3) instead of one flat
+ * brand-pink fill for all three — matches `WebLeaderboardRow`'s identical convention, both
+ * ranked-list screens now use the same medal language. Score text stays `foreground` (not
+ * brand-colored) in every row — differentiation is carried by the badge and a bolder weight for
+ * top-3, not by color-as-the-only-signal on the number itself.
  */
 export function WebStandingRow({ entry, onPress }: WebStandingRowProps) {
   const { colors, type, radius, spacing, mode } = useVaporwaveTheme();
@@ -43,7 +42,17 @@ export function WebStandingRow({ entry, onPress }: WebStandingRowProps) {
   const imageUrl = isContainer ? content.container.thumbnail_url : content.meme.image_url;
   const authorName = isContainer ? content.container.submitter.username : content.meme.author.username;
   const caption = isContainer ? content.container.title : content.meme.caption;
-  const isTopThree = entry.rank <= 3;
+  const tierFill =
+    entry.rank === 1 ? colors.accentGold : entry.rank === 2 ? colors.rankSilver : entry.rank === 3 ? colors.rankBronze : undefined;
+  const tierText = entry.rank === 1 || entry.rank === 2 ? colors.onAccentInk : colors.onAccent;
+  const tierHover =
+    entry.rank === 1
+      ? colors.rankGoldHover
+      : entry.rank === 2
+        ? colors.rankSilverHover
+        : entry.rank === 3
+          ? colors.rankBronzeHover
+          : colors.surfaceHover;
 
   return (
     <Pressable
@@ -52,11 +61,11 @@ export function WebStandingRow({ entry, onPress }: WebStandingRowProps) {
       onPress={() => onPress(content)}
       style={({ hovered, focused }: WebPressableState) => [
         styles.row,
-        hovered && { backgroundColor: colors.surfaceHover },
+        hovered && { backgroundColor: tierHover, borderColor: tierFill ?? colors.borderHighlight },
         focused && { outlineColor: ringColor, outlineWidth: 2, outlineOffset: 1 },
       ]}>
-      <View style={[styles.rankWrap, isTopThree && { backgroundColor: colors.indigoSecondary }]}>
-        <Text style={[type.title, { color: isTopThree ? colors.onAccent : colors.foregroundMuted }]}>
+      <View style={[styles.rankWrap, tierFill && { backgroundColor: tierFill }]}>
+        <Text style={[type.title, { color: tierFill ? tierText : colors.foregroundMuted }]}>
           {entry.rank}
         </Text>
       </View>
@@ -80,7 +89,7 @@ export function WebStandingRow({ entry, onPress }: WebStandingRowProps) {
         ) : null}
       </View>
 
-      <Text style={[isTopThree ? type.h2 : type.title, { color: colors.foreground, fontSize: isTopThree ? 18 : 15 }]}>
+      <Text style={[tierFill ? type.h2 : type.title, { color: colors.foreground, fontSize: tierFill ? 18 : 15 }]}>
         {entry.score}
       </Text>
     </Pressable>

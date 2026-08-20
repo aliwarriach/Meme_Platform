@@ -28,7 +28,10 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    // Plum-black, not pure black — matches the Neon Plum canvas family instead of a generic
+    // neutral scrim. Not mode-conditional: this frame has no theme awareness of its own and a
+    // dim plum overlay reads correctly behind either light or dark modal content.
+    backgroundColor: 'rgba(10, 5, 9, 0.72)',
   },
   card: {
     width: '100%',

@@ -29,12 +29,8 @@ interface WebPressableState {
  * communities theme) or `WebCompeteTabs.tsx` (same, compete theme) — same "independent tree"
  * precedent every other web pilot in this app follows.
  *
- * Selected fill uses `indigoSecondary` + `onAccent`, not `indigoPrimary` + `onAccent`: bright
- * cyan (`indigoPrimary`) measures ~1.4:1 with white text in dark mode and ~1.7:1 in light mode
- * (it's a light, low-contrast hue meant for glow/border/icon-on-dark use, not a solid text-bearing
- * fill) — `indigoSecondary` (magenta) measures 9.0:1 dark / 6.46:1 light with `onAccent`,
- * comfortably clearing 4.5:1 AA in both modes. Computed via the standard WCAG relative-luminance
- * formula against this file's own token values, not eyeballed.
+ * Selected fill is a flat `indigoSecondary` + `onAccent` text (9.0:1 dark / 6.46:1 light,
+ * comfortably clears 4.5:1 AA) — no gradient, per explicit instruction.
  */
 export function WebVotingTabs({ options, value, onChange }: WebVotingTabsProps) {
   const { colors, type, radius, spacing, mode } = useVaporwaveTheme();

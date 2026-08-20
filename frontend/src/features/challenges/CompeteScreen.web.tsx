@@ -1,4 +1,3 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
@@ -7,12 +6,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import FloatingBottomNav from '@/components/FloatingBottomNav';
 import { WebChallengeCard } from '@/components/web/WebChallengeCard';
+import { WebLeaderboardsPanel } from '@/components/web/WebLeaderboardsPanel';
 import WebCompeteTopBar from '@/components/web/WebCompeteTopBar';
 import { WebCompeteTabs } from '@/components/web/WebCompeteTabs';
 import type { VaporwaveTheme } from '@/constants/webFeedThemeVapor';
 import { injectFeedWebFont } from '@/constants/webFeedThemeVapor';
-import { VaporwaveThemeProvider, useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
-import LeaderboardsPanel from '@/features/leaderboards/LeaderboardsPanel';
+import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 import { getFlag, setFlag } from '@/services/localFlags';
 import type { ChallengeResponse } from '@/services/challenges';
 import { useMyChallenges, useOpenChallenges } from '@/services/useChallenges';
@@ -20,14 +19,6 @@ import { useMyChallenges, useOpenChallenges } from '@/services/useChallenges';
 type Segment = 'challenges' | 'leaderboards';
 
 const EXPLAINER_FLAG = 'hasSeenCompeteExplainer';
-
-// MASTER.md's own dark-only tokens (bg/surface/outline-variant/ink-muted/error/primary), fixed
-// regardless of this page's own light/dark toggle — the native LeaderboardsPanel's rows assume
-// MASTER's dark-only palette. Same accepted seam every other Vaporwave-migrated screen embedding
-// this component would hit; see compete-web.md's "Known seams."
-const MASTER_DARK_SURFACE = {
-  bg: '#1e0f13',
-};
 
 /** Community-scoped challenges route through their community; `open`/`duel` (no community)
  * route through the flat detail screen — same routing rule as native `CompeteScreen`. */
@@ -89,7 +80,7 @@ function CompeteScreenContent() {
 
   return (
     <View style={styles.root}>
-      <LinearGradient colors={[colors.gradientTop, colors.gradientMid, colors.gradientBottom]} style={StyleSheet.absoluteFill} />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.gradientMid }]} />
 
       <SafeAreaView style={styles.safe} edges={['top']}>
         <WebCompeteTopBar
@@ -123,8 +114,8 @@ function CompeteScreenContent() {
         </View>
 
         {segment === 'leaderboards' ? (
-          <View style={[styles.leaderboardWrap, { backgroundColor: MASTER_DARK_SURFACE.bg }]}>
-            <LeaderboardsPanel />
+          <View style={styles.leaderboardWrap}>
+            <WebLeaderboardsPanel />
           </View>
         ) : (
           <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
@@ -209,9 +200,7 @@ function CompeteScreenContent() {
 
 export default function CompeteScreen() {
   return (
-    <VaporwaveThemeProvider>
       <CompeteScreenContent />
-    </VaporwaveThemeProvider>
   );
 }
 

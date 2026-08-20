@@ -1,15 +1,13 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import WebAvatar from '@/components/web/WebAvatar';
-import WebVotePill from '@/components/web/WebVotePill';
+import { WebCommentsSection } from '@/components/web/WebCommentsSection';
 import type { VaporwaveTheme } from '@/constants/webFeedThemeVapor';
-import { CommentsSection } from '@/features/feed/components/CommentsSection';
 import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 import { SendMemeModal } from '@/features/meme-sending/SendMemeModal';
-import { shareMemeImage } from '@/features/sharing/shareMeme';
 import type { MemeResponse } from '@/services/memes';
 import { useCastVoteMutation, useRecordMemeViewMutation } from '@/services/useMemes';
 import { timeAgo } from '@/utils/timeAgo';
@@ -24,31 +22,29 @@ interface WebMemeCardProps {
  * `features/feed/components/MemeCard.tsx` (native-resolved, untouched), entirely new chrome.
  * Nested modals (Send/Comments) are reused as-is rather than reskinned — see FeedScreen.web.tsx
  * report notes for that scope boundary.
+ *
+ * Vote control is the circular up/down button pair from `WebCommunityFeedCard` (not the
+ * `WebVotePill` "▲score▼" pill this card used before) — unified per explicit user request so the
+ * main and community feeds present one consistent voting affordance. `WebVotePill` itself is
+ * untouched and still used by `WebContainerCard` (Instagram Companion Mode), out of this scope.
  */
 export function WebMemeCard({ meme }: WebMemeCardProps) {
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [sendModalOpen, setSendModalOpen] = useState(false);
-  const [isSharing, setIsSharing] = useState(false);
-  const [shareError, setShareError] = useState<string | null>(null);
   const castVote = useCastVoteMutation();
   const recordView = useRecordMemeViewMutation();
   const cardRef = useRecordViewOnVisible(() => recordView.mutate(meme.id));
+  const commentsRef = useRef<View>(null);
   const { colors: FEED_WEB_COLORS, type: FEED_WEB_TYPE, radius: FEED_WEB_RADIUS, spacing: FEED_WEB_SPACING } = useVaporwaveTheme();
   const styles = useMemo(() => createStyles(FEED_WEB_COLORS, FEED_WEB_RADIUS, FEED_WEB_SPACING), [FEED_WEB_COLORS, FEED_WEB_RADIUS, FEED_WEB_SPACING]);
 
   const isVoting = castVote.isPending;
 
-  const onShare = async () => {
-    setIsSharing(true);
-    setShareError(null);
-    try {
-      await shareMemeImage(meme.image_url, meme.id);
-    } catch (error) {
-      setShareError(error instanceof Error ? error.message : 'Could not share this meme.');
-    } finally {
-      setIsSharing(false);
-    }
-  };
+  useEffect(() => {
+    if (!commentsOpen) return;
+    const node = commentsRef.current as unknown as { scrollIntoView?: (opts: ScrollIntoViewOptions) => void } | null;
+    node?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
+  }, [commentsOpen]);
 
   const onVote = (value: 1 | -1) => castVote.mutate({ memeId: meme.id, value });
 
@@ -77,13 +73,35 @@ export function WebMemeCard({ meme }: WebMemeCardProps) {
       </View>
 
       <View style={styles.actionsRow}>
-        <WebVotePill
-          score={meme.score}
-          viewerVote={meme.viewer_vote}
-          isVoting={isVoting}
-          onUpvote={() => onVote(1)}
-          onDownvote={() => onVote(-1)}
-        />
+        <View style={styles.voteGroup}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Upvote"
+            accessibilityState={{ selected: meme.viewer_vote === 1, disabled: isVoting }}
+            onPress={() => onVote(1)}
+            disabled={isVoting}
+            style={({ hovered }) => [styles.voteButton, hovered && styles.iconButtonHovered]}>
+            <MaterialIcons
+              name="arrow-upward"
+              size={18}
+              color={meme.viewer_vote === 1 ? FEED_WEB_COLORS.accentUpvote : FEED_WEB_COLORS.foregroundMuted}
+            />
+          </Pressable>
+          <Text style={[FEED_WEB_TYPE.title, styles.voteScore]}>{meme.score}</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Downvote"
+            accessibilityState={{ selected: meme.viewer_vote === -1, disabled: isVoting }}
+            onPress={() => onVote(-1)}
+            disabled={isVoting}
+            style={({ hovered }) => [styles.voteButton, hovered && styles.iconButtonHovered]}>
+            <MaterialIcons
+              name="arrow-downward"
+              size={18}
+              color={meme.viewer_vote === -1 ? FEED_WEB_COLORS.accentDownvote : FEED_WEB_COLORS.foregroundMuted}
+            />
+          </Pressable>
+        </View>
 
         <View style={styles.actionsRight}>
           <Pressable
@@ -91,20 +109,7 @@ export function WebMemeCard({ meme }: WebMemeCardProps) {
             accessibilityLabel="Send to a friend"
             onPress={() => setSendModalOpen(true)}
             style={({ hovered }) => [styles.iconButton, hovered && styles.iconButtonHovered]}>
-            <MaterialIcons name="send" size={20} color={FEED_WEB_COLORS.foregroundMuted} />
-          </Pressable>
-
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Share this meme"
-            onPress={onShare}
-            disabled={isSharing}
-            style={({ hovered }) => [styles.iconButton, hovered && styles.iconButtonHovered, isSharing && styles.disabled]}>
-            {isSharing ? (
-              <ActivityIndicator size="small" color={FEED_WEB_COLORS.foregroundMuted} />
-            ) : (
-              <MaterialIcons name="ios-share" size={18} color={FEED_WEB_COLORS.foregroundMuted} />
-            )}
+            <MaterialIcons name="send" size={20} color={FEED_WEB_COLORS.accentCyan} />
           </Pressable>
 
           <Pressable
@@ -138,11 +143,9 @@ export function WebMemeCard({ meme }: WebMemeCardProps) {
         <Text style={[FEED_WEB_TYPE.meta, styles.errorText]}>{castVote.error?.message}</Text>
       ) : null}
 
-      {shareError ? <Text style={[FEED_WEB_TYPE.meta, styles.errorText]}>{shareError}</Text> : null}
-
       {commentsOpen ? (
-        <View style={styles.commentsWrap}>
-          <CommentsSection memeId={meme.id} />
+        <View ref={commentsRef} style={styles.commentsWrap}>
+          <WebCommentsSection memeId={meme.id} />
         </View>
       ) : null}
 
@@ -196,6 +199,23 @@ const createStyles = (
     paddingHorizontal: FEED_WEB_SPACING.lg,
     paddingTop: FEED_WEB_SPACING.md,
   },
+  voteGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: FEED_WEB_SPACING.xs,
+  },
+  voteButton: {
+    height: 36,
+    width: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 999,
+  },
+  voteScore: {
+    minWidth: 28,
+    textAlign: 'center',
+    color: FEED_WEB_COLORS.foreground,
+  },
   actionsRight: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -216,9 +236,6 @@ const createStyles = (
     width: 'auto',
     paddingHorizontal: FEED_WEB_SPACING.sm,
     gap: 4,
-  },
-  disabled: {
-    opacity: 0.5,
   },
   caption: {
     paddingHorizontal: FEED_WEB_SPACING.lg,

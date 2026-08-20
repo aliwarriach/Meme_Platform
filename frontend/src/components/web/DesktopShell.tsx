@@ -8,6 +8,7 @@ import {
   DESKTOP_FEED_CONTENT_MAX_WIDTH,
   DESKTOP_FRAME_MIN_WIDTH,
 } from '@/constants/webLayout';
+import { useWebThemeMode } from '@/constants/WebThemeMode';
 
 interface DesktopShellProps {
   children: ReactNode;
@@ -21,10 +22,15 @@ interface DesktopShellProps {
  *
  * The Feed route gets a wider column than every other screen, to leave room for its open
  * inbox side panel (`DesktopInboxPanel`, mounted by `FeedScreen` itself, not here).
+ *
+ * Reads the same app-wide `useWebThemeMode()` every screen does (this component is mounted
+ * inside `WebThemeModeProvider` in `app/_layout.tsx`) — the canvas and the sidebar-divider
+ * repaint with the rest of the app instead of staying dark-only regardless of the current mode.
  */
 export default function DesktopShell({ children }: DesktopShellProps) {
   const { width } = useWindowDimensions();
   const pathname = usePathname();
+  const { mode } = useWebThemeMode();
 
   if (Platform.OS !== 'web' || width < DESKTOP_FRAME_MIN_WIDTH) {
     return <>{children}</>;
@@ -33,20 +39,29 @@ export default function DesktopShell({ children }: DesktopShellProps) {
   const contentMaxWidth = pathname === '/feed' ? DESKTOP_FEED_CONTENT_MAX_WIDTH : DESKTOP_CONTENT_MAX_WIDTH;
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: mode === 'dark' ? '#0E060F' : '#FFFFFF' }]}>
       <DesktopSidebarNav />
       <View style={styles.contentArea}>
-        <View style={[styles.content, { maxWidth: contentMaxWidth }]}>{children}</View>
+        <View
+          style={[
+            styles.content,
+            { maxWidth: contentMaxWidth, borderLeftColor: mode === 'dark' ? 'rgba(255, 255, 255, 0.09)' : '#F3D9E7' },
+          ]}>
+          {children}
+        </View>
       </View>
     </View>
   );
 }
 
+// Neon Plum shell tokens (A1/A2 in the palette spec) — Group A colors are inlined above (mode
+// picked at render time) since this component is web-only and never rendered on native, so it's
+// safe to diverge from MASTER.md's native `#1e0f13`/`#372529` shell without touching the mobile
+// app.
 const styles = StyleSheet.create({
   root: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: '#1e0f13',
   },
   contentArea: {
     flex: 1,
@@ -56,6 +71,5 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
     borderLeftWidth: 1,
-    borderLeftColor: '#372529',
   },
 });
