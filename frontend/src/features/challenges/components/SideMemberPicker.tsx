@@ -35,7 +35,7 @@ export function SideMemberPicker({
             disabled={disabledByOtherSide}
             onPress={() => onToggle(member.user.id)}
             className={`mb-1 min-h-[44px] flex-row items-center gap-2 rounded-full px-2 ${
-              selected ? 'bg-primary' : ''
+              selected ? 'bg-primary-container' : ''
             } ${disabledByOtherSide ? 'opacity-30' : ''}`}>
             <Avatar username={member.user.username} size="sm" />
             <Text className={`font-body ${selected ? 'font-title text-white' : 'text-heading'}`}>

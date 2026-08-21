@@ -9,7 +9,17 @@
 **Project:** Meme Platform
 **Generated:** 2026-08-07 (initial persist, hand-corrected same day — see Reconciliation below)
 **Category:** Native community/social app (React Native + Expo, NativeWind) — not a web landing page
-**Style Name:** "Vivid Meme Culture" (Stitch-generated 2026-07-26, already shipped and in production use across the app)
+**Style Name:** "Neon Plum" (ported 2026-08-21 from the web app's already-shipped "Vaporwave Glass
+Evolution"/"Luminous Vapor Glass" system — see Reconciliation below) — supersedes the original
+"Vivid Meme Culture" tokens (Stitch-generated 2026-07-26), which shipped dark-only and had no
+light/dark toggle.
+
+**2026-08-21 — Native light/dark port:** Native (iOS/Android) gained a real light/dark toggle for
+the first time, porting web's "Neon Plum" palette via `frontend/tailwind.config.js` +
+`frontend/src/global.css` CSS-variable theming (`darkMode: 'class'`, NativeWind's `colorScheme`).
+Every section below is updated for this — **native is no longer dark-mode-only**, superseding
+every "dark-mode-only"/"never introduce light mode" statement that was in this file before this
+date. See "Color Palette" and the new "Light/Dark Mode Mechanism" subsection below.
 
 ---
 
@@ -57,42 +67,95 @@ style family, youth/social/entertainment product fit). Shipped exact tokens win 
 
 ## Global Rules
 
-### Color Palette (source of truth: `frontend/tailwind.config.js`)
+### Color Palette (source of truth: `frontend/src/global.css` CSS variables, mirrored into
+`frontend/tailwind.config.js`'s `theme.extend.colors`; values themselves ported verbatim from
+`frontend/src/constants/webFeedThemeVapor.ts`'s `VAPOR_COLORS_DARK`/`LUMINOUS_COLORS_LIGHT`)
 
-| Role | Token | Hex | Usage |
-|------|-------|-----|-------|
-| Background | `bg` | `#1e0f13` | Screen background |
-| Surface (lowest → bright, elevation scale) | `surface-lowest` | `#180a0e` | Deepest recess (e.g. input wells) |
-| | `surface-low` | `#27171b` | |
-| | `surface` | `#2c1b1f` | Default card/panel surface |
-| | `surface-high` | `#372529` | Raised elements, unselected chips |
-| | `surface-highest` | `#433034` | |
-| | `surface-bright` | `#473438` | Highest elevation before primary |
-| Primary | `primary` | `#ff3385` | Neon pink — primary CTAs, active tab indicator, upvote |
-| | `primary-container` | `#ff4a8c` | Avatar fallback bg, filled containers |
-| | `primary-dim` | `#ffb1c4` | Text-on-tinted-primary (e.g. pending badge label) |
-| | `on-primary` | `#65002e` | Text/icon on top of solid primary fill |
-| Secondary | `secondary` | `#8a2be2` | Electric purple — secondary actions, downvote |
-| | `secondary-container` | `#7701d0` | |
-| | `secondary-light` | `#dcb8ff` | |
-| Tertiary | `tertiary` | `#5ee060` | Electric green — success/positive accents |
-| | `tertiary-container` | `#16a72e` | |
-| Error | `error` | `#ffb4ab` | Error text/icons on dark surfaces |
-| | `error-container` | `#93000a` | |
-| Outline | `outline` | `#aa888f` | Borders needing more contrast (dashed pickers, outline buttons) |
-| | `outline-variant` | `#5b3f46` | Default hairline borders/dividers |
-| Heading | `heading` | `#ffffff` | Pure white — headings, high-emphasis titles |
-| Ink | `ink` | `#f9dbe1` | Primary body text on dark surfaces |
-| Ink muted | `ink-muted` | `#e3bdc5` | Secondary/meta text, placeholders, disabled labels, loading spinners |
+Every role below now has **two** values — dark (`.dark` selector in `global.css`) and light (`:root`,
+default). Both are driven by the same className (`bg-surface`, `text-ink-muted`, etc.) — the CSS
+variable swaps underneath when `colorScheme.set()` toggles, so component code never branches on
+mode itself.
+
+| Role | Token | Dark | Light | Usage |
+|------|-------|------|-------|-------|
+| Background | `bg` | `#1A0E1B` | `#FFF7FB` | Screen background |
+| Surface (lowest → bright, elevation scale) | `surface-lowest` | `#120A11` | `#F3D9E7` | Deepest recess (e.g. input wells) |
+| | `surface-low` | `#1A0E1B` | `#FDF3F8` | |
+| | `surface` | `#241328` | `#FFFFFF` | Default card/panel surface |
+| | `surface-high` | `#2E1930` | `#FFF0F7` | Raised elements, unselected chips |
+| | `surface-highest` | `#381F38` | `#FFFFFF` | |
+| | `surface-bright` | `#422540` | `#FFFFFF` | Highest elevation before primary |
+| Primary | `primary` | `#FF5CA0` | `#EC4899` | Bright pink — ring/icon/border/active-tab-indicator/upvote-arrow. **Not** a safe white-text fill in either mode. |
+| | `primary-container` | `#DB2777` | `#BE185D` | Fill-safe deep pink — solid buttons/badges/chips paired with white text (`PillButton` primary variant, `Chip` selected, notification badges) |
+| | `primary-dim` | `#FF5CA0` | `#BE185D` | Text-on-tinted-primary (e.g. pending badge label, `bg-primary/20` + this text) |
+| | `on-primary` | `#1A0E18` | `#1A0E18` | Dark ink text/icon on top of a bright accent fill (gold/amber/etc., not `primary` itself) |
+| Secondary | `secondary` | `#C084FC` | `#6D28D9` | Purple accent |
+| | `secondary-container` | `#6A498B` | `#6D28D9` | |
+| | `secondary-light` | `#C084FC` | `#A77EE8` | |
+| Tertiary | `tertiary` | `#15803D` | `#15803D` | Success/positive green — single AA-safe green, replaces the old dual-green pair (old `#16A34A`-family measured only ~3.3:1 vs white, failed AA) |
+| | `tertiary-container` | `#15803D` | `#15803D` | |
+| Error | `error` | `#FF9B9B` | `#BA1A1A` | Error text/icons |
+| | `error-container` | `#BA1A1A` | `#821212` | Solid error-fill badges |
+| Outline | `outline` | `#4A2C42` | `#C98FB0` | Borders needing more contrast (dashed pickers, outline buttons) |
+| | `outline-variant` | white base, `/NN` modifier for opacity | `#F3D9E7` | Default hairline borders/dividers |
+| Heading | `heading` | `#FDF2F8` | `#2A1220` | Headings, high-emphasis titles |
+| Ink | `ink` | `#FDF2F8` | `#2A1220` | Primary body text |
+| Ink muted | `ink-muted` | `#C9A9BA` | `#6B4A5C` | Secondary/meta text, placeholders, disabled labels, loading spinners |
+| Achievement/rank (net-new) | `accent-gold` | `#F59E0B` | `#F59E0B` | Rank-1 medal, achievement badges — **fill-safe with dark ink (`on-accent-ink`) text only**, never white |
+| | `accent-amber` | `#EA580C` | `#EA580C` | Pending/in-progress — deliberately distinct from gold ("you won" vs. "still moving") |
+| | `accent-cyan` | `#0E7490` | `#155E75` | Share/send actions |
+| | `accent-upvote` / `accent-downvote` | `#4ADE80` / `#FF8080` | `#15803D` / `#DC2626` | Dedicated vote-arrow colors (`VotePill`) — no longer reuses `primary`/`secondary` |
+| | `rank-gold` / `rank-silver` / `rank-bronze` | `#F59E0B` / `#CBD5E1` / `#B45309` | `#F59E0B` / `#94A3B8` / `#92400E` | Leaderboard top-3 medal fills (`RankBadge`) |
+| | `surface-glass` / `surface-press` / `press-tint` / `border-highlight` | translucent, see `global.css` | translucent, see `global.css` | Glass-card surfaces, native's press-state equivalent of web's hover |
 
 **Color role notes:**
-- This is a **dark-mode-only** system — `ThemeProvider` is hardcoded to `DarkTheme`. Never introduce a light
-  background token or branch.
+- **No longer dark-mode-only.** Native has a real light/dark toggle (Redux `theme` slice,
+  `frontend/src/store/themeSlice.ts`, persisted via `expo-secure-store`) — see "Light/Dark Mode
+  Mechanism" below.
+- `primary` vs. `primary-container` is a real, enforced distinction (unlike the old system, which
+  used one hex for both roles): `primary` is bright and ring/icon/border-safe but **not** a safe
+  white-text fill; `primary-container` is the deep, fill-safe pink. Any `bg-primary` (unmodified,
+  no `/NN`) paired with white text/icon content is a bug — use `bg-primary-container` instead. This
+  was an actual pre-existing contrast issue in several components (`PillButton`, `Chip`,
+  `ChallengeRow`, notification badges, etc.), fixed as part of the port.
 - Color is never the only signal: membership/status states (active/pending/owner) pair a text label with their
   color treatment (see CommunityDetailScreen's `renderActionButton`), not color alone.
-- `ActivityIndicator`'s `color` prop cannot take a NativeWind className (RN native prop, not a style). Source it from
-  `frontend/src/constants/theme.ts` → `INK_MUTED`, not an inline hex literal. Same applies to `placeholderTextColor`
+- `ActivityIndicator`'s `color` prop cannot take a NativeWind className (RN native prop, not a style). Source it
+  from `frontend/src/constants/theme.ts`'s mode-aware `NEON_PLUM_DARK`/`NEON_PLUM_LIGHT` objects via
+  `useColorScheme()` from `nativewind` (kept in sync with the Redux `theme` slice), not a static
+  hex literal or the old single-mode `INK_MUTED`/`PRIMARY_DIM` constants (removed — they didn't
+  vary by mode and are gone from `theme.ts`). Same applies to `placeholderTextColor`, `shadowColor`,
   and any other native-only color prop.
+
+### Light/Dark Mode Mechanism (net-new, 2026-08-21)
+
+- **Tokens:** CSS variables in `frontend/src/global.css` (`:root` = light default, `.dark` = dark
+  override), consumed by `tailwind.config.js` via `rgb(var(--color-x) / <alpha-value>)` — this
+  preserves every existing `/NN` opacity-modifier className (`bg-primary/10`, etc.) with zero
+  component-level edits. `darkMode: 'class'` is set so NativeWind's `colorScheme.set()` (not OS
+  `prefers-color-scheme` alone) is the deterministic source of truth.
+- **Preference state:** `frontend/src/store/themeSlice.ts` (Redux Toolkit), `mode: 'light' | 'dark'`.
+  `hydrateThemeMode()` runs once at boot (`app/_layout.tsx`, alongside `bootstrapAuth()`), reading
+  `frontend/src/services/themeStorage.ts` (an `expo-secure-store`-backed helper, mirroring
+  `tokenStorage.ts`'s exact web/native-split pattern — **not** AsyncStorage, which isn't a
+  dependency of this project) with an `Appearance.getColorScheme()` OS-preference fallback for a
+  first launch. `toggleThemeMode()` persists + calls `colorScheme.set()` on every toggle. The splash
+  screen stays up until both auth and theme are hydrated, so there is no light/dark flash on boot.
+- **Toggle UI:** `frontend/src/features/auth/components/ThemeModeToggle.tsx`, a segmented pill
+  control (not a bare `Switch`, to carry over the pill-control convention) in `SessionScreen.tsx`
+  (Profile), above `ENTRY_LINKS`.
+- **Navigation chrome:** `expo-router`'s `ThemeProvider` (from `@react-navigation`) is no longer
+  hardcoded to `DarkTheme` — `app/_layout.tsx` picks `NEON_PLUM_NAV_DARK`/`NEON_PLUM_NAV_LIGHT`
+  (custom themes built on `DarkTheme`/`DefaultTheme`) based on the Redux mode, and `expo-status-bar`
+  flips `style="light"`/`"dark"` to match.
+- **Typography — kept Be Vietnam Pro, did not adopt web's Quicksand.** A deliberate call, not an
+  oversight: (1) the meme Creator/Editor renders identically on web and native via shared NativeWind
+  classes bound to this file's tokens (see `webFeedThemeVapor.ts`'s own header) — introducing a
+  second font family natively would fork that shared rendering path; (2) Be Vietnam Pro is already
+  fully loaded (`@expo-google-fonts/be-vietnam-pro`) and used across every native screen — adding
+  Quicksand as a second native font bundle costs load time/splash duration for a purely aesthetic
+  swap; (3) this file's own Reconciliation section already validated Be Vietnam Pro as the shipped,
+  correct native identity — the light/dark port changes color, not typography.
 
 ### Typography
 
@@ -118,31 +181,41 @@ between stacked sections, `pb-100`+ content-container bottom padding on lists si
 
 - **Full pill roundness** (`rounded-full`) on all interactive controls — buttons, chips, badges, avatars, vote pill,
   text inputs.
-- **`rounded-card`** (`24px`, defined in `tailwind.config.js`) on card-level containers (`GlassCard`, community icon
+- **`rounded-card`** (mode-aware: `24px` dark / `16px` light, via the `--radius-card` CSS variable —
+  matches web's `VAPOR_RADIUS_DARK`/`LUMINOUS_RADIUS_LIGHT`) on card-level containers (`GlassCard`, community icon
   fallback tile, privacy-option cards).
 
 ### Component Conventions (existing shared components — reuse, don't reinvent)
 
 - `PillButton` — primary interactive control; `primary`/`secondary`/`outline`/`ghost` variants, built-in loading state,
-  min-height 44px.
-- `Chip` — filter/tab/toggle control; translucent `surface-high/60` unselected → opaque `primary` selected.
-- `GlassCard` — frosted glass elevation. **Must use the `StyleSheet.absoluteFill` sibling-layer pattern**
+  min-height 44px. `primary` variant fills with `primary-container` (not `primary` — see Color role notes) and
+  carries a soft `primaryGlow` shadow, matching web's gradient/glow CTA treatment.
+- `Chip` — filter/tab/toggle control; translucent `surface-high/60` unselected → opaque `primary-container` selected.
+- `GlassCard` — frosted glass elevation, `bg-surface-glass` fill, `BlurView` `tint` now mode-aware (`dark`/`light`
+  based on `useColorScheme()`). **Must use the `StyleSheet.absoluteFill` sibling-layer pattern**
   (`BlurView` as an absolute-fill sibling, real content in a separate normal-flow `View`) — never put layout-bearing
   classNames directly on `<BlurView>`. `BlurView` is not NativeWind-registered and has a confirmed Android sizing bug
   when nested with real content; it was fully removed from `FloatingBottomNav.tsx` after three failed fix attempts.
   Current `GlassCard.tsx` nests real children inside `<BlurView>` directly — flagged as a latent risk, out of scope
   for this pass (not touched by the communities screens; see report).
-- `TopBar` — back arrow + centered white title + right actions, safe-area aware.
+- `TopBar` — back arrow + centered title (mode-aware `heading` color) + right actions, safe-area aware.
 - `Avatar` — circular, initials fallback on `primary-container`.
+- `RankBadge` (net-new, `features/leaderboards/components/RankBadge.tsx`) — gold/silver/bronze medal fill (`on-accent-ink`
+  text) for leaderboard ranks 1-3, plain `heading` text otherwise; paired with `rankTintClassName()` for a
+  medal-tinted row background. Shared by `IndividualLeaderboardRow`/`CommunityLeaderboardRow`.
+- `ThemeModeToggle` (net-new, `features/auth/components/ThemeModeToggle.tsx`) — the light/dark segmented pill in
+  Profile settings. See "Light/Dark Mode Mechanism" above.
 - `VotePill` — Reddit-style ▲score▼, never a heart/like icon.
 - `TextField` — pill-shaped input, `border-error` on validation failure.
 - `FloatingBottomNav` — absolute-overlay dock, **plain inline `StyleSheet`, not NativeWind, not `BlurView`** (same
-  Android sizing bug as above) — this is intentional and must not be "fixed" back to className/blur.
+  Android sizing bug as above) — this is intentional and must not be "fixed" back to className/blur. Mode-aware via
+  a hand-mirrored `NATIVE_TOKENS: Record<'dark'|'light', ...>` object (reads `useColorScheme()`), not CSS variables,
+  since this component can't use classNames at all.
 
 ### Challenge Status Color Convention (established, reuse — don't reinvent per screen)
 
-`ChallengeRow.tsx` established: `active` → `bg-tertiary` (electric green), `evaluated` → `bg-primary`
-(neon pink), `setup` → `bg-surface-high` (neutral, labeled "Pending"). The 2026-08-07
+`ChallengeRow.tsx` established: `active` → `bg-tertiary` (success green), `evaluated` → `bg-primary-container`
+(fill-safe deep pink, paired with white text), `setup` → `bg-surface-high` (neutral, labeled "Pending"). The 2026-08-07
 active-challenge banner (`CommunityDetailScreen`'s Feed tab) and hub badge (`CommunityCard`)
 reuse `tertiary` for "live/active" specifically — any future challenge/compete-surface work
 (Phase B) should pull from this same three-color mapping rather than introducing a new one.
@@ -160,12 +233,18 @@ reuse `tertiary` for "live/active" specifically — any future challenge/compete
 
 ## Anti-Patterns (Do NOT Use)
 
-- Light backgrounds / light mode — this app is dark-only.
+- A second, parallel theming mechanism (e.g. a hand-rolled Context/StyleSheet theme system like web's) instead of
+  NativeWind's CSS-variable + `colorScheme` mechanism already wired up — native has one light/dark mechanism, not two.
+- `dark:`-prefixed NativeWind variant classNames for new mode-specific styling — this system uses CSS variables
+  (one className resolves to different values per mode), not `dark:bg-x` pairs; adding the latter would create two
+  competing theming approaches in the same codebase.
 - Web-only affordances that don't exist on native: `cursor-pointer`, CSS `:hover`, fixed breakpoints for a phone-first
   native screen.
 - Raw hex literals inline in component code for anything NativeWind can express via a token — use the
-  `tailwind.config.js` color tokens (className) or, for native-only color props, the single sourced constant in
-  `frontend/src/constants/theme.ts`.
+  `tailwind.config.js` color tokens (className) or, for native-only color props, `frontend/src/constants/theme.ts`'s
+  mode-aware `NEON_PLUM_DARK`/`NEON_PLUM_LIGHT` via `useColorScheme()`.
+- `bg-primary` (unmodified) paired with white text/icon content — `primary` is not a safe white-text fill in either
+  mode; use `bg-primary-container`.
 - `BlurView` with layout-bearing classNames directly on it, or nested inside real content without the
   absolute-fill-sibling pattern (confirmed Android sizing bug).
 - Heart/like icons for reactions — this app uses the ▲▼ `VotePill` exclusively.

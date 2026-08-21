@@ -3,9 +3,11 @@ import { useRouter } from 'expo-router';
 import { ScrollView, ActivityIndicator, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
+import { useColorScheme } from 'nativewind';
 
 import PillButton from '@/components/PillButton';
 import TopBar from '@/components/TopBar';
+import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import { CountdownTimer } from '@/features/challenges/components/CountdownTimer';
 import { SubmissionPicker } from '@/features/challenges/components/SubmissionPicker';
 import type { MemeResponse } from '@/services/memes';
@@ -27,7 +29,7 @@ interface ChallengeDetailScreenProps {
 
 const STATUS_STYLES: Record<string, string> = {
   active: 'bg-tertiary',
-  evaluated: 'bg-primary',
+  evaluated: 'bg-primary-container',
   setup: 'bg-surface-high',
 };
 
@@ -35,6 +37,8 @@ export default function ChallengeDetailScreen({
   communityId,
   challengeId,
 }: ChallengeDetailScreenProps) {
+  const { colorScheme } = useColorScheme();
+  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const router = useRouter();
   const currentUser = useSelector((state: RootState) => state.auth.user);
 
@@ -87,7 +91,7 @@ export default function ChallengeDetailScreen({
             {challengeQuery.error?.message}
           </Text>
         ) : (
-          <ActivityIndicator color="#e3bdc5" />
+          <ActivityIndicator color={c.inkMuted} />
         )}
       </SafeAreaView>
     );
@@ -212,7 +216,7 @@ export default function ChallengeDetailScreen({
               Submissions
             </Text>
             {resultsQuery.isLoading ? (
-              <ActivityIndicator className="my-4" color="#e3bdc5" />
+              <ActivityIndicator className="my-4" color={c.inkMuted} />
             ) : resultsQuery.isError ? (
               <Text className="font-body text-sm text-error">{resultsQuery.error?.message}</Text>
             ) : submissions.length === 0 ? (

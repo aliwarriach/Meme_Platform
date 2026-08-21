@@ -3,10 +3,12 @@ import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { ActivityIndicator, FlatList, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useColorScheme } from 'nativewind';
 
 import PillButton from '@/components/PillButton';
 import { TextField } from '@/components/TextField';
 import TopBar from '@/components/TopBar';
+import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import DuelProposeModal from '@/features/challenges/components/DuelProposeModal';
 import { FriendRequestRow } from '@/features/friends/components/FriendRequestRow';
 import { FriendRow } from '@/features/friends/components/FriendRow';
@@ -24,6 +26,8 @@ import {
 } from '@/services/useFriends';
 
 export default function FriendsScreen() {
+  const { colorScheme } = useColorScheme();
+  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const friendsQuery = useFriendsList();
   const requestsQuery = useIncomingFriendRequests();
   const sendMutation = useSendFriendRequestMutation();
@@ -102,7 +106,7 @@ export default function FriendsScreen() {
               Friend requests
             </Text>
             {requestsQuery.isLoading ? (
-              <ActivityIndicator className="my-4" color="#e3bdc5" />
+              <ActivityIndicator className="my-4" color={c.inkMuted} />
             ) : requestsQuery.isError ? (
               <Text className="mb-4 font-body text-sm text-error">{requestsQuery.error.message}</Text>
             ) : requestsQuery.data && requestsQuery.data.length > 0 ? (
@@ -125,7 +129,7 @@ export default function FriendsScreen() {
         }
         ListEmptyComponent={
           friendsQuery.isLoading ? (
-            <ActivityIndicator className="my-4" color="#e3bdc5" />
+            <ActivityIndicator className="my-4" color={c.inkMuted} />
           ) : friendsQuery.isError ? (
             <Text className="mx-4 font-body text-sm text-error">{friendsQuery.error.message}</Text>
           ) : (

@@ -1,6 +1,8 @@
 import { Image } from 'expo-image';
+import { useColorScheme } from 'nativewind';
 import { ActivityIndicator, FlatList, Pressable, Text } from 'react-native';
 
+import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import type { TemplateResponse } from '@/services/templates';
 
 interface TemplateGridProps {
@@ -22,6 +24,8 @@ export function TemplateGrid({
   onSelect,
   emptyMessage,
 }: TemplateGridProps) {
+  const { colorScheme } = useColorScheme();
+  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   return (
     <FlatList
       data={items}
@@ -45,10 +49,10 @@ export function TemplateGrid({
           />
         </Pressable>
       )}
-      ListFooterComponent={isFetchingNextPage ? <ActivityIndicator className="my-4" color="#e3bdc5" /> : null}
+      ListFooterComponent={isFetchingNextPage ? <ActivityIndicator className="my-4" color={c.inkMuted} /> : null}
       ListEmptyComponent={
         isLoading ? (
-          <ActivityIndicator className="mt-8" color="#e3bdc5" />
+          <ActivityIndicator className="mt-8" color={c.inkMuted} />
         ) : (
           <Text className="mt-8 text-center font-body text-sm text-ink-muted">{emptyMessage}</Text>
         )

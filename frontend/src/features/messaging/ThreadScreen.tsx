@@ -11,8 +11,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
+import { useColorScheme } from 'nativewind';
 
 import TopBar from '@/components/TopBar';
+import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import MessageBubble from '@/features/messaging/MessageBubble';
 import type { MessageResponse } from '@/services/messaging';
 import {
@@ -26,6 +28,8 @@ import type { RootState } from '@/store/store';
 const MAX_MESSAGE_LENGTH = 2000;
 
 function Composer({ conversationId }: { conversationId: string }) {
+  const { colorScheme } = useColorScheme();
+  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const [draft, setDraft] = useState('');
   const sendMessage = useSendMessageMutation(conversationId);
   const trimmed = draft.trim();
@@ -50,7 +54,7 @@ function Composer({ conversationId }: { conversationId: string }) {
           value={draft}
           onChangeText={setDraft}
           placeholder="Message…"
-          placeholderTextColor="#aa888f"
+          placeholderTextColor={c.outline}
           multiline
           maxLength={MAX_MESSAGE_LENGTH}
           accessibilityLabel="Message text"
@@ -62,8 +66,8 @@ function Composer({ conversationId }: { conversationId: string }) {
           accessibilityLabel="Send message"
           onPress={onSend}
           disabled={!trimmed}
-          className="min-h-[44px] min-w-[44px] items-center justify-center rounded-full bg-primary px-4 disabled:opacity-40">
-          <Text className="font-title text-bg">Send</Text>
+          className="min-h-[44px] min-w-[44px] items-center justify-center rounded-full bg-primary-container px-4 disabled:opacity-40">
+          <Text className="font-title text-white">Send</Text>
         </Pressable>
       </View>
     </View>
@@ -71,6 +75,8 @@ function Composer({ conversationId }: { conversationId: string }) {
 }
 
 export default function ThreadScreen({ conversationId }: { conversationId: string }) {
+  const { colorScheme } = useColorScheme();
+  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const viewerId = useSelector((state: RootState) => state.auth.user?.id);
   const { data: conversations } = useConversations();
   const conversation = conversations?.find((c) => c.id === conversationId);
@@ -99,7 +105,7 @@ export default function ThreadScreen({ conversationId }: { conversationId: strin
         className="flex-1"
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         {isLoading ? (
-          <ActivityIndicator className="mt-8" color="#e3bdc5" />
+          <ActivityIndicator className="mt-8" color={c.inkMuted} />
         ) : isError ? (
           <Text className="px-4 pt-4 font-body text-error">{error.message}</Text>
         ) : messages.length === 0 ? (
@@ -127,7 +133,7 @@ export default function ThreadScreen({ conversationId }: { conversationId: strin
             }}
             onEndReachedThreshold={0.4}
             ListFooterComponent={
-              isFetchingNextPage ? <ActivityIndicator className="py-3" color="#e3bdc5" /> : null
+              isFetchingNextPage ? <ActivityIndicator className="py-3" color={c.inkMuted} /> : null
             }
           />
         )}

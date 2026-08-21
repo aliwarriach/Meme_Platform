@@ -3,10 +3,12 @@ import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useColorScheme } from 'nativewind';
 
 import Chip from '@/components/Chip';
 import FloatingBottomNav from '@/components/FloatingBottomNav';
 import TopBar from '@/components/TopBar';
+import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import { ChallengeRow } from '@/features/challenges/components/ChallengeRow';
 import LeaderboardsPanel from '@/features/leaderboards/LeaderboardsPanel';
 import { getFlag, setFlag } from '@/services/localFlags';
@@ -31,6 +33,8 @@ function goToChallenge(router: ReturnType<typeof useRouter>, challenge: Challeng
 }
 
 export default function CompeteScreen() {
+  const { colorScheme } = useColorScheme();
+  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const router = useRouter();
   const [segment, setSegment] = useState<Segment>('challenges');
   const [showExplainer, setShowExplainer] = useState(false);
@@ -63,7 +67,7 @@ export default function CompeteScreen() {
             accessibilityLabel="Start an open challenge"
             onPress={() => router.push('/compete/open/new')}
             className="h-11 w-11 items-center justify-center">
-            <MaterialIcons name="add" size={22} color="#ffffff" />
+            <MaterialIcons name="add" size={22} color={c.white} />
           </Pressable>
         }
       />
@@ -101,7 +105,7 @@ export default function CompeteScreen() {
 
           <Text className="mb-2 font-label text-xs uppercase tracking-wide text-ink-muted">Active</Text>
           {myChallengesQuery.isLoading ? (
-            <ActivityIndicator className="my-4" color="#e3bdc5" />
+            <ActivityIndicator className="my-4" color={c.inkMuted} />
           ) : myChallengesQuery.isError ? (
             <Text className="mb-4 font-body text-sm text-error">{myChallengesQuery.error.message}</Text>
           ) : active.length === 0 ? (
@@ -119,7 +123,7 @@ export default function CompeteScreen() {
             Open to join
           </Text>
           {openChallengesQuery.isLoading ? (
-            <ActivityIndicator className="my-4" color="#e3bdc5" />
+            <ActivityIndicator className="my-4" color={c.inkMuted} />
           ) : openChallengesQuery.isError ? (
             <Text className="mb-4 font-body text-sm text-error">{openChallengesQuery.error.message}</Text>
           ) : openToJoin.length === 0 ? (

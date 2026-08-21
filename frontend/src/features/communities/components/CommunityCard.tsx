@@ -1,7 +1,9 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { useColorScheme } from 'nativewind';
 import { Pressable, Text, View } from 'react-native';
 
+import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import type { CommunityResponse } from '@/services/communities';
 
 interface CommunityCardProps {
@@ -15,6 +17,9 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export function CommunityCard({ community, onPress }: CommunityCardProps) {
+  const { colorScheme } = useColorScheme();
+  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -55,7 +60,7 @@ export function CommunityCard({ community, onPress }: CommunityCardProps) {
             accessibilityElementsHidden
             importantForAccessibility="no-hide-descendants"
             className="mt-1 flex-row items-center gap-1 self-start rounded-full bg-tertiary px-2 py-0.5">
-            <MaterialIcons name="bolt" size={12} color="#ffffff" />
+            <MaterialIcons name="bolt" size={12} color={c.white} />
             <Text className="font-label text-[10px] uppercase text-white">Active Challenge</Text>
           </View>
         ) : null}

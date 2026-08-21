@@ -3,6 +3,7 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { useSelector } from 'react-redux';
 
+import { ensureWebFontsReady } from '@/features/creator/skiaFonts';
 import type { RootState } from '@/store/store';
 import { ensureSkiaWebReady } from '@/utils/skiaWeb';
 
@@ -28,7 +29,12 @@ export default function NewPost() {
 
   useEffect(() => {
     if (skiaReady) return;
-    ensureSkiaWebReady().then(() => setSkiaReady(true));
+    // Sequential, not Promise.all: `ensureWebFontsReady` dynamically imports `Skia` itself
+    // (see skiaFonts.web.ts) and must not do so until `ensureSkiaWebReady` has already set
+    // `global.CanvasKit` — running them concurrently would race the same undefined-freeze bug.
+    ensureSkiaWebReady()
+      .then(() => ensureWebFontsReady())
+      .then(() => setSkiaReady(true));
   }, [skiaReady]);
 
   if (!token) return <Redirect href="/login" />;

@@ -1,5 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useColorScheme } from 'nativewind';
 import { useMemo } from 'react';
 import { Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -31,19 +32,18 @@ const ITEMS: NavItem[] = [
   { key: 'profile', href: '/profile', icon: 'account-circle' },
 ];
 
-// Native's MASTER.md tint, fixed — this component is shared with the native mobile app, which
-// stays dark-only exactly as shipped, unaffected by the web light/dark toggle.
-const NATIVE_TOKENS = {
-  activeTint: '#ff3385',
-  inactiveTint: '#e3bdc5',
-  barBorder: '#5b3f46',
-  barBg: '#2c1b1f',
-  createIcon: '#ffffff',
-};
+interface NavTintTokens {
+  activeTint: string;
+  inactiveTint: string;
+  barBorder: string;
+  barBg: string;
+  createIcon: string;
+}
 
-// Web-only Neon Plum tokens, mode-aware — this bar only renders on web at narrow (non-desktop)
-// viewports, since `DesktopSidebarNav` takes over at >= DESKTOP_FRAME_MIN_WIDTH.
-const WEB_TOKENS = {
+// Native Neon Plum tokens, mode-aware — mirrors `WEB_TOKENS`'s shape/values below (same source
+// tokens, `webFeedThemeVapor.ts`'s indigoPrimary/indigoSecondary), read from NativeWind's
+// `colorScheme` (kept in sync with the `theme` Redux slice) instead of `useWebThemeMode()`.
+const NATIVE_TOKENS: Record<'dark' | 'light', NavTintTokens> = {
   dark: {
     activeTint: '#FF5CA0',
     inactiveTint: '#C9A9BA',
@@ -58,7 +58,26 @@ const WEB_TOKENS = {
     barBg: '#FFFFFF',
     createIcon: '#FFFFFF',
   },
-} as const satisfies Record<WebThemeMode, Record<string, string>>;
+};
+
+// Web-only Neon Plum tokens, mode-aware — this bar only renders on web at narrow (non-desktop)
+// viewports, since `DesktopSidebarNav` takes over at >= DESKTOP_FRAME_MIN_WIDTH.
+const WEB_TOKENS: Record<WebThemeMode, NavTintTokens> = {
+  dark: {
+    activeTint: '#FF5CA0',
+    inactiveTint: '#C9A9BA',
+    barBorder: 'rgba(255, 255, 255, 0.10)',
+    barBg: '#241328',
+    createIcon: '#FFFFFF',
+  },
+  light: {
+    activeTint: '#EC4899',
+    inactiveTint: '#6B4A5C',
+    barBorder: '#F3D9E7',
+    barBg: '#FFFFFF',
+    createIcon: '#FFFFFF',
+  },
+};
 
 /**
  * Floating dock on the primary sections, rendered per-screen as an absolute overlay (navigation
@@ -68,15 +87,16 @@ const WEB_TOKENS = {
  * was also unreliable for this overlay). Inline styles render identically on every device with no
  * transform in the path — the reliable choice for this one always-on-top chrome element.
  *
- * Reads `useWebThemeMode()` for its web-rendered tokens only — native always uses `NATIVE_TOKENS`
- * regardless of that value, so the mobile app's own dark-only identity is never affected.
+ * Reads `useWebThemeMode()` for its web-rendered tokens and NativeWind's `colorScheme` for its
+ * native-rendered tokens — each platform's own mode toggle drives its own token set.
  */
 export default function FloatingBottomNav({ active }: FloatingBottomNavProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const { mode } = useWebThemeMode();
-  const t = Platform.OS === 'web' ? WEB_TOKENS[mode] : NATIVE_TOKENS;
+  const { mode: webMode } = useWebThemeMode();
+  const { colorScheme } = useColorScheme();
+  const t = Platform.OS === 'web' ? WEB_TOKENS[webMode] : NATIVE_TOKENS[colorScheme === 'light' ? 'light' : 'dark'];
   const styles = useMemo(() => createStyles(t), [t]);
 
   // DesktopShell's DesktopSidebarNav takes over navigation on wide desktop-web viewports —
@@ -111,7 +131,7 @@ function NavIcon({
   item: NavItem;
   isActive: boolean;
   onPress: () => void;
-  t: typeof NATIVE_TOKENS;
+  t: NavTintTokens;
   styles: ReturnType<typeof createStyles>;
 }) {
   if (item.primary) {
@@ -138,7 +158,7 @@ function NavIcon({
   );
 }
 
-const createStyles = (t: typeof NATIVE_TOKENS) =>
+const createStyles = (t: NavTintTokens) =>
   StyleSheet.create({
     root: {
       position: 'absolute',

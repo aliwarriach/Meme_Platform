@@ -1,7 +1,9 @@
+import { useColorScheme } from 'nativewind';
 import type { ReactElement } from 'react';
 import { useCallback, useRef } from 'react';
 import { ActivityIndicator, FlatList, Platform, RefreshControl, Text, type ViewToken } from 'react-native';
 
+import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import { MemeCard } from '@/features/feed/components/MemeCard';
 import { ContainerCard } from '@/features/instagram-companion/ContainerCard';
 import type { MemeResponse, MergedFeedItem } from '@/services/memes';
@@ -49,6 +51,8 @@ export function MemeFeedList({
 }: MemeFeedListProps) {
   const recordMemeView = useRecordMemeViewMutation();
   const seenMemeIds = useRef(new Set<string>());
+  const { colorScheme } = useColorScheme();
+  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
 
   const onViewableItemsChanged = useCallback(
     ({ viewableItems }: { viewableItems: ViewToken[] }) => {
@@ -78,10 +82,10 @@ export function MemeFeedList({
         ? { onViewableItemsChanged, viewabilityConfig: VIEWABILITY_CONFIG }
         : {})}
       refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={onRefresh} />}
-      ListFooterComponent={isFetchingNextPage ? <ActivityIndicator className="my-4" color="#e3bdc5" /> : null}
+      ListFooterComponent={isFetchingNextPage ? <ActivityIndicator className="my-4" color={c.inkMuted} /> : null}
       ListEmptyComponent={
         isLoading ? (
-          <ActivityIndicator className="my-8" color="#e3bdc5" />
+          <ActivityIndicator className="my-8" color={c.inkMuted} />
         ) : isError ? (
           <Text className="mx-4 font-body text-sm text-error">{errorMessage}</Text>
         ) : (
@@ -125,6 +129,8 @@ export function MergedFeedList({
   const recordMemeView = useRecordMemeViewMutation();
   const recordContainerView = useRecordContainerViewMutation();
   const seenIds = useRef(new Set<string>());
+  const { colorScheme } = useColorScheme();
+  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
 
   const onViewableItemsChanged = useCallback(
     ({ viewableItems }: { viewableItems: ViewToken[] }) => {
@@ -161,10 +167,10 @@ export function MergedFeedList({
         ? { onViewableItemsChanged, viewabilityConfig: VIEWABILITY_CONFIG }
         : {})}
       refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={onRefresh} />}
-      ListFooterComponent={isFetchingNextPage ? <ActivityIndicator className="my-4" color="#e3bdc5" /> : null}
+      ListFooterComponent={isFetchingNextPage ? <ActivityIndicator className="my-4" color={c.inkMuted} /> : null}
       ListEmptyComponent={
         isLoading ? (
-          <ActivityIndicator className="my-8" color="#e3bdc5" />
+          <ActivityIndicator className="my-8" color={c.inkMuted} />
         ) : isError ? (
           <Text className="mx-4 font-body text-sm text-error">{errorMessage}</Text>
         ) : (

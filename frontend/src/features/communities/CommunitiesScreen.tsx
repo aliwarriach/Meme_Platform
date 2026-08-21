@@ -1,5 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useColorScheme } from 'nativewind';
 import { useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,7 +9,7 @@ import Chip from '@/components/Chip';
 import FloatingBottomNav from '@/components/FloatingBottomNav';
 import PillButton from '@/components/PillButton';
 import TopBar from '@/components/TopBar';
-import { INK_MUTED } from '@/constants/theme';
+import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import { CommunityCard } from '@/features/communities/components/CommunityCard';
 import type { CommunityResponse } from '@/services/communities';
 import { useDiscoverCommunities, useMyCommunities } from '@/services/useCommunities';
@@ -18,6 +19,8 @@ type Tab = 'mine' | 'discover';
 export default function CommunitiesScreen() {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>('mine');
+  const { colorScheme } = useColorScheme();
+  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
 
   const mineQuery = useMyCommunities();
   const discoverQuery = useDiscoverCommunities();
@@ -38,7 +41,7 @@ export default function CommunitiesScreen() {
             accessibilityLabel="Create a community"
             onPress={() => router.push('/communities/new')}
             className="h-11 w-11 items-center justify-center">
-            <MaterialIcons name="add-circle-outline" size={24} color="#ffffff" />
+            <MaterialIcons name="add-circle-outline" size={24} color={c.heading} />
           </Pressable>
         }
       />
@@ -58,7 +61,7 @@ export default function CommunitiesScreen() {
           )}
           ListEmptyComponent={
             mineQuery.isLoading ? (
-              <ActivityIndicator className="mt-8" color={INK_MUTED} />
+              <ActivityIndicator className="mt-8" color={c.inkMuted} />
             ) : mineQuery.isError ? (
               <Text className="font-body text-sm text-error">{mineQuery.error?.message}</Text>
             ) : (
@@ -90,11 +93,11 @@ export default function CommunitiesScreen() {
             <CommunityCard community={item} onPress={() => goToCommunity(item.id)} />
           )}
           ListFooterComponent={
-            discoverQuery.isFetchingNextPage ? <ActivityIndicator className="my-4" color={INK_MUTED} /> : null
+            discoverQuery.isFetchingNextPage ? <ActivityIndicator className="my-4" color={c.inkMuted} /> : null
           }
           ListEmptyComponent={
             discoverQuery.isLoading ? (
-              <ActivityIndicator className="mt-8" color={INK_MUTED} />
+              <ActivityIndicator className="mt-8" color={c.inkMuted} />
             ) : discoverQuery.isError ? (
               <Text className="font-body text-sm text-error">{discoverQuery.error?.message}</Text>
             ) : (

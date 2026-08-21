@@ -1,5 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useColorScheme } from 'nativewind';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
@@ -7,7 +8,9 @@ import { useDispatch, useSelector } from 'react-redux';
 import Avatar from '@/components/Avatar';
 import FloatingBottomNav from '@/components/FloatingBottomNav';
 import PillButton from '@/components/PillButton';
+import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import { EmailVerificationBanner } from '@/features/auth/EmailVerificationBanner';
+import { ThemeModeToggle } from '@/features/auth/components/ThemeModeToggle';
 import { useMyBadges } from '@/services/useBadges';
 import { useProfileScore } from '@/services/useLeaderboards';
 import { signOut } from '@/store/authSlice';
@@ -27,6 +30,8 @@ export default function SessionScreen() {
   const user = useSelector((state: RootState) => state.auth.user);
   const profileScoreQuery = useProfileScore(user?.id ?? '', !!user);
   const badgesQuery = useMyBadges();
+  const { colorScheme } = useColorScheme();
+  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
 
   const onLogout = async () => {
     await dispatch(signOut());
@@ -54,7 +59,7 @@ export default function SessionScreen() {
         <View className="mb-6 items-center rounded-card border border-outline-variant/30 bg-surface py-4">
           <Text className="font-label text-xs uppercase tracking-wide text-ink-muted">Meme Score</Text>
           {profileScoreQuery.isLoading ? (
-            <ActivityIndicator className="mt-2" color="#e3bdc5" />
+            <ActivityIndicator className="mt-2" color={c.inkMuted} />
           ) : (
             <Text className="mt-1 font-heading text-3xl text-heading">
               {profileScoreQuery.data?.score ?? 0}
@@ -64,7 +69,7 @@ export default function SessionScreen() {
 
         <Text className="mb-2 font-label text-xs uppercase tracking-wide text-ink-muted">Badges</Text>
         {badgesQuery.isLoading ? (
-          <ActivityIndicator className="mb-6" color="#e3bdc5" />
+          <ActivityIndicator className="mb-6" color={c.inkMuted} />
         ) : (badgesQuery.data ?? []).length === 0 ? (
           <Text className="mb-6 font-body text-sm text-ink-muted">
             No badges yet — win a challenge to earn one.
@@ -74,9 +79,9 @@ export default function SessionScreen() {
             {badgesQuery.data?.map((badge) => (
               <View
                 key={badge.id}
-                className="flex-row items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-3 py-2">
-                <MaterialIcons name="emoji-events" size={16} color="#ffb1c4" />
-                <Text className="font-title text-xs text-primary-dim">
+                className="flex-row items-center gap-1.5 rounded-full bg-accent-gold px-3 py-2">
+                <MaterialIcons name="emoji-events" size={16} color={c.onAccentInk} />
+                <Text className="font-title text-xs" style={{ color: c.onAccentInk }}>
                   {badge.label} · +{badge.points}
                 </Text>
               </View>
@@ -85,6 +90,7 @@ export default function SessionScreen() {
         )}
 
         <View className="mb-6 gap-2">
+          <ThemeModeToggle />
           {ENTRY_LINKS.map((link) => (
             <Pressable
               key={link.href}
@@ -93,10 +99,10 @@ export default function SessionScreen() {
               onPress={() => router.push(link.href as never)}
               className="min-h-[52px] flex-row items-center justify-between rounded-card border border-outline-variant/30 bg-surface px-4">
               <View className="flex-row items-center gap-3">
-                <MaterialIcons name={link.icon} size={20} color="#e3bdc5" />
+                <MaterialIcons name={link.icon} size={20} color={c.inkMuted} />
                 <Text className="font-title text-heading">{link.label}</Text>
               </View>
-              <MaterialIcons name="chevron-right" size={20} color="#aa888f" />
+              <MaterialIcons name="chevron-right" size={20} color={c.outline} />
             </Pressable>
           ))}
         </View>

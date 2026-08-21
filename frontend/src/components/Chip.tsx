@@ -16,7 +16,7 @@ export default function Chip({ label, selected = false, onPress, accessibilityLa
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ selected }}
       className={`min-h-[36px] items-center justify-center rounded-full border px-4 py-1.5 ${
-        selected ? 'border-primary bg-primary' : 'border-outline-variant bg-surface-high/60'
+        selected ? 'border-primary-container bg-primary-container' : 'border-outline-variant bg-surface-high/60'
       }`}>
       <Text className={`font-label text-xs ${selected ? 'text-white' : 'text-ink-muted'}`}>{label}</Text>
     </Pressable>

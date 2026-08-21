@@ -46,7 +46,11 @@ class Settings(BaseSettings):
     cloudinary_api_secret: str
 
     groq_api_key: str
-    groq_model: str = "llama-3.1-8b-instant"
+    # llama-3.1-8b-instant (and the rest of Groq's Llama lineup) was removed from Groq's
+    # catalog (confirmed 2026-08-21: returns 404 model_not_found) — gpt-oss-20b is the
+    # current cheapest/fastest production model. It's a reasoning model, which
+    # `llm_client.py` accounts for via `reasoning_effort: "low"`.
+    groq_model: str = "openai/gpt-oss-20b"
 
     # Gmail API OAuth2 credentials for sending email-verification OTPs
     # (SecurityFeatures.md F-1) — optional so the app still starts without them configured;

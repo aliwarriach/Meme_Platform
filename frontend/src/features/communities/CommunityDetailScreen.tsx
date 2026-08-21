@@ -1,6 +1,7 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
+import { useColorScheme } from 'nativewind';
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -17,7 +18,7 @@ import { useSelector } from 'react-redux';
 import Chip from '@/components/Chip';
 import PillButton from '@/components/PillButton';
 import TopBar from '@/components/TopBar';
-import { INK_MUTED, PRIMARY_DIM } from '@/constants/theme';
+import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import { ChallengeRow } from '@/features/challenges/components/ChallengeRow';
 import { JoinRequestRow } from '@/features/communities/components/JoinRequestRow';
 import { MemberRow } from '@/features/communities/components/MemberRow';
@@ -49,6 +50,8 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
   const router = useRouter();
   const currentUser = useSelector((state: RootState) => state.auth.user);
   const [activeTab, setActiveTab] = useState<Tab>('feed');
+  const { colorScheme } = useColorScheme();
+  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
 
   const communityQuery = useCommunity(communityId);
   const membersQuery = useMembers(communityId);
@@ -91,7 +94,7 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
             {communityQuery.error?.message}
           </Text>
         ) : (
-          <ActivityIndicator color={INK_MUTED} />
+          <ActivityIndicator color={c.inkMuted} />
         )}
       </SafeAreaView>
     );
@@ -110,7 +113,7 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
         accessibilityLabel={`${pendingRequestCount} pending join request${pendingRequestCount === 1 ? '' : 's'}`}
         onPress={() => setActiveTab('members')}
         className="h-11 min-w-[44px] flex-row items-center justify-center gap-1 rounded-full bg-primary/20 px-3">
-        <MaterialIcons name="person-add-alt" size={16} color={PRIMARY_DIM} />
+        <MaterialIcons name="person-add-alt" size={16} color={c.primaryDim} />
         <Text className="font-label text-xs text-primary-dim">{pendingRequestCount}</Text>
       </Pressable>
     ) : null;
@@ -203,7 +206,7 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
           }
           className="mb-6 flex-row items-center gap-3 rounded-card border border-tertiary/40 bg-tertiary/15 p-4">
           <View className="h-10 w-10 items-center justify-center rounded-full bg-tertiary">
-            <MaterialIcons name="bolt" size={20} color="#ffffff" />
+            <MaterialIcons name="bolt" size={20} color={c.white} />
           </View>
           <View className="flex-1">
             <Text className="font-title text-sm text-heading">
@@ -233,7 +236,7 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
             ) : null}
           </View>
           {joinRequestsQuery.isLoading ? (
-            <ActivityIndicator color={INK_MUTED} />
+            <ActivityIndicator color={c.inkMuted} />
           ) : joinRequestsQuery.isError ? (
             <Text className="font-body text-sm text-error">{joinRequestsQuery.error?.message}</Text>
           ) : (joinRequestsQuery.data ?? []).length === 0 ? (
@@ -362,11 +365,11 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
             />
           }
           ListFooterComponent={
-            leaderboardQuery.isFetchingNextPage ? <ActivityIndicator className="my-4" color={INK_MUTED} /> : null
+            leaderboardQuery.isFetchingNextPage ? <ActivityIndicator className="my-4" color={c.inkMuted} /> : null
           }
           ListEmptyComponent={
             leaderboardQuery.isLoading ? (
-              <ActivityIndicator className="my-8" color={INK_MUTED} />
+              <ActivityIndicator className="my-8" color={c.inkMuted} />
             ) : leaderboardQuery.isError ? (
               <Text className="mx-6 font-body text-sm text-error">{leaderboardQuery.error?.message}</Text>
             ) : (
@@ -388,7 +391,7 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
           {header}
           <View className="px-6 pb-6">
             {challengesQuery.isLoading ? (
-              <ActivityIndicator className="my-4" color={INK_MUTED} />
+              <ActivityIndicator className="my-4" color={c.inkMuted} />
             ) : challengesQuery.isError ? (
               <Text className="font-body text-sm text-error">{challengesQuery.error?.message}</Text>
             ) : (challengesQuery.data ?? []).length === 0 ? (
@@ -421,7 +424,7 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
         <View className="px-6 pb-6">
           <Text className="mb-2 font-label text-xs uppercase tracking-wide text-ink-muted">Members</Text>
           {membersQuery.isLoading ? (
-            <ActivityIndicator color={INK_MUTED} />
+            <ActivityIndicator color={c.inkMuted} />
           ) : membersQuery.isError ? (
             <Text className="font-body text-sm text-ink-muted">{membersQuery.error?.message}</Text>
           ) : (

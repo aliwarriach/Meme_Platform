@@ -35,7 +35,7 @@ export function CanvasBar() {
                 accessibilityState={{ selected: active }}
                 onPress={() => dispatch(updateCanvas({ aspectId: preset.id }))}
                 className={`min-h-[44px] items-center justify-center rounded-full border px-4 py-1.5 ${
-                  active ? 'border-primary bg-primary' : 'border-outline-variant bg-surface-high/60'
+                  active ? 'border-primary-container bg-primary-container' : 'border-outline-variant bg-surface-high/60'
                 }`}>
                 <Text className={`font-label text-xs ${active ? 'text-white' : 'text-ink-muted'}`}>
                   {preset.label}

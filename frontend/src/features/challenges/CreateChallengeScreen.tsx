@@ -2,10 +2,12 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useColorScheme } from 'nativewind';
 
 import PillButton from '@/components/PillButton';
 import { TextField } from '@/components/TextField';
 import TopBar from '@/components/TopBar';
+import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import { SideMemberPicker } from '@/features/challenges/components/SideMemberPicker';
 import { useMembers } from '@/services/useCommunities';
 import { useCreateChallengeMutation } from '@/services/useChallenges';
@@ -19,6 +21,8 @@ interface CreateChallengeScreenProps {
 const DEFAULT_DURATION_MINUTES = 30;
 
 export default function CreateChallengeScreen({ communityId }: CreateChallengeScreenProps) {
+  const { colorScheme } = useColorScheme();
+  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const router = useRouter();
   const membersQuery = useMembers(communityId);
   const createChallenge = useCreateChallengeMutation(communityId);
@@ -122,7 +126,7 @@ export default function CreateChallengeScreen({ communityId }: CreateChallengeSc
         <TextField label="Side B name" value={sideBName} onChangeText={setSideBName} />
 
         {membersQuery.isLoading ? (
-          <ActivityIndicator className="my-4" color="#e3bdc5" />
+          <ActivityIndicator className="my-4" color={c.inkMuted} />
         ) : membersQuery.isError ? (
           <Text className="font-body text-sm text-error">{membersQuery.error?.message}</Text>
         ) : (

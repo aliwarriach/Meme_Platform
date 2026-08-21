@@ -35,6 +35,11 @@ async def generate_caption(prompt: str) -> str:
         ],
         "max_tokens": 60,
         "temperature": 0.9,
+        # The default model (gpt-oss-20b) is a reasoning model: without capping reasoning
+        # effort, it spends the whole max_tokens budget on a hidden `reasoning` field and
+        # returns empty `content` (finish_reason "length") instead of the caption. Groq's
+        # OpenAI-compatible endpoint ignores this field for non-reasoning models.
+        "reasoning_effort": "low",
     }
     headers = {"Authorization": f"Bearer {settings.groq_api_key}"}
 

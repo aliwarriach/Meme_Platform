@@ -19,7 +19,7 @@ export default function VotePill({ score, viewerVote, isVoting, onUpvote, onDown
         onPress={onUpvote}
         disabled={isVoting}
         className="min-h-[44px] min-w-[36px] items-center justify-center disabled:opacity-50">
-        <Text className={`text-base ${viewerVote === 1 ? 'text-primary' : 'text-ink-muted'}`}>▲</Text>
+        <Text className={`text-base ${viewerVote === 1 ? 'text-accent-upvote' : 'text-ink-muted'}`}>▲</Text>
       </Pressable>
 
       {/* The score is patched optimistically, so it already shows the post-vote value the
@@ -39,7 +39,7 @@ export default function VotePill({ score, viewerVote, isVoting, onUpvote, onDown
         onPress={onDownvote}
         disabled={isVoting}
         className="min-h-[44px] min-w-[36px] items-center justify-center disabled:opacity-50">
-        <Text className={`text-base ${viewerVote === -1 ? 'text-secondary' : 'text-ink-muted'}`}>▼</Text>
+        <Text className={`text-base ${viewerVote === -1 ? 'text-accent-downvote' : 'text-ink-muted'}`}>▼</Text>
       </Pressable>
     </View>
   );

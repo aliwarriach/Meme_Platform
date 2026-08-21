@@ -1,9 +1,11 @@
 import { MaterialIcons } from '@expo/vector-icons';
+import { useColorScheme } from 'nativewind';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 
 import Chip from '@/components/Chip';
 import { TextField } from '@/components/TextField';
+import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import {
   clampScale,
   COLOR_SWATCHES,
@@ -139,6 +141,8 @@ function TextStyleControls({ layer }: { layer: TextLayer }) {
 export function LayerInspector() {
   const dispatch = useDispatch<AppDispatch>();
   const layer = useSelector(selectSelectedLayer);
+  const { colorScheme } = useColorScheme();
+  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   if (!layer) return null;
 
   const stepScale = (factor: number) =>
@@ -192,7 +196,7 @@ export function LayerInspector() {
         <LayerActionIcon
           icon="delete-outline"
           accessibilityLabel="Delete layer"
-          tint="#ffb4ab"
+          tint={c.error}
           onPress={() => dispatch(deleteSelected())}
         />
         <View className="flex-1" />
@@ -211,7 +215,7 @@ function LayerActionIcon({
   icon,
   accessibilityLabel,
   onPress,
-  tint = '#f9dbe1',
+  tint,
   filled = false,
 }: {
   icon: keyof typeof MaterialIcons.glyphMap;
@@ -220,15 +224,17 @@ function LayerActionIcon({
   tint?: string;
   filled?: boolean;
 }) {
+  const { colorScheme } = useColorScheme();
+  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       onPress={onPress}
       className={`h-11 w-11 items-center justify-center rounded-full border ${
-        filled ? 'border-primary bg-primary' : 'border-outline-variant'
+        filled ? 'border-primary-container bg-primary-container' : 'border-outline-variant'
       }`}>
-      <MaterialIcons name={icon} size={20} color={filled ? '#ffffff' : tint} />
+      <MaterialIcons name={icon} size={20} color={filled ? c.white : (tint ?? c.ink)} />
     </Pressable>
   );
 }

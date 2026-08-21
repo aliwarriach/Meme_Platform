@@ -4,6 +4,7 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
+import { useColorScheme } from 'nativewind';
 import { Controller, useForm } from 'react-hook-form';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import PillButton from '@/components/PillButton';
 import { TextField } from '@/components/TextField';
 import TopBar from '@/components/TopBar';
-import { INK_MUTED } from '@/constants/theme';
+import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import { createCommunitySchema, type CreateCommunityFormValues } from '@/features/communities/schemas';
 import type { CommunityPrivacy } from '@/services/communities';
 import { useCreateCommunityMutation } from '@/services/useCommunities';
@@ -26,6 +27,8 @@ export default function CreateCommunityScreen() {
   const createCommunity = useCreateCommunityMutation();
   const [pickedIcon, setPickedIcon] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [pickerError, setPickerError] = useState<string | null>(null);
+  const { colorScheme } = useColorScheme();
+  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
 
   const {
     control,
@@ -90,7 +93,7 @@ export default function CreateCommunityScreen() {
             />
           ) : (
             <View className="items-center gap-1 px-2">
-              <MaterialIcons name="add-a-photo" size={20} color={INK_MUTED} />
+              <MaterialIcons name="add-a-photo" size={20} color={c.inkMuted} />
               <Text className="text-center font-body text-xs text-ink-muted">Icon (optional)</Text>
             </View>
           )}

@@ -1,10 +1,12 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { useColorScheme } from 'nativewind';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 import Avatar from '@/components/Avatar';
 import VotePill from '@/components/VotePill';
+import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import { CommentsSection } from '@/features/feed/components/CommentsSection';
 import { SendMemeModal } from '@/features/meme-sending/SendMemeModal';
 import { shareMemeImage } from '@/features/sharing/shareMeme';
@@ -26,6 +28,8 @@ export function MemeCard({ meme }: MemeCardProps) {
   const castVote = useCastVoteMutation();
   const recordView = useRecordMemeViewMutation();
   const cardRef = useRecordViewOnVisible(() => recordView.mutate(meme.id));
+  const { colorScheme } = useColorScheme();
+  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
 
   const isVoting = castVote.isPending;
 
@@ -86,7 +90,7 @@ export function MemeCard({ meme }: MemeCardProps) {
             accessibilityLabel="Send to a friend"
             onPress={() => setSendModalOpen(true)}
             className="h-11 w-11 items-center justify-center">
-            <MaterialIcons name="send" size={22} color="#e3bdc5" />
+            <MaterialIcons name="send" size={22} color={c.inkMuted} />
           </Pressable>
 
           <Pressable
@@ -96,9 +100,9 @@ export function MemeCard({ meme }: MemeCardProps) {
             disabled={isSharing}
             className="h-11 w-11 items-center justify-center disabled:opacity-50">
             {isSharing ? (
-              <ActivityIndicator size="small" color="#e3bdc5" />
+              <ActivityIndicator size="small" color={c.inkMuted} />
             ) : (
-              <MaterialIcons name="ios-share" size={20} color="#e3bdc5" />
+              <MaterialIcons name="ios-share" size={20} color={c.inkMuted} />
             )}
           </Pressable>
 
@@ -107,7 +111,7 @@ export function MemeCard({ meme }: MemeCardProps) {
             accessibilityLabel="Toggle comments"
             onPress={() => setCommentsOpen((open) => !open)}
             className="h-11 flex-row items-center gap-1">
-            <MaterialIcons name="chat-bubble-outline" size={20} color="#e3bdc5" />
+            <MaterialIcons name="chat-bubble-outline" size={20} color={c.inkMuted} />
             <Text className="font-body text-sm text-ink-muted">{meme.comment_count}</Text>
           </Pressable>
         </View>

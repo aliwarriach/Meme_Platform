@@ -3,6 +3,13 @@
 // (positions are 0..1 fractions of the canvas side; scale is a font multiplier; rotation
 // is radians) so the same document renders identically in a ~360px preview and a 1080px
 // export, and is directly reusable as template data later.
+//
+// This file is imported by `store/creatorDraftSlice.ts`, which loads at app startup (not
+// behind the creator's lazy-load boundary) — it must never import `@shopify/react-native-skia`
+// (directly or via `skiaFonts.web.ts`) or anything else that touches it. See `skiaWeb.web.ts`
+// for why: the web `Skia` object is computed once at module-evaluation time and freezes
+// undefined forever if evaluated before `LoadSkiaWeb()` runs. Web-specific font resolution
+// lives in `skiaMeme.tsx` instead, which IS behind that boundary.
 
 export type TextAlignId = 'left' | 'center' | 'right';
 
@@ -131,6 +138,9 @@ export const FONT_OPTIONS: { id: string; label: string; families: string[] }[] =
   { id: 'script', label: 'Script', families: ['cursive'] },
 ];
 
+// Native-only: resolves to Android system font family names. Web has no OS font manager to
+// resolve these against — `skiaMeme.tsx` calls `webFontFamily` from `skiaFonts.web.ts` instead,
+// kept out of this file so it stays safe to import from the eagerly-loaded creatorDraftSlice.
 export function resolveFontFamilies(fontId: string): string[] {
   return FONT_OPTIONS.find((f) => f.id === fontId)?.families ?? FONT_OPTIONS[0].families;
 }

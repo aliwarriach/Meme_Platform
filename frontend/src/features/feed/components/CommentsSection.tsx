@@ -1,9 +1,11 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useColorScheme } from 'nativewind';
 import { Controller, useForm } from 'react-hook-form';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 import Avatar from '@/components/Avatar';
 import { TextField } from '@/components/TextField';
+import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import { commentSchema, type CommentFormValues } from '@/features/feed/schemas';
 import { useAddCommentMutation, useComments } from '@/services/useMemes';
 
@@ -14,6 +16,8 @@ interface CommentsSectionProps {
 export function CommentsSection({ memeId }: CommentsSectionProps) {
   const commentsQuery = useComments(memeId, true);
   const addComment = useAddCommentMutation(memeId);
+  const { colorScheme } = useColorScheme();
+  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
 
   const {
     control,
@@ -37,7 +41,7 @@ export function CommentsSection({ memeId }: CommentsSectionProps) {
   return (
     <View className="mt-2 border-t border-outline-variant/30 px-4 pt-3">
       {commentsQuery.isLoading ? (
-        <ActivityIndicator className="my-2" color="#e3bdc5" />
+        <ActivityIndicator className="my-2" color={c.inkMuted} />
       ) : commentsQuery.isError ? (
         <Text className="font-body text-sm text-error">{commentsQuery.error.message}</Text>
       ) : (
@@ -72,7 +76,7 @@ export function CommentsSection({ memeId }: CommentsSectionProps) {
           accessibilityLabel="Post comment"
           onPress={onSubmit}
           disabled={addComment.isPending}
-          className="mb-6 min-h-[44px] items-center justify-center rounded-full bg-primary px-5 disabled:opacity-50">
+          className="mb-6 min-h-[44px] items-center justify-center rounded-full bg-primary-container px-5 disabled:opacity-50">
           <Text className="font-title text-sm text-white">
             {addComment.isPending ? 'Posting…' : 'Post'}
           </Text>

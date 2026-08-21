@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useColorScheme } from 'nativewind';
 
 import Chip from '@/components/Chip';
 import TopBar from '@/components/TopBar';
+import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import { CompetitionEntryModal } from '@/features/voting/components/CompetitionEntryModal';
 import { StandingRow } from '@/features/voting/components/StandingRow';
 import { WinnerBanner } from '@/features/voting/components/WinnerBanner';
@@ -18,6 +20,8 @@ const TABS: { type: CompetitionPeriodType; label: string; winnerLabel: string }[
 ];
 
 export default function VotingScreen() {
+  const { colorScheme } = useColorScheme();
+  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const [activeTab, setActiveTab] = useState<CompetitionPeriodType>('day');
   const [selectedContent, setSelectedContent] = useState<StandingContent | null>(null);
 
@@ -71,7 +75,7 @@ export default function VotingScreen() {
         }
         ListEmptyComponent={
           standingsQuery.isLoading ? (
-            <ActivityIndicator className="my-8" color="#e3bdc5" />
+            <ActivityIndicator className="my-8" color={c.inkMuted} />
           ) : standingsQuery.isError ? (
             <Text className="mx-6 font-body text-sm text-error">{standingsQuery.error?.message}</Text>
           ) : (

@@ -9,7 +9,7 @@ interface ChallengeRowProps {
 
 const STATUS_STYLES: Record<ChallengeResponse['status'], string> = {
   active: 'bg-tertiary',
-  evaluated: 'bg-primary',
+  evaluated: 'bg-primary-container',
   setup: 'bg-surface-high',
 };
 

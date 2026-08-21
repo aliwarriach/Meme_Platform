@@ -1,8 +1,11 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useColorScheme } from 'nativewind';
 import type { ReactNode } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 
 type TopBarProps = {
   title: string;
@@ -14,6 +17,8 @@ type TopBarProps = {
 export default function TopBar({ title, showBack = false, rightActions }: TopBarProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { colorScheme } = useColorScheme();
+  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
 
   return (
     <View
@@ -26,7 +31,7 @@ export default function TopBar({ title, showBack = false, rightActions }: TopBar
             accessibilityLabel="Go back"
             onPress={() => router.back()}
             className="h-11 w-11 items-center justify-center">
-            <MaterialIcons name="arrow-back" size={24} color="#ffffff" />
+            <MaterialIcons name="arrow-back" size={24} color={c.heading} />
           </Pressable>
         ) : null}
       </View>

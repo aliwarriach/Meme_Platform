@@ -1,8 +1,10 @@
 import { BlurView } from 'expo-blur';
 import { useState } from 'react';
 import { ActivityIndicator, FlatList, Modal, Platform, Pressable, Text, View } from 'react-native';
+import { useColorScheme } from 'nativewind';
 
 import Avatar from '@/components/Avatar';
+import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import { DESKTOP_MODAL_MAX_WIDTH } from '@/constants/webLayout';
 import { useFriendsList } from '@/services/useFriends';
 import { useSendMemeMutation } from '@/services/useMemeSending';
@@ -14,6 +16,8 @@ interface SendMemeModalProps {
 }
 
 export function SendMemeModal({ memeId, visible, onClose }: SendMemeModalProps) {
+  const { colorScheme } = useColorScheme();
+  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const { data: friends, isLoading } = useFriendsList();
   const sendMeme = useSendMemeMutation();
   const [sentTo, setSentTo] = useState<string | null>(null);
@@ -46,7 +50,7 @@ export function SendMemeModal({ memeId, visible, onClose }: SendMemeModalProps) 
             </View>
 
             {isLoading ? (
-              <ActivityIndicator color="#e3bdc5" />
+              <ActivityIndicator color={c.inkMuted} />
             ) : !friends || friends.length === 0 ? (
               <Text className="py-4 font-body text-ink-muted">
                 Add a friend first to send memes directly.

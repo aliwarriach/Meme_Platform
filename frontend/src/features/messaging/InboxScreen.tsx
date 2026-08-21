@@ -3,13 +3,17 @@ import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
+import { useColorScheme } from 'nativewind';
 
 import TopBar from '@/components/TopBar';
+import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import { ConversationList, STATUS_DOT_COLOR } from '@/features/messaging/ConversationList';
 import NewChatModal from '@/features/messaging/NewChatModal';
 import type { RootState } from '@/store/store';
 
 export default function InboxScreen() {
+  const { colorScheme } = useColorScheme();
+  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const socketStatus = useSelector((state: RootState) => state.socket.status);
   const [newChatOpen, setNewChatOpen] = useState(false);
 
@@ -35,7 +39,7 @@ export default function InboxScreen() {
               accessibilityLabel="New chat"
               onPress={() => setNewChatOpen(true)}
               className="h-11 w-11 items-center justify-center">
-              <MaterialIcons name="edit" size={22} color="#ffffff" />
+              <MaterialIcons name="edit" size={22} color={c.white} />
             </Pressable>
           </View>
         }

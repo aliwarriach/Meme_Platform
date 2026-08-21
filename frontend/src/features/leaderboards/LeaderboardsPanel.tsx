@@ -1,8 +1,10 @@
+import { useColorScheme } from 'nativewind';
 import { useState } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, Text, View } from 'react-native';
 import { useSelector } from 'react-redux';
 
 import Chip from '@/components/Chip';
+import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import { CommunityLeaderboardRow } from '@/features/leaderboards/components/CommunityLeaderboardRow';
 import { IndividualLeaderboardRow } from '@/features/leaderboards/components/IndividualLeaderboardRow';
 import { useGlobalCommunityLeaderboard, useIndividualLeaderboard } from '@/services/useLeaderboards';
@@ -18,6 +20,8 @@ type Tab = 'individual' | 'communities';
 export default function LeaderboardsPanel() {
   const currentUser = useSelector((state: RootState) => state.auth.user);
   const [activeTab, setActiveTab] = useState<Tab>('individual');
+  const { colorScheme } = useColorScheme();
+  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
 
   const individualQuery = useIndividualLeaderboard();
   const communityQuery = useGlobalCommunityLeaderboard();
@@ -55,11 +59,11 @@ export default function LeaderboardsPanel() {
           />
         }
         ListFooterComponent={
-          individualQuery.isFetchingNextPage ? <ActivityIndicator className="my-4" color="#e3bdc5" /> : null
+          individualQuery.isFetchingNextPage ? <ActivityIndicator className="my-4" color={c.inkMuted} /> : null
         }
         ListEmptyComponent={
           individualQuery.isLoading ? (
-            <ActivityIndicator className="my-8" color="#e3bdc5" />
+            <ActivityIndicator className="my-8" color={c.inkMuted} />
           ) : individualQuery.isError ? (
             <Text className="mx-6 font-body text-sm text-error">{individualQuery.error?.message}</Text>
           ) : (
@@ -92,11 +96,11 @@ export default function LeaderboardsPanel() {
         />
       }
       ListFooterComponent={
-        communityQuery.isFetchingNextPage ? <ActivityIndicator className="my-4" color="#e3bdc5" /> : null
+        communityQuery.isFetchingNextPage ? <ActivityIndicator className="my-4" color={c.inkMuted} /> : null
       }
       ListEmptyComponent={
         communityQuery.isLoading ? (
-          <ActivityIndicator className="my-8" color="#e3bdc5" />
+          <ActivityIndicator className="my-8" color={c.inkMuted} />
         ) : communityQuery.isError ? (
           <Text className="mx-6 font-body text-sm text-error">{communityQuery.error?.message}</Text>
         ) : (

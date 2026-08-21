@@ -1,8 +1,10 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { Modal, Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useColorScheme } from 'nativewind';
 
 import WebModalFrame from '@/components/web/WebModalFrame';
+import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import { MemeCard } from '@/features/feed/components/MemeCard';
 import { ContainerCard } from '@/features/instagram-companion/ContainerCard';
 import type { StandingContent } from '@/services/competitions';
@@ -14,6 +16,8 @@ interface CompetitionEntryModalProps {
 
 /** Full-screen view of a competition entry, reusing the same interactive card the feed/Instagram-companion use. */
 export function CompetitionEntryModal({ content, onClose }: CompetitionEntryModalProps) {
+  const { colorScheme } = useColorScheme();
+  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   return (
     <Modal visible={!!content} animationType="slide" onRequestClose={onClose}>
       <WebModalFrame>
@@ -24,7 +28,7 @@ export function CompetitionEntryModal({ content, onClose }: CompetitionEntryModa
             accessibilityLabel="Close"
             onPress={onClose}
             className="h-11 w-11 items-center justify-center">
-            <MaterialIcons name="close" size={24} color="#e3bdc5" />
+            <MaterialIcons name="close" size={24} color={c.inkMuted} />
           </Pressable>
         </View>
         <ScrollView>

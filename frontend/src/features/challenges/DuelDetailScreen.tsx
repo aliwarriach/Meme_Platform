@@ -4,9 +4,11 @@ import { useState } from 'react';
 import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
+import { useColorScheme } from 'nativewind';
 
 import PillButton from '@/components/PillButton';
 import TopBar from '@/components/TopBar';
+import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import { CountdownTimer } from '@/features/challenges/components/CountdownTimer';
 import {
   useAcceptDuelMutation,
@@ -23,7 +25,7 @@ interface FlatChallengeDetailScreenProps {
 
 const STATUS_STYLES: Record<string, string> = {
   active: 'bg-tertiary',
-  evaluated: 'bg-primary',
+  evaluated: 'bg-primary-container',
   setup: 'bg-surface-high',
 };
 
@@ -41,6 +43,8 @@ const STATUS_STYLES: Record<string, string> = {
  * informational (not an error) rather than guessing which side the 400 refers to.
  */
 export default function DuelDetailScreen({ challengeId }: FlatChallengeDetailScreenProps) {
+  const { colorScheme } = useColorScheme();
+  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const router = useRouter();
   const currentUser = useSelector((state: RootState) => state.auth.user);
   const [locallyJoinedSideId, setLocallyJoinedSideId] = useState<string | null>(null);
@@ -65,7 +69,7 @@ export default function DuelDetailScreen({ challengeId }: FlatChallengeDetailScr
             {challengeQuery.error?.message}
           </Text>
         ) : (
-          <ActivityIndicator color="#e3bdc5" />
+          <ActivityIndicator color={c.inkMuted} />
         )}
       </SafeAreaView>
     );
@@ -202,7 +206,7 @@ export default function DuelDetailScreen({ challengeId }: FlatChallengeDetailScr
               Submissions
             </Text>
             {resultsQuery.isLoading ? (
-              <ActivityIndicator className="my-4" color="#e3bdc5" />
+              <ActivityIndicator className="my-4" color={c.inkMuted} />
             ) : resultsQuery.isError ? (
               <Text className="font-body text-sm text-error">{resultsQuery.error?.message}</Text>
             ) : submissions.length === 0 ? (

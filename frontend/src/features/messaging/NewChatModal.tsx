@@ -1,8 +1,10 @@
 import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
 import { ActivityIndicator, FlatList, Modal, Platform, Pressable, Text, View } from 'react-native';
+import { useColorScheme } from 'nativewind';
 
 import Avatar from '@/components/Avatar';
+import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import { DESKTOP_MODAL_MAX_WIDTH } from '@/constants/webLayout';
 import { useFriendsList } from '@/services/useFriends';
 import { useOpenConversationMutation } from '@/services/useMessaging';
@@ -13,6 +15,8 @@ interface NewChatModalProps {
 }
 
 export default function NewChatModal({ visible, onClose }: NewChatModalProps) {
+  const { colorScheme } = useColorScheme();
+  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const router = useRouter();
   const { data: friends, isLoading } = useFriendsList();
   const openConversation = useOpenConversationMutation();
@@ -55,7 +59,7 @@ export default function NewChatModal({ visible, onClose }: NewChatModalProps) {
             </View>
 
             {isLoading ? (
-              <ActivityIndicator color="#e3bdc5" />
+              <ActivityIndicator color={c.inkMuted} />
             ) : !friends || friends.length === 0 ? (
               <Text className="py-4 font-body text-ink-muted">
                 Add a friend first — you can only message accepted friends.

@@ -1,6 +1,8 @@
 import { Image } from 'expo-image';
 import { ActivityIndicator, Pressable, ScrollView, Text } from 'react-native';
+import { useColorScheme } from 'nativewind';
 
+import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import type { MemeResponse } from '@/services/memes';
 
 interface SubmissionPickerProps {
@@ -21,7 +23,9 @@ export function SubmissionPicker({
   submittedMemeIds,
   onSubmit,
 }: SubmissionPickerProps) {
-  if (isLoading) return <ActivityIndicator className="my-4" color="#e3bdc5" />;
+  const { colorScheme } = useColorScheme();
+  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  if (isLoading) return <ActivityIndicator className="my-4" color={c.inkMuted} />;
 
   if (memes.length === 0) {
     return (

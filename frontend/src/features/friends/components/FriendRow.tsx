@@ -1,7 +1,9 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { useColorScheme } from 'nativewind';
 
 import Avatar from '@/components/Avatar';
+import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import type { FriendResponse } from '@/services/friends';
 
 interface FriendRowProps {
@@ -12,6 +14,8 @@ interface FriendRowProps {
 }
 
 export function FriendRow({ friend, onRemove, isRemoving, onDuel }: FriendRowProps) {
+  const { colorScheme } = useColorScheme();
+  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   return (
     <View className="flex-row items-center justify-between border-b border-outline-variant/20 px-4 py-3">
       <View className="flex-row items-center gap-3">
@@ -24,7 +28,7 @@ export function FriendRow({ friend, onRemove, isRemoving, onDuel }: FriendRowPro
           accessibilityLabel={`Challenge ${friend.user.username} to a duel`}
           onPress={() => onDuel(friend)}
           className="h-11 w-11 items-center justify-center">
-          <MaterialIcons name="sports-kabaddi" size={20} color="#e3bdc5" />
+          <MaterialIcons name="sports-kabaddi" size={20} color={c.inkMuted} />
         </Pressable>
         <Pressable
           accessibilityRole="button"
@@ -33,7 +37,7 @@ export function FriendRow({ friend, onRemove, isRemoving, onDuel }: FriendRowPro
           disabled={isRemoving}
           className="min-h-[44px] min-w-[44px] items-center justify-center rounded-full px-3 disabled:opacity-50">
           {isRemoving ? (
-            <ActivityIndicator size="small" color="#e3bdc5" />
+            <ActivityIndicator size="small" color={c.inkMuted} />
           ) : (
             <Text className="font-label text-sm text-error">Remove</Text>
           )}

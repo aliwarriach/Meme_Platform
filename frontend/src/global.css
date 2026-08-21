@@ -10,13 +10,132 @@
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
   --font-rounded: 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif;
   --font-serif: Georgia, 'Times New Roman', serif;
+
+  /* "Neon Plum" / "Luminous Vapor" color tokens — LIGHT (default, no `.dark` class).
+     Values ported verbatim from `constants/webFeedThemeVapor.ts`'s LUMINOUS_COLORS_LIGHT
+     (source of truth for the whole port — see that file's header for per-role reasoning).
+     RGB triplets (not hex/rgba) so Tailwind's `/NN` opacity-modifier syntax
+     (`bg-primary/10`, `border-outline-variant/30`, already used throughout the app) keeps
+     working via the `rgb(var(--x) / <alpha-value>)` pattern below in tailwind.config.js.
+     Elevation ramp (surface-lowest..bright) has no 1:1 source in webFeedThemeVapor.ts (which
+     only names 2 solid surface tiers); the 6-tier scale here is derived from its real anchors
+     (gradientBottom/Mid/Top, surfaceSolid, surfaceElevated) ordered by tint-distance from white,
+     extrapolating a step where no more anchors existed. */
+  --color-bg: 255 247 251; /* gradientMid #FFF7FB */
+  --color-surface-lowest: 243 217 231; /* border #F3D9E7 */
+  --color-surface-low: 253 243 248; /* gradientBottom #FDF3F8 */
+  --color-surface: 255 255 255; /* surfaceSolid #FFFFFF */
+  --color-surface-high: 255 240 247; /* surfaceElevated #FFF0F7 */
+  --color-surface-highest: 255 255 255;
+  --color-surface-bright: 255 255 255;
+
+  --color-primary: 236 72 153; /* indigoPrimary #EC4899 — ring/icon/border-safe, NOT a white-text fill */
+  --color-primary-container: 190 24 93; /* indigoSecondary #BE185D — fill-safe, pairs with white text */
+  --color-primary-dim: 190 24 93; /* text-on-tinted-primary; light mode reuses the fill-safe tone (indigoPrimary fails 4.5:1 as body text here) */
+  --color-on-primary: 26 14 24; /* onAccentInk #1A0E18 */
+
+  --color-secondary: 109 40 217; /* accentPurple #6D28D9 — dual-safe as fill+text in light mode */
+  --color-secondary-container: 109 40 217;
+  --color-secondary-light: 167 126 232; /* accentPurple blended toward white, for text-on-tint */
+
+  --color-tertiary: 21 128 61; /* success #15803D — replaces the old dual-green pair, single AA-safe green */
+  --color-tertiary-container: 21 128 61;
+
+  --color-error: 186 26 26; /* error #BA1A1A */
+  --color-error-container: 130 18 18; /* derived: darkened error, for solid error-fill badges */
+
+  --color-outline: 201 143 176; /* borderSolid #C98FB0 */
+  --color-outline-variant: 243 217 231; /* border #F3D9E7 */
+
+  --color-heading: 42 18 32; /* foreground #2A1220 */
+  --color-ink: 42 18 32; /* foreground #2A1220 */
+  --color-ink-muted: 107 74 92; /* foregroundMuted #6B4A5C */
+
+  --color-accent-gold: 245 158 11; /* accentGold #F59E0B — achievement/rank-1 only */
+  --color-accent-amber: 234 88 12; /* accentAmber #EA580C — pending/in-progress, distinct from gold */
+  --color-accent-cyan: 21 94 117; /* accentCyan #155E75 — share/send actions */
+  --color-accent-upvote: 21 128 61; /* accentUpvote #15803D */
+  --color-accent-downvote: 220 38 38; /* accentDownvote #DC2626 */
+  --color-on-accent-ink: 26 14 24; /* onAccentInk — dark text for gold/silver/bronze/amber fills */
+
+  --color-rank-gold: 245 158 11;
+  --color-rank-silver: 148 163 184; /* rankSilver #94A3B8 */
+  --color-rank-bronze: 146 64 14; /* rankBronze #92400E */
+
+  /* Already-translucent tokens: full CSS color functions, no <alpha-value> substitution —
+     these are not used with Tailwind's `/NN` modifier anywhere. */
+  --color-surface-glass: rgba(255, 255, 255, 0.78);
+  --color-surface-press: rgba(255, 240, 247, 0.9); /* native "hover" equivalent = pressed state */
+  --color-press-tint: rgba(219, 39, 119, 0.07);
+  --color-border-highlight: rgba(255, 255, 255, 1);
+  --color-rank-gold-tint: rgba(245, 158, 11, 0.3);
+  --color-rank-silver-tint: rgba(148, 163, 184, 0.32);
+  --color-rank-bronze-tint: rgba(146, 64, 14, 0.28);
+
+  --radius-card: 16px;
 }
 
-/* MemeVerse Studio "Vivid Meme Culture" design system is dark-mode-only */
+.dark {
+  /* "Neon Plum" — DARK. Values ported verbatim from VAPOR_COLORS_DARK. See :root above for the
+     shared reasoning on RGB-triplet encoding and the derived elevation ramp. */
+  --color-bg: 26 14 27; /* gradientMid #1A0E1B */
+  --color-surface-lowest: 18 10 17; /* gradientBottom #120A11 */
+  --color-surface-low: 26 14 27; /* gradientMid #1A0E1B */
+  --color-surface: 36 19 40; /* surfaceSolid #241328 */
+  --color-surface-high: 46 25 48; /* surfaceElevated #2E1930 */
+  --color-surface-highest: 56 31 56; /* extrapolated, continuing the surfaceSolid→surfaceElevated step */
+  --color-surface-bright: 66 37 64; /* extrapolated, one further step */
+
+  --color-primary: 255 92 160; /* indigoPrimary #FF5CA0 — ring/icon/border-safe, NOT a white-text fill */
+  --color-primary-container: 219 39 119; /* indigoSecondary #DB2777 — fill-safe, pairs with white text */
+  --color-primary-dim: 255 92 160; /* indigoPrimary — safe as text on the dark canvas (~11:1) */
+  --color-on-primary: 26 14 24; /* onAccentInk #1A0E18 */
+
+  --color-secondary: 192 132 252; /* accentPurple #C084FC */
+  --color-secondary-container: 106 73 139; /* derived: darkened accentPurple, for solid fills */
+  --color-secondary-light: 192 132 252;
+
+  --color-tertiary: 21 128 61; /* success #15803D — replaces the old dual-green pair, single AA-safe green */
+  --color-tertiary-container: 21 128 61;
+
+  --color-error: 255 155 155; /* error #FF9B9B */
+  --color-error-container: 186 26 26; /* light mode's `error` reused as a dark-mode solid fill */
+
+  --color-outline: 74 44 66; /* borderSolid #4A2C42 */
+  --color-outline-variant: 255 255 255; /* border rgba(255,255,255,0.10) — base white, opacity via /NN modifier */
+
+  --color-heading: 253 242 248; /* foreground #FDF2F8 */
+  --color-ink: 253 242 248; /* foreground #FDF2F8 */
+  --color-ink-muted: 201 169 186; /* foregroundMuted #C9A9BA */
+
+  --color-accent-gold: 245 158 11;
+  --color-accent-amber: 234 88 12;
+  --color-accent-cyan: 14 116 144; /* accentCyan #0E7490 */
+  --color-accent-upvote: 74 222 128; /* accentUpvote #4ADE80 */
+  --color-accent-downvote: 255 128 128; /* accentDownvote #FF8080 */
+  --color-on-accent-ink: 26 14 24;
+
+  --color-rank-gold: 245 158 11;
+  --color-rank-silver: 203 213 225; /* rankSilver #CBD5E1 */
+  --color-rank-bronze: 180 83 9; /* rankBronze #B45309 */
+
+  --color-surface-glass: rgba(255, 214, 236, 0.07);
+  --color-surface-press: rgba(255, 214, 236, 0.12);
+  --color-press-tint: rgba(255, 214, 236, 0.08);
+  --color-border-highlight: rgba(255, 255, 255, 0.22);
+  --color-rank-gold-tint: rgba(245, 158, 11, 0.34);
+  --color-rank-silver-tint: rgba(203, 213, 225, 0.32);
+  --color-rank-bronze-tint: rgba(180, 83, 9, 0.38);
+
+  --radius-card: 24px;
+}
+
+/* MemeVerse Studio background — kept in sync with --color-bg for the web document root
+   (native reads --color-bg via NativeWind directly, this rule is web-only DOM chrome). */
 html,
 body,
 #root {
-  background-color: #1e0f13;
+  background-color: rgb(var(--color-bg));
 }
 
 /* Desktop-web-only polish. Native never parses this file's raw CSS, so none of this touches

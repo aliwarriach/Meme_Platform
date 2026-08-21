@@ -1,5 +1,6 @@
 import { Text, View } from 'react-native';
 
+import { RankBadge, rankTintClassName } from '@/features/leaderboards/components/RankBadge';
 import type { CommunityLeaderboardEntryResponse } from '@/services/leaderboards';
 
 interface CommunityLeaderboardRowProps {
@@ -11,8 +12,10 @@ export function CommunityLeaderboardRow({ entry }: CommunityLeaderboardRowProps)
     <View
       accessible
       accessibilityLabel={`Rank ${entry.rank}, ${entry.community_name}, ${entry.score} points`}
-      className="flex-row items-center border-b border-outline-variant/20 px-6 py-3">
-      <Text className="w-8 font-title text-sm text-heading">{entry.rank}</Text>
+      className={`flex-row items-center border-b border-outline-variant/20 px-6 py-3 ${rankTintClassName(entry.rank)}`}>
+      <View className="mr-2">
+        <RankBadge rank={entry.rank} />
+      </View>
       <View
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"

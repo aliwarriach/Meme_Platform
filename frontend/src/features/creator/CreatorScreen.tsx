@@ -246,7 +246,14 @@ export default function CreatorScreen() {
         });
       }
       dispatch(resetDraft());
-      router.back();
+      // `back()` warns/no-ops when there's no history to pop — happens on web whenever this
+      // route was entered directly (fresh load or refresh) rather than pushed from another
+      // screen, since there's no prior entry in that tab's history stack.
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/feed');
+      }
     } catch {
       // surfaced inline via activeMutation.isError/joinError below
     }

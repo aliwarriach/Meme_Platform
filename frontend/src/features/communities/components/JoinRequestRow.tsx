@@ -1,7 +1,8 @@
+import { useColorScheme } from 'nativewind';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 import Avatar from '@/components/Avatar';
-import { INK_MUTED } from '@/constants/theme';
+import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import type { MembershipResponse } from '@/services/communities';
 
 interface JoinRequestRowProps {
@@ -12,6 +13,9 @@ interface JoinRequestRowProps {
 }
 
 export function JoinRequestRow({ request, onApprove, onReject, isPending }: JoinRequestRowProps) {
+  const { colorScheme } = useColorScheme();
+  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+
   return (
     <View className="flex-row items-center border-b border-outline-variant/30 py-3">
       <View className="mr-3">
@@ -19,14 +23,14 @@ export function JoinRequestRow({ request, onApprove, onReject, isPending }: Join
       </View>
       <Text className="flex-1 font-body text-heading">{request.user.username}</Text>
       {isPending ? (
-        <ActivityIndicator size="small" color={INK_MUTED} />
+        <ActivityIndicator size="small" color={c.inkMuted} />
       ) : (
         <View className="flex-row gap-2">
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Approve ${request.user.username}`}
             onPress={onApprove}
-            className="min-h-[36px] items-center justify-center rounded-full bg-primary px-3">
+            className="min-h-[36px] items-center justify-center rounded-full bg-primary-container px-3">
             <Text className="font-title text-xs text-white">Approve</Text>
           </Pressable>
           <Pressable

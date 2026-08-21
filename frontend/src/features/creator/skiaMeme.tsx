@@ -17,6 +17,7 @@ import {
 } from '@shopify/react-native-skia';
 import { File, Paths } from 'expo-file-system';
 import type { ComponentProps } from 'react';
+import { Platform } from 'react-native';
 
 import {
   alignedCenterX,
@@ -32,6 +33,7 @@ import {
   type TextAlignId,
   type TextLayer,
 } from '@/features/creator/document';
+import { getWebFontProvider, webFontFamily } from '@/features/creator/skiaFonts';
 
 // Group `transform` accepts a static array or a Reanimated shared value — deriving the
 // type from the component keeps the animated preview and the static export both valid
@@ -66,8 +68,13 @@ function buildParagraph(layer: TextLayer, width: number, stroke: boolean): SkPar
   const fontSize = width * BASE_FONT_FRACTION * layer.scale;
   const { style } = layer;
 
+  // CanvasKit (web) has no OS font manager — it only knows the families registered on the
+  // provider built in `skiaFonts.web.ts`, not the Android system names `resolveFontFamilies`
+  // returns for native.
+  const fontFamilies =
+    Platform.OS === 'web' ? [webFontFamily(style.fontId)] : resolveFontFamilies(style.fontId);
   const textStyle: SkTextStyle = {
-    fontFamilies: resolveFontFamilies(style.fontId),
+    fontFamilies,
     fontSize,
     fontStyle: { weight: FontWeight.Bold },
     color: Skia.Color(stroke ? style.strokeColor : style.color),
@@ -78,7 +85,14 @@ function buildParagraph(layer: TextLayer, width: number, stroke: boolean): SkPar
     ];
   }
 
-  const builder = Skia.ParagraphBuilder.Make({ textAlign: SKIA_ALIGN[style.align], maxLines: 8 });
+  // Web's CanvasKit requires an explicit typeface provider (registered in `skiaFonts.web.ts`)
+  // or throws "SkTypefaceFontProvider is required on React Native Web"; native resolves
+  // `fontFamilies` through its own system font manager and ignores the extra argument.
+  const fontProvider = Platform.OS === 'web' ? (getWebFontProvider() ?? undefined) : undefined;
+  const builder = Skia.ParagraphBuilder.Make(
+    { textAlign: SKIA_ALIGN[style.align], maxLines: 8 },
+    fontProvider
+  );
   if (stroke) {
     const paint = Skia.Paint();
     paint.setStyle(PaintStyle.Stroke);
@@ -246,9 +260,13 @@ function toSceneLayers(built: BuiltLayer[], canvas: CanvasPx): SceneLayer[] {
   }));
 }
 
-// Flattens the document to a PNG on disk at the canvas's export resolution (longer side =
-// EXPORT_MAX_SIDE) and returns its file URI. Renders the exact MemeScene the user edited
-// (selection chrome off), with all image layers already decoded in `images`.
+// Flattens the document to a PNG at the canvas's export resolution (longer side =
+// EXPORT_MAX_SIDE) and returns a URI for it — a `file://` path on native, a `blob:` URL on
+// web (expo-file-system's `File`/`Paths` are unimplemented stubs there; see ExpoFileSystem.web.ts
+// — every method throws or no-ops past the constructor). Both URI kinds are directly usable by
+// `<Image source={{uri}}>` and by `fetch()` in `multipartImage.ts`'s web upload path. Renders
+// the exact MemeScene the user edited (selection chrome off), with all image layers already
+// decoded in `images`.
 export async function exportMeme(params: {
   image: SkImage;
   doc: MemeDocument;
@@ -272,6 +290,14 @@ export async function exportMeme(params: {
   if (!snapshot) throw new Error('Could not render the meme.');
 
   const bytes = snapshot.encodeToBytes(ImageFormat.PNG, 100);
+
+  if (Platform.OS === 'web') {
+    // `Uint8Array<ArrayBufferLike>` (encodeToBytes' return type) isn't assignable to
+    // `BlobPart` as-is; copying through the array-like constructor overload narrows it to
+    // `Uint8Array<ArrayBuffer>`, which is.
+    return URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: 'image/png' }));
+  }
+
   const file = new File(Paths.cache, `meme-${Date.now()}.png`);
   if (file.exists) file.delete();
   file.create();

@@ -3,8 +3,10 @@ import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
+import { useColorScheme } from 'nativewind';
 
 import VotePill from '@/components/VotePill';
+import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import { ContainerCommentsSection } from '@/features/instagram-companion/ContainerCommentsSection';
 import type { MemeContainerResponse } from '@/services/instagram';
 import { useCastContainerVoteMutation, useRecordContainerViewMutation } from '@/services/useInstagram';
@@ -29,6 +31,8 @@ const INSTAGRAM_HOST_RE = /^https:\/\/(www\.)?instagram\.com(\/|$)/i;
 // public post page directly (read-only preview) rather than a proper oEmbed embed. Swaps
 // cleanly once real oEmbed HTML is available server-side, per the pluggable-fetcher design.
 export function ContainerCard({ container }: ContainerCardProps) {
+  const { colorScheme } = useColorScheme();
+  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const [commentsOpen, setCommentsOpen] = useState(false);
   const castVote = useCastContainerVoteMutation();
   const recordView = useRecordContainerViewMutation();
@@ -41,8 +45,8 @@ export function ContainerCard({ container }: ContainerCardProps) {
   return (
     <View ref={cardRef} className="mb-3 border-b border-outline-variant/30 bg-bg pb-3">
       <View className="flex-row items-center px-4 py-3">
-        <View className="mr-3 h-8 w-8 items-center justify-center rounded-full bg-secondary">
-          <MaterialIcons name="camera-alt" size={16} color="#ffffff" />
+        <View className="mr-3 h-8 w-8 items-center justify-center rounded-full bg-secondary-container">
+          <MaterialIcons name="camera-alt" size={16} color={c.white} />
         </View>
         <View className="flex-1 flex-row items-center justify-between">
           <View>
@@ -56,7 +60,7 @@ export function ContainerCard({ container }: ContainerCardProps) {
       <View style={{ width: '100%', aspectRatio: 4 / 5 }} className="bg-black">
         {container.metadata_status === 'pending' ? (
           <View className="flex-1 items-center justify-center bg-surface-high">
-            <ActivityIndicator color="#e3bdc5" />
+            <ActivityIndicator color={c.inkMuted} />
             <Text className="mt-2 font-body text-xs text-ink-muted">Fetching preview…</Text>
           </View>
         ) : (
@@ -69,12 +73,12 @@ export function ContainerCard({ container }: ContainerCardProps) {
               onShouldStartLoadWithRequest={(request) => INSTAGRAM_HOST_RE.test(request.url)}
               renderLoading={() => (
                 <View className="flex-1 items-center justify-center bg-black">
-                  <ActivityIndicator color="#e3bdc5" />
+                  <ActivityIndicator color={c.inkMuted} />
                 </View>
               )}
             />
             <View className="absolute right-3 top-3 rounded-full bg-black/60 p-1.5">
-              <MaterialIcons name="camera-alt" size={16} color="#ffffff" />
+              <MaterialIcons name="camera-alt" size={16} color={c.white} />
             </View>
           </>
         )}
@@ -103,7 +107,7 @@ export function ContainerCard({ container }: ContainerCardProps) {
             accessibilityLabel="Toggle comments"
             onPress={() => setCommentsOpen((open) => !open)}
             className="h-11 flex-row items-center gap-1">
-            <MaterialIcons name="chat-bubble-outline" size={20} color="#e3bdc5" />
+            <MaterialIcons name="chat-bubble-outline" size={20} color={c.inkMuted} />
             <Text className="font-body text-sm text-ink-muted">{container.comment_count}</Text>
           </Pressable>
         </View>

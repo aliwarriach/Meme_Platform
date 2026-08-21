@@ -3,8 +3,10 @@ import { formatDistanceToNowStrict } from 'date-fns';
 import { useRouter } from 'expo-router';
 import { ActivityIndicator, FlatList, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useColorScheme } from 'nativewind';
 
 import TopBar from '@/components/TopBar';
+import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import type { NotificationResponse, NotificationType } from '@/services/notifications';
 import {
   useMarkAllNotificationsReadMutation,
@@ -23,6 +25,8 @@ const ICON_BY_TYPE: Record<NotificationType, keyof typeof MaterialIcons.glyphMap
 };
 
 function NotificationRow({ notification }: { notification: NotificationResponse }) {
+  const { colorScheme } = useColorScheme();
+  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const router = useRouter();
   const markRead = useMarkNotificationReadMutation();
   const isUnread = notification.read_at === null;
@@ -49,7 +53,7 @@ function NotificationRow({ notification }: { notification: NotificationResponse 
         isUnread ? 'bg-surface' : ''
       }`}>
       <View className="mt-0.5 h-9 w-9 items-center justify-center rounded-full bg-surface-high">
-        <MaterialIcons name={ICON_BY_TYPE[notification.type]} size={18} color="#e3bdc5" />
+        <MaterialIcons name={ICON_BY_TYPE[notification.type]} size={18} color={c.inkMuted} />
       </View>
       <View className="flex-1">
         <Text className={`font-title text-heading ${isUnread ? '' : 'text-ink-muted'}`}>
@@ -68,6 +72,8 @@ function NotificationRow({ notification }: { notification: NotificationResponse 
 }
 
 export default function NotificationsScreen() {
+  const { colorScheme } = useColorScheme();
+  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const notificationsQuery = useNotifications();
   const markAllRead = useMarkAllNotificationsReadMutation();
 
@@ -93,7 +99,7 @@ export default function NotificationsScreen() {
       />
 
       {notificationsQuery.isLoading ? (
-        <ActivityIndicator className="mt-8" color="#e3bdc5" />
+        <ActivityIndicator className="mt-8" color={c.inkMuted} />
       ) : notificationsQuery.isError ? (
         <Text className="px-4 pt-4 font-body text-error">{notificationsQuery.error?.message}</Text>
       ) : items.length === 0 ? (
@@ -113,7 +119,7 @@ export default function NotificationsScreen() {
           refreshing={notificationsQuery.isRefetching}
           ListFooterComponent={
             notificationsQuery.isFetchingNextPage ? (
-              <ActivityIndicator className="my-4" color="#e3bdc5" />
+              <ActivityIndicator className="my-4" color={c.inkMuted} />
             ) : null
           }
         />

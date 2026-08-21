@@ -1,6 +1,8 @@
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { useColorScheme } from 'nativewind';
 
 import Avatar from '@/components/Avatar';
+import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import type { FriendshipResponse } from '@/services/friends';
 import { timeAgo } from '@/utils/timeAgo';
 
@@ -11,6 +13,8 @@ interface FriendRequestRowProps {
 }
 
 export function FriendRequestRow({ request, onAccept, isAccepting }: FriendRequestRowProps) {
+  const { colorScheme } = useColorScheme();
+  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   return (
     <View className="flex-row items-center justify-between border-b border-outline-variant/20 px-4 py-3">
       <View className="flex-row items-center gap-3">
@@ -25,9 +29,9 @@ export function FriendRequestRow({ request, onAccept, isAccepting }: FriendReque
         accessibilityLabel={`Accept friend request from ${request.requester.username}`}
         onPress={() => onAccept(request.id)}
         disabled={isAccepting}
-        className="min-h-[44px] min-w-[44px] items-center justify-center rounded-full bg-primary px-4 disabled:opacity-50">
+        className="min-h-[44px] min-w-[44px] items-center justify-center rounded-full bg-primary-container px-4 disabled:opacity-50">
         {isAccepting ? (
-          <ActivityIndicator size="small" color="#fff" />
+          <ActivityIndicator size="small" color={c.white} />
         ) : (
           <Text className="font-title text-sm text-white">Accept</Text>
         )}

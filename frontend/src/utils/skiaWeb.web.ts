@@ -19,6 +19,12 @@ let readyPromise: Promise<void> | null = null;
  * that module's first evaluation until CanvasKit is actually installed on `global.CanvasKit`.
  */
 export function ensureSkiaWebReady(): Promise<void> {
-  if (!readyPromise) readyPromise = LoadSkiaWeb();
+  if (!readyPromise) {
+    // No `locateFile` override means Emscripten guesses the wasm URL relative to the
+    // bundled JS chunk's own URL, which doesn't exist under Metro's web dev server —
+    // that's the "both async and sync fetching of the wasm failed" crash. Serve the
+    // binary ourselves from `public/canvaskit.wasm` (static-served at web root) instead.
+    readyPromise = LoadSkiaWeb({ locateFile: (file: string) => `/${file}` });
+  }
   return readyPromise;
 }

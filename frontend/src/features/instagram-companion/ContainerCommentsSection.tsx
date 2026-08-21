@@ -1,9 +1,11 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Controller, useForm } from 'react-hook-form';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { useColorScheme } from 'nativewind';
 
 import Avatar from '@/components/Avatar';
 import { TextField } from '@/components/TextField';
+import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import { commentSchema, type CommentFormValues } from '@/features/feed/schemas';
 import { useAddContainerCommentMutation, useContainerComments } from '@/services/useInstagram';
 
@@ -12,6 +14,8 @@ interface ContainerCommentsSectionProps {
 }
 
 export function ContainerCommentsSection({ containerId }: ContainerCommentsSectionProps) {
+  const { colorScheme } = useColorScheme();
+  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const commentsQuery = useContainerComments(containerId, true);
   const addComment = useAddContainerCommentMutation(containerId);
 
@@ -37,7 +41,7 @@ export function ContainerCommentsSection({ containerId }: ContainerCommentsSecti
   return (
     <View className="mt-2 border-t border-outline-variant/30 px-4 pt-3">
       {commentsQuery.isLoading ? (
-        <ActivityIndicator className="my-2" color="#e3bdc5" />
+        <ActivityIndicator className="my-2" color={c.inkMuted} />
       ) : commentsQuery.isError ? (
         <Text className="font-body text-sm text-error">{commentsQuery.error.message}</Text>
       ) : (
@@ -72,7 +76,7 @@ export function ContainerCommentsSection({ containerId }: ContainerCommentsSecti
           accessibilityLabel="Post comment"
           onPress={onSubmit}
           disabled={addComment.isPending}
-          className="mb-6 min-h-[44px] items-center justify-center rounded-full bg-primary px-5 disabled:opacity-50">
+          className="mb-6 min-h-[44px] items-center justify-center rounded-full bg-primary-container px-5 disabled:opacity-50">
           <Text className="font-title text-sm text-white">
             {addComment.isPending ? 'Posting…' : 'Post'}
           </Text>

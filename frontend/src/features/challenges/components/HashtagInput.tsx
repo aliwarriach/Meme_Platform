@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
+import { useColorScheme } from 'nativewind';
 
 import Chip from '@/components/Chip';
+import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import type { HashtagSuggestionResponse } from '@/services/hashtags';
 import { useHashtagSearch } from '@/services/useHashtags';
 import { useChallengeFlat } from '@/services/useChallenges';
@@ -29,6 +31,8 @@ function displaySlug(raw: string): string {
 }
 
 export function HashtagInput({ tags, onTagsChange, challengeEntry, onChallengeEntryChange }: HashtagInputProps) {
+  const { colorScheme } = useColorScheme();
+  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const [draft, setDraft] = useState('');
   const [pendingChallenge, setPendingChallenge] = useState<HashtagSuggestionResponse | null>(null);
 
@@ -115,7 +119,7 @@ export function HashtagInput({ tags, onTagsChange, challengeEntry, onChallengeEn
             #{pendingChallenge.slug} enters <Text className="font-title">{pendingChallenge.challenge_title}</Text> — which side?
           </Text>
           {pendingChallengeQuery.isLoading ? (
-            <ActivityIndicator size="small" color="#e3bdc5" />
+            <ActivityIndicator size="small" color={c.inkMuted} />
           ) : (
             <View className="flex-row flex-wrap gap-2">
               {(pendingChallengeQuery.data?.sides ?? []).map((side) => (
@@ -138,7 +142,7 @@ export function HashtagInput({ tags, onTagsChange, challengeEntry, onChallengeEn
             onChangeText={setDraft}
             onSubmitEditing={onSubmitDraft}
             placeholder="#dogsvscats"
-            placeholderTextColor="#aa888f"
+            placeholderTextColor={c.outline}
             autoCapitalize="none"
             autoCorrect={false}
             returnKeyType="done"
