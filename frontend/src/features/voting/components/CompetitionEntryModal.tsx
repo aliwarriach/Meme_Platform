@@ -1,7 +1,7 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { Modal, Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useColorScheme } from 'nativewind';
+import { useThemeMode } from '@/constants/ThemeMode';
 
 import WebModalFrame from '@/components/web/WebModalFrame';
 import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
@@ -16,8 +16,8 @@ interface CompetitionEntryModalProps {
 
 /** Full-screen view of a competition entry, reusing the same interactive card the feed/Instagram-companion use. */
 export function CompetitionEntryModal({ content, onClose }: CompetitionEntryModalProps) {
-  const { colorScheme } = useColorScheme();
-  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  const { mode } = useThemeMode();
+  const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   return (
     <Modal visible={!!content} animationType="slide" onRequestClose={onClose}>
       <WebModalFrame>

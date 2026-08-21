@@ -19,8 +19,36 @@ class Settings(BaseSettings):
     # in .env for any non-local deployment.
     environment: str = "development"
 
+    # Roadmap_Scaling.md A5 — "json" in any real deployment (Kubernetes collects stdout
+    # and log aggregators parse JSON, not prose); "text" (default) for local dev, where
+    # JSON-per-line is miserable to read in a terminal. The JSON formatter itself
+    # (app/core/logging.py::JsonFormatter) already existed before A5 — this setting only
+    # gates *which* formatter `configure_logging()` installs.
+    log_format: str = "text"
+
     database_url: str
     test_database_url: str | None = None
+
+    # Roadmap_Scaling.md A2 — SQLAlchemy's own defaults (pool_size=5, max_overflow=10) are
+    # per-process, so they silently scale with pod count. Sizing math that must stay true
+    # as pod count grows: pods × (db_pool_size + db_max_overflow) <= PgBouncer's
+    # max_client_conn, and PgBouncer's default_pool_size <= Postgres max_connections minus
+    # headroom for migrations/admin. Conservative defaults so a single local dev process
+    # behaves the same as today.
+    db_pool_size: int = 5
+    db_max_overflow: int = 5
+    db_pool_timeout: int = 30
+    db_pool_recycle: int = 1800
+    # Set once a read replica exists (§B2/§C4's read-replica step) — until then, every read
+    # session is just an alias of the write engine (see app/db/session.py), so this seam
+    # costs nothing today.
+    database_read_url: str | None = None
+    # PgBouncer in transaction-pooling mode (A7, C3) breaks asyncpg's prepared-statement
+    # cache — intermittent "prepared statement ... does not exist" errors under
+    # concurrency. Set true only when DATABASE_URL/DATABASE_READ_URL point at PgBouncer;
+    # local direct-to-Postgres dev keeps the cache (default false).
+    db_use_pgbouncer: bool = False
+
     redis_url: str
     jwt_secret: str
     jwt_algorithm: str = "HS256"

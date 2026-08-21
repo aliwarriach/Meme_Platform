@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { useColorScheme } from 'nativewind';
+import { useThemeMode } from '@/constants/ThemeMode';
 import { Controller, useForm } from 'react-hook-form';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -27,8 +27,8 @@ export default function CreateCommunityScreen() {
   const createCommunity = useCreateCommunityMutation();
   const [pickedIcon, setPickedIcon] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [pickerError, setPickerError] = useState<string | null>(null);
-  const { colorScheme } = useColorScheme();
-  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  const { mode } = useThemeMode();
+  const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
 
   const {
     control,

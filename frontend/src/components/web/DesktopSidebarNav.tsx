@@ -5,7 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSelector } from 'react-redux';
 
 import { DESKTOP_SIDEBAR_WIDTH } from '@/constants/webLayout';
-import { useWebThemeMode, type WebThemeMode } from '@/constants/WebThemeMode';
+import { useThemeMode, type ThemeMode } from '@/constants/ThemeMode';
 import type { RootState } from '@/store/store';
 
 type NavItem = {
@@ -50,7 +50,7 @@ const SHELL_TOKENS = {
     ctaFill: '#BE185D',
     ctaLabel: '#FFFFFF',
   },
-} as const satisfies Record<WebThemeMode, Record<string, string>>;
+} as const satisfies Record<ThemeMode, Record<string, string>>;
 
 /**
  * Persistent left-hand nav for desktop web — the Instagram/Twitter-desktop pattern. Mounted
@@ -58,7 +58,7 @@ const SHELL_TOKENS = {
  * across route changes. Hidden while logged out, mirroring the mobile bottom nav which is
  * likewise never rendered on the login/register screens.
  *
- * Reads the same app-wide `useWebThemeMode()` every screen does — this is the fix for "the
+ * Reads the same app-wide `useThemeMode()` every screen does — this is the fix for "the
  * sidebar never changed with light/dark mode": it used to be permanently dark-only, completely
  * unaware of whatever mode the current screen had picked.
  */
@@ -66,7 +66,7 @@ export default function DesktopSidebarNav() {
   const router = useRouter();
   const pathname = usePathname();
   const token = useSelector((state: RootState) => state.auth.token);
-  const { mode } = useWebThemeMode();
+  const { mode } = useThemeMode();
   const t = SHELL_TOKENS[mode];
   const styles = useMemo(() => createStyles(t), [t]);
 
@@ -116,7 +116,7 @@ export default function DesktopSidebarNav() {
   );
 }
 
-const createStyles = (t: (typeof SHELL_TOKENS)[WebThemeMode]) =>
+const createStyles = (t: (typeof SHELL_TOKENS)[ThemeMode]) =>
   StyleSheet.create({
     root: {
       height: '100%',

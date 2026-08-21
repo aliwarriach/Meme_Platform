@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
-import { useColorScheme } from 'nativewind';
+import { useThemeMode } from '@/constants/ThemeMode';
 
 import TopBar from '@/components/TopBar';
 import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
@@ -28,8 +28,8 @@ import type { RootState } from '@/store/store';
 const MAX_MESSAGE_LENGTH = 2000;
 
 function Composer({ conversationId }: { conversationId: string }) {
-  const { colorScheme } = useColorScheme();
-  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  const { mode } = useThemeMode();
+  const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const [draft, setDraft] = useState('');
   const sendMessage = useSendMessageMutation(conversationId);
   const trimmed = draft.trim();
@@ -75,8 +75,8 @@ function Composer({ conversationId }: { conversationId: string }) {
 }
 
 export default function ThreadScreen({ conversationId }: { conversationId: string }) {
-  const { colorScheme } = useColorScheme();
-  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  const { mode } = useThemeMode();
+  const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const viewerId = useSelector((state: RootState) => state.auth.user?.id);
   const { data: conversations } = useConversations();
   const conversation = conversations?.find((c) => c.id === conversationId);
@@ -103,7 +103,7 @@ export default function ThreadScreen({ conversationId }: { conversationId: strin
 
       <KeyboardAvoidingView
         className="flex-1"
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         {isLoading ? (
           <ActivityIndicator className="mt-8" color={c.inkMuted} />
         ) : isError ? (
@@ -121,6 +121,7 @@ export default function ThreadScreen({ conversationId }: { conversationId: strin
             inverted
             data={messages}
             keyExtractor={(item) => item.id}
+            keyboardShouldPersistTaps="handled"
             renderItem={({ item }) => (
               <MessageBubble
                 message={item}

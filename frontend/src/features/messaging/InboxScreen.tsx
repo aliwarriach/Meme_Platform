@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
-import { useColorScheme } from 'nativewind';
+import { useThemeMode } from '@/constants/ThemeMode';
 
 import TopBar from '@/components/TopBar';
 import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
@@ -12,8 +12,8 @@ import NewChatModal from '@/features/messaging/NewChatModal';
 import type { RootState } from '@/store/store';
 
 export default function InboxScreen() {
-  const { colorScheme } = useColorScheme();
-  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  const { mode } = useThemeMode();
+  const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const socketStatus = useSelector((state: RootState) => state.socket.status);
   const [newChatOpen, setNewChatOpen] = useState(false);
 

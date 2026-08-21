@@ -5,6 +5,10 @@ Replaces `meme-sending.md` (deleted). Phase 19, 2026-08-06.
 ## Status
 Done (backend + frontend). Backend 18/18 pytest (13 new `test_messaging.py` + 5 rewritten `test_meme_sending.py`), run against real Postgres. Migration `e1d2c3b4a596` applied to the dev DB and verified in both directions on real data. Frontend `tsc` clean, `expo lint` 0 errors, jest 67/67 (16 new), `expo export --platform web` clean (20 routes). **Not yet human tap-through tested.**
 
+**2026-08-21 (Roadmap_Scaling.md A1):** `connection_manager` is now Redis-pub/sub-backed, not a bare in-process dict — see [[redis-arq-infra]] for the shared-infra note. Two behavior changes every caller of the connection manager must know:
+- **`is_online` is now `async`** — presence for a user not held locally is a Redis round trip. `services/messaging.py::send_meme_message`'s return now `await`s it.
+- **`send_json`'s return value means "recipient was online" (locally or on another pod), not "delivered to a live socket."** A publishing pod cannot synchronously confirm a remote pod's local send succeeded. No caller's *logic* changed because of this — `send_message`'s `delivered_live` check and `notifications.py`'s fire-and-forget broadcast both already treated a falsy/uncertain result the same as "take the persisted-inbox/push fallback," never as a delivery guarantee — but don't add a caller that assumes a truthy return means the frame actually rendered on the recipient's device.
+
 Deferred: typing indicators (need new WS traffic for marginal value). Read receipts *are* built.
 
 ## Models
@@ -68,11 +72,12 @@ Creates both tables **and moves the data** — `meme_sends` is dropped at the en
 The downgrade is deliberately lossy (text messages and read receipts have no representation in the old shape) and documented as such in the file.
 
 ## Key files
-- backend: `app/models/conversation.py`, `app/models/message.py`, `app/schemas/messaging.py`, `app/services/messaging.py`, `app/routers/messaging.py`, `app/services/meme_sending.py` (shim), `app/routers/meme_sending.py` (shim + WS), `app/websockets/connection_manager.py`, `alembic/versions/e1d2c3b4a596_create_conversations_and_messages.py`.
+- backend: `app/models/conversation.py`, `app/models/message.py`, `app/schemas/messaging.py`, `app/services/messaging.py`, `app/routers/messaging.py`, `app/services/meme_sending.py` (shim), `app/routers/meme_sending.py` (shim + WS), `app/websockets/connection_manager.py`, `app/websockets/pubsub.py` (Redis pub/sub bus, A1), `alembic/versions/e1d2c3b4a596_create_conversations_and_messages.py`.
 - frontend: `src/services/messaging.ts`, `src/services/messagingCache.ts`, `src/services/useMessaging.ts`, `src/services/memeSendingSocket.ts`, `src/services/useMemeSending.ts` (shim hook), `src/features/messaging/*`, `src/app/inbox.tsx`, `src/app/inbox/[conversationId].tsx`, `src/components/web/DesktopInboxPanel.tsx`.
 - **2026-08-20 Vaporwave web migration** (UI-only, no data/cache-layer change): `src/features/messaging/InboxScreen.web.tsx` + `ThreadScreen.web.tsx` (platform-extension siblings of the native screens above, picked up automatically by Metro for the web bundle — native files untouched) + `src/components/web/WebInboxTopBar.tsx`/`WebThreadTopBar.tsx`/`WebConversationRow.tsx`/`WebNewChatModal.tsx`/`WebMessageBubble.tsx`/`WebMessageComposer.tsx`. Full record, including the `DesktopInboxPanel`-is-now-dead-code finding: `design-system/meme-platform/pages/inbox-web.md`.
 
 ## Tests
+- `backend/tests/test_connection_manager.py` (4, added 2026-08-21 for A1): two independent `ConnectionManager`/`RedisPubSubBus` pairs standing in for two pods sharing one real Redis — cross-pod delivery, cross-pod `is_online`, presence-key TTL expiry once the heartbeat stops, `send_json` fallback when nobody holds the socket.
 - `backend/tests/test_messaging.py` (13): non-friend rejection, get-or-create idempotent from both directions, text round-trip with unread count, meme message payload, **IDOR regression**, non-participant read/write 403, send-after-unfriend 403, mark-read + idempotency, read receipt visible to sender, kind/payload validation (3 cases), keyset pagination across 3 pages, list ordering by activity, and a real WS test covering both `message_received` and `message_read`.
 - `backend/tests/test_meme_sending.py` (5): shim opens/reuses a thread, lands as a meme message in the conversation, friendship gate, IDOR through the shim, live WS delivery.
 - `frontend/src/services/messagingCache.test.ts` (16): insert into empty/ordered/duplicate cases, page identity preservation, pending replace/remove, read stamping, conversation reorder + unread rules, unknown-conversation signal, badge clearing/summing.

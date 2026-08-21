@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useColorScheme } from 'nativewind';
+import { useThemeMode } from '@/constants/ThemeMode';
 
 import PillButton from '@/components/PillButton';
 import { TextField } from '@/components/TextField';
@@ -25,8 +25,8 @@ function normalize(raw: string): string {
 }
 
 export default function CreateOpenChallengeScreen() {
-  const { colorScheme } = useColorScheme();
-  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  const { mode } = useThemeMode();
+  const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const router = useRouter();
   const createOpenChallenge = useCreateOpenChallengeMutation();
 

@@ -1,5 +1,5 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import { useColorScheme } from 'nativewind';
+import { useThemeMode } from '@/constants/ThemeMode';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 
@@ -141,8 +141,8 @@ function TextStyleControls({ layer }: { layer: TextLayer }) {
 export function LayerInspector() {
   const dispatch = useDispatch<AppDispatch>();
   const layer = useSelector(selectSelectedLayer);
-  const { colorScheme } = useColorScheme();
-  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  const { mode } = useThemeMode();
+  const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   if (!layer) return null;
 
   const stepScale = (factor: number) =>
@@ -224,8 +224,8 @@ function LayerActionIcon({
   tint?: string;
   filled?: boolean;
 }) {
-  const { colorScheme } = useColorScheme();
-  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  const { mode } = useThemeMode();
+  const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   return (
     <Pressable
       accessibilityRole="button"

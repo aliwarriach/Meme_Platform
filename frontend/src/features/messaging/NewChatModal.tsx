@@ -1,7 +1,7 @@
 import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
 import { ActivityIndicator, FlatList, Modal, Platform, Pressable, Text, View } from 'react-native';
-import { useColorScheme } from 'nativewind';
+import { useThemeMode } from '@/constants/ThemeMode';
 
 import Avatar from '@/components/Avatar';
 import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
@@ -15,8 +15,8 @@ interface NewChatModalProps {
 }
 
 export default function NewChatModal({ visible, onClose }: NewChatModalProps) {
-  const { colorScheme } = useColorScheme();
-  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  const { mode } = useThemeMode();
+  const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const router = useRouter();
   const { data: friends, isLoading } = useFriendsList();
   const openConversation = useOpenConversationMutation();

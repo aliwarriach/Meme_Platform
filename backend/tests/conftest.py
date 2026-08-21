@@ -5,11 +5,13 @@ from collections.abc import AsyncIterator
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from redis.asyncio import Redis
 from sqlalchemy.pool import NullPool
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 import app.core.leaderboard_cache as leaderboard_cache_module
 import app.main as main_module
+import app.routers.health as health_module
 import app.services.ai_caption as ai_caption_service
 import app.services.email_verification as email_verification_service
 import app.services.google_auth as google_auth_service
@@ -28,10 +30,12 @@ import app.workers.tasks.password_reset as password_reset_worker_tasks
 from app.core.config import settings
 from app.core.leaderboard_cache import _get_redis as get_leaderboard_redis
 from app.core.rate_limit import limiter
+import app.db.session as db_session_module
 from app.db.base import Base
-from app.db.session import get_db_session
+from app.db.session import get_db_session, get_read_db_session
 from app.main import app
 from app.models.user import User
+from app.websockets import pubsub as pubsub_module
 from app.websockets.connection_manager import connection_manager
 from tests.fake_arq import get_fake_arq_pool
 
@@ -61,8 +65,35 @@ def _reset_rate_limits():
     yield
 
 
+@pytest_asyncio.fixture(autouse=True)
+async def _dispose_real_db_engine_after_each_test() -> AsyncIterator[None]:
+    """`app/db/session.py`'s `engine`/`read_engine` (Roadmap_Scaling.md A2) are real
+    pooled connections to the actual dev database — used directly (not through the
+    `get_db_session`/`get_read_db_session` overrides above) by anything that intentionally
+    wants real connectivity rather than the isolated per-test schema, e.g.
+    `app/routers/health.py`'s readiness check (A3). Same event-loop-per-test hazard as
+    every other module-level connection singleton in this file: dispose after every test
+    so a connection opened on one test's loop is never touched from a later, different
+    loop. A no-op if the pool was never actually used by that test.
+    """
+    yield
+    await db_session_module.engine.dispose()
+    if db_session_module.read_engine is not db_session_module.engine:
+        await db_session_module.read_engine.dispose()
+
+
 @pytest.fixture(autouse=True)
-def _reset_connection_manager():
+def _reset_shutting_down_flag():
+    """`app/routers/health.py`'s `_shutting_down` module flag (Roadmap_Scaling.md A3) is
+    never cleared by production code — a pod that started draining never goes back to
+    accepting traffic — but a test that exercises the SIGTERM handler would otherwise leak
+    `/health/ready` returning 503 into every later test."""
+    yield
+    health_module._shutting_down = False
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def _reset_connection_manager() -> AsyncIterator[None]:
     """`connection_manager` (app/websockets/connection_manager.py) is a module-level
     singleton holding live `WebSocket` objects, each bound to the event loop of whichever
     `TestClient(app)` lifespan created it. pytest-asyncio gives every test function its
@@ -72,7 +103,27 @@ def _reset_connection_manager():
     `_reset_leaderboard_cache` below. Clearing the registry between tests is enough: any
     handler still `await`ing `websocket.receive_text()` belongs to a `TestClient` context
     that's already exiting by the time this fixture's teardown runs.
+
+    As of Roadmap_Scaling.md A1, presence/pub-sub also live in real Redis
+    (`app/websockets/pubsub.py`), not just this dict, so `ws:*` keys a prior test left
+    behind (real Redis, not the per-test DB schema, so nothing else clears these) must be
+    flushed too — but through a **throwaway** client, never `pubsub_bus._get_redis()`
+    itself: that singleton's connection is bound to whichever event loop first created it,
+    and the one test using it "for real" (`TestClient(app)`'s ASGI lifespan) runs its own
+    app on a separate anyio portal loop, not this fixture's pytest-asyncio loop. Populating
+    `pubsub_bus._redis` here would bind it to *this* loop and hand a stale, wrong-loop
+    connection to the next test's lifespan — exactly the "attached to a different loop"
+    crash this sidesteps. `pubsub_bus._redis`/`_pubsub` are reset to `None` defensively
+    (normally already `None`: `RedisPubSubBus.stop()` clears them at the end of every
+    `TestClient(app)` `with` block) so a real lifespan always builds fresh connections on
+    its own loop.
     """
+    pubsub_module.pubsub_bus._redis = None
+    pubsub_module.pubsub_bus._pubsub = None
+    flush_redis = Redis.from_url(settings.redis_url, decode_responses=True)
+    async for key in flush_redis.scan_iter(match="ws:*"):
+        await flush_redis.delete(key)
+    await flush_redis.aclose()
     yield
     connection_manager._connections.clear()
 
@@ -105,6 +156,11 @@ async def _override_get_db_session() -> AsyncIterator[AsyncSession]:
 
 
 app.dependency_overrides[get_db_session] = _override_get_db_session
+# `get_read_db_session` (Roadmap_Scaling.md A2) must be overridden too, or any endpoint
+# using `ReadDbSession` (leaderboards, feed) would hit the real dev database instead of
+# the per-test schema — there's no read replica in tests, matching production's own
+# behavior of aliasing the write engine when `database_read_url` is unset.
+app.dependency_overrides[get_read_db_session] = _override_get_db_session
 
 
 @pytest.fixture(autouse=True)
@@ -148,6 +204,17 @@ def use_fake_arq_pool(monkeypatch):
     monkeypatch.setattr(google_auth_service, "get_arq_pool", get_fake_arq_pool)
     monkeypatch.setattr(main_module, "get_arq_pool", get_fake_arq_pool)
     monkeypatch.setattr(main_module, "close_arq_pool", _noop_close_arq_pool)
+    # `app/routers/health.py`'s readiness Redis check (Roadmap_Scaling.md A3) also calls
+    # the real `get_arq_pool()` — same reasoning as every other call site above, plus its
+    # own wrinkle: the real `create_pool()` ping can take longer than the endpoint's own
+    # 2s check timeout on this environment (see the arq conn_timeout note in
+    # redis-arq-infra.md), which would make the "dependencies are up" happy-path test
+    # itself report a false failure.
+    monkeypatch.setattr(health_module, "get_arq_pool", get_fake_arq_pool)
+    # `services/media.py`'s pending-upload store (Roadmap_Scaling.md A4) also calls the
+    # real `get_arq_pool()` for plain SET/GETDEL commands, same pattern as
+    # `services/meme_sending.py`'s WS ticket store.
+    monkeypatch.setattr(media_service, "get_arq_pool", get_fake_arq_pool)
 
 
 @pytest.fixture(autouse=True)

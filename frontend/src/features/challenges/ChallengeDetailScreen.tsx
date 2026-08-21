@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import { ScrollView, ActivityIndicator, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
-import { useColorScheme } from 'nativewind';
+import { useThemeMode } from '@/constants/ThemeMode';
 
 import PillButton from '@/components/PillButton';
 import TopBar from '@/components/TopBar';
@@ -37,8 +37,8 @@ export default function ChallengeDetailScreen({
   communityId,
   challengeId,
 }: ChallengeDetailScreenProps) {
-  const { colorScheme } = useColorScheme();
-  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  const { mode } = useThemeMode();
+  const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const router = useRouter();
   const currentUser = useSelector((state: RootState) => state.auth.user);
 

@@ -1,4 +1,4 @@
-import { useColorScheme } from 'nativewind';
+import { useThemeMode } from '@/constants/ThemeMode';
 import type { ReactElement } from 'react';
 import { useCallback, useRef } from 'react';
 import { ActivityIndicator, FlatList, Platform, RefreshControl, Text, type ViewToken } from 'react-native';
@@ -51,8 +51,8 @@ export function MemeFeedList({
 }: MemeFeedListProps) {
   const recordMemeView = useRecordMemeViewMutation();
   const seenMemeIds = useRef(new Set<string>());
-  const { colorScheme } = useColorScheme();
-  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  const { mode } = useThemeMode();
+  const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
 
   const onViewableItemsChanged = useCallback(
     ({ viewableItems }: { viewableItems: ViewToken[] }) => {
@@ -129,8 +129,8 @@ export function MergedFeedList({
   const recordMemeView = useRecordMemeViewMutation();
   const recordContainerView = useRecordContainerViewMutation();
   const seenIds = useRef(new Set<string>());
-  const { colorScheme } = useColorScheme();
-  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  const { mode } = useThemeMode();
+  const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
 
   const onViewableItemsChanged = useCallback(
     ({ viewableItems }: { viewableItems: ViewToken[] }) => {

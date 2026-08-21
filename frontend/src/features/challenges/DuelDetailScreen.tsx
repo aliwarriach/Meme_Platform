@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
-import { useColorScheme } from 'nativewind';
+import { useThemeMode } from '@/constants/ThemeMode';
 
 import PillButton from '@/components/PillButton';
 import TopBar from '@/components/TopBar';
@@ -43,8 +43,8 @@ const STATUS_STYLES: Record<string, string> = {
  * informational (not an error) rather than guessing which side the 400 refers to.
  */
 export default function DuelDetailScreen({ challengeId }: FlatChallengeDetailScreenProps) {
-  const { colorScheme } = useColorScheme();
-  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  const { mode } = useThemeMode();
+  const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const router = useRouter();
   const currentUser = useSelector((state: RootState) => state.auth.user);
   const [locallyJoinedSideId, setLocallyJoinedSideId] = useState<string | null>(null);

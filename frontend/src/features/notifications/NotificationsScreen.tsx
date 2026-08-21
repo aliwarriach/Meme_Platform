@@ -3,7 +3,7 @@ import { formatDistanceToNowStrict } from 'date-fns';
 import { useRouter } from 'expo-router';
 import { ActivityIndicator, FlatList, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useColorScheme } from 'nativewind';
+import { useThemeMode } from '@/constants/ThemeMode';
 
 import TopBar from '@/components/TopBar';
 import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
@@ -25,8 +25,8 @@ const ICON_BY_TYPE: Record<NotificationType, keyof typeof MaterialIcons.glyphMap
 };
 
 function NotificationRow({ notification }: { notification: NotificationResponse }) {
-  const { colorScheme } = useColorScheme();
-  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  const { mode } = useThemeMode();
+  const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const router = useRouter();
   const markRead = useMarkNotificationReadMutation();
   const isUnread = notification.read_at === null;
@@ -72,8 +72,8 @@ function NotificationRow({ notification }: { notification: NotificationResponse 
 }
 
 export default function NotificationsScreen() {
-  const { colorScheme } = useColorScheme();
-  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  const { mode } = useThemeMode();
+  const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const notificationsQuery = useNotifications();
   const markAllRead = useMarkAllNotificationsReadMutation();
 

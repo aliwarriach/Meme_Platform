@@ -6,6 +6,7 @@ are called directly), so this exercises real business logic, just without a live
 worker process picking jobs off a real queue.
 """
 
+import time
 from typing import Any
 
 from app.workers.tasks.ai_caption import generate_caption_job
@@ -37,13 +38,23 @@ class FakeJob:
 class FakeArqPool:
     """`ArqRedis` (what the real `get_arq_pool()` returns) is a full `redis.asyncio.Redis`
     subclass, so callers occasionally use it for plain Redis commands too (e.g.
-    `services/meme_sending.py`'s WS ticket store) rather than only `enqueue_job`. This
-    fake backs those with a process-local dict — no TTL enforcement, since nothing in the
-    test suite needs a ticket to actually expire, only to be set/read/deleted-once.
+    `services/meme_sending.py`'s WS ticket store, `services/media.py`'s pending-upload
+    store — Roadmap_Scaling.md A4) rather than only `enqueue_job`. This fake backs those
+    with a process-local dict. TTLs (`ex=`) *are* enforced, lazily on read/write (like
+    real Redis) via a parallel expiry-timestamp dict — added for A4's "an expired pending
+    upload is rejected" test, which needs a key to genuinely stop existing after its TTL,
+    not just be reachable-but-conceptually-stale.
     """
 
     def __init__(self) -> None:
         self._store: dict[str, str] = {}
+        self._expires_at: dict[str, float] = {}
+
+    def _evict_if_expired(self, key: str) -> None:
+        expires_at = self._expires_at.get(key)
+        if expires_at is not None and time.monotonic() >= expires_at:
+            self._store.pop(key, None)
+            self._expires_at.pop(key, None)
 
     async def enqueue_job(self, function: str, *args: Any, **kwargs: Any) -> FakeJob:
         job_func = _JOB_FUNCTIONS[function]
@@ -55,15 +66,29 @@ class FakeArqPool:
 
     async def set(self, key: str, value: str, ex: int | None = None) -> None:
         self._store[key] = value
+        if ex is not None:
+            self._expires_at[key] = time.monotonic() + ex
+        else:
+            self._expires_at.pop(key, None)
 
     async def get(self, key: str) -> str | None:
+        self._evict_if_expired(key)
         return self._store.get(key)
 
     async def delete(self, key: str) -> None:
         self._store.pop(key, None)
+        self._expires_at.pop(key, None)
 
     async def getdel(self, key: str) -> str | None:
+        self._evict_if_expired(key)
+        self._expires_at.pop(key, None)
         return self._store.pop(key, None)
+
+    async def ping(self) -> bool:
+        # Backs `app/routers/health.py`'s readiness Redis check (Roadmap_Scaling.md A3) —
+        # the happy path just needs a pool that answers; failure paths are exercised by
+        # monkeypatching `health._check_redis` directly rather than this fake.
+        return True
 
 
 _shared_pool = FakeArqPool()

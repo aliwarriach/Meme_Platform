@@ -1,8 +1,9 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Pressable, Text, View } from 'react-native';
-import { useColorScheme } from 'nativewind';
+import { useThemeMode } from '@/constants/ThemeMode';
 
+import { RankBadge, rankTintClassName } from '@/components/RankBadge';
 import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import type { StandingContent, StandingEntryResponse } from '@/services/competitions';
 
@@ -12,8 +13,8 @@ interface StandingRowProps {
 }
 
 export function StandingRow({ entry, onPress }: StandingRowProps) {
-  const { colorScheme } = useColorScheme();
-  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  const { mode } = useThemeMode();
+  const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const { content } = entry;
   const isContainer = content.kind === 'container';
   const imageUrl = isContainer ? content.container.thumbnail_url : content.meme.image_url;
@@ -25,8 +26,10 @@ export function StandingRow({ entry, onPress }: StandingRowProps) {
       accessibilityRole="button"
       accessibilityLabel={`Open meme by ${authorName}`}
       onPress={() => onPress(content)}
-      className="flex-row items-center border-b border-outline-variant/20 px-4 py-3">
-      <Text className="w-8 font-title text-sm text-heading">{entry.rank}</Text>
+      className={`flex-row items-center border-b border-outline-variant/20 px-4 py-3 ${rankTintClassName(entry.rank)}`}>
+      <View className="mr-2">
+        <RankBadge rank={entry.rank} />
+      </View>
       {imageUrl ? (
         <Image source={{ uri: imageUrl }} style={{ width: 56, height: 56, borderRadius: 16 }} contentFit="cover" />
       ) : (

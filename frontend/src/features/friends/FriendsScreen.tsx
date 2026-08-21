@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { ActivityIndicator, FlatList, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useColorScheme } from 'nativewind';
+import { useThemeMode } from '@/constants/ThemeMode';
 
 import PillButton from '@/components/PillButton';
 import { TextField } from '@/components/TextField';
@@ -26,8 +26,8 @@ import {
 } from '@/services/useFriends';
 
 export default function FriendsScreen() {
-  const { colorScheme } = useColorScheme();
-  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  const { mode } = useThemeMode();
+  const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const friendsQuery = useFriendsList();
   const requestsQuery = useIncomingFriendRequests();
   const sendMutation = useSendFriendRequestMutation();

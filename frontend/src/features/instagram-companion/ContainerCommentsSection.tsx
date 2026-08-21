@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Controller, useForm } from 'react-hook-form';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
-import { useColorScheme } from 'nativewind';
+import { useThemeMode } from '@/constants/ThemeMode';
 
 import Avatar from '@/components/Avatar';
 import { TextField } from '@/components/TextField';
@@ -14,8 +14,8 @@ interface ContainerCommentsSectionProps {
 }
 
 export function ContainerCommentsSection({ containerId }: ContainerCommentsSectionProps) {
-  const { colorScheme } = useColorScheme();
-  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  const { mode } = useThemeMode();
+  const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const commentsQuery = useContainerComments(containerId, true);
   const addComment = useAddContainerCommentMutation(containerId);
 
@@ -67,6 +67,7 @@ export function ContainerCommentsSection({ containerId }: ContainerCommentsSecti
                 value={field.value}
                 onChangeText={field.onChange}
                 error={errors.body?.message}
+                autoFocus
               />
             )}
           />
@@ -76,7 +77,7 @@ export function ContainerCommentsSection({ containerId }: ContainerCommentsSecti
           accessibilityLabel="Post comment"
           onPress={onSubmit}
           disabled={addComment.isPending}
-          className="mb-6 min-h-[44px] items-center justify-center rounded-full bg-primary-container px-5 disabled:opacity-50">
+          className="mb-6 min-h-[44px] items-center justify-center rounded-full bg-primary-container px-5 py-3 disabled:opacity-50">
           <Text className="font-title text-sm text-white">
             {addComment.isPending ? 'Posting…' : 'Post'}
           </Text>

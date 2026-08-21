@@ -1,6 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
-import { useColorScheme } from 'nativewind';
+import { useThemeMode } from '@/constants/ThemeMode';
 
 import Avatar from '@/components/Avatar';
 import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
@@ -14,8 +14,8 @@ interface FriendRowProps {
 }
 
 export function FriendRow({ friend, onRemove, isRemoving, onDuel }: FriendRowProps) {
-  const { colorScheme } = useColorScheme();
-  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  const { mode } = useThemeMode();
+  const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   return (
     <View className="flex-row items-center justify-between border-b border-outline-variant/20 px-4 py-3">
       <View className="flex-row items-center gap-3">

@@ -3,7 +3,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { useColorScheme } from 'nativewind';
+import { useThemeMode } from '@/constants/ThemeMode';
 
 import VotePill from '@/components/VotePill';
 import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
@@ -31,8 +31,8 @@ const INSTAGRAM_HOST_RE = /^https:\/\/(www\.)?instagram\.com(\/|$)/i;
 // public post page directly (read-only preview) rather than a proper oEmbed embed. Swaps
 // cleanly once real oEmbed HTML is available server-side, per the pluggable-fetcher design.
 export function ContainerCard({ container }: ContainerCardProps) {
-  const { colorScheme } = useColorScheme();
-  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  const { mode } = useThemeMode();
+  const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const [commentsOpen, setCommentsOpen] = useState(false);
   const castVote = useCastContainerVoteMutation();
   const recordView = useRecordContainerViewMutation();
@@ -43,7 +43,9 @@ export function ContainerCard({ container }: ContainerCardProps) {
   const onVote = (value: 1 | -1) => castVote.mutate({ containerId: container.id, value });
 
   return (
-    <View ref={cardRef} className="mb-3 border-b border-outline-variant/30 bg-bg pb-3">
+    <View
+      ref={cardRef}
+      className="mx-3 mb-4 overflow-hidden rounded-card border border-outline-variant/30 bg-surface pb-3">
       <View className="flex-row items-center px-4 py-3">
         <View className="mr-3 h-8 w-8 items-center justify-center rounded-full bg-secondary-container">
           <MaterialIcons name="camera-alt" size={16} color={c.white} />

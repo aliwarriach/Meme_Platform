@@ -28,6 +28,10 @@ module.exports = {
         monochromeImage: './assets/images/android-icon-monochrome.png',
       },
       predictiveBackGestureEnabled: false,
+      // Explicit rather than relying on Expo's default — the window resizes when the keyboard
+      // opens, so `KeyboardAvoidingView`'s `'height'` behavior (message composer, comment boxes)
+      // has an actually-shrunk window to work with instead of the keyboard just overlaying it.
+      softwareKeyboardLayoutMode: 'resize',
     },
     web: {
       output: 'static',

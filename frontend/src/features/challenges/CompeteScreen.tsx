@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useColorScheme } from 'nativewind';
+import { useThemeMode } from '@/constants/ThemeMode';
 
 import Chip from '@/components/Chip';
 import FloatingBottomNav from '@/components/FloatingBottomNav';
@@ -33,8 +33,8 @@ function goToChallenge(router: ReturnType<typeof useRouter>, challenge: Challeng
 }
 
 export default function CompeteScreen() {
-  const { colorScheme } = useColorScheme();
-  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  const { mode } = useThemeMode();
+  const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const router = useRouter();
   const [segment, setSegment] = useState<Segment>('challenges');
   const [showExplainer, setShowExplainer] = useState(false);

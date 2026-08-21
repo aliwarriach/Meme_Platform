@@ -1,7 +1,8 @@
 import { BlurView } from 'expo-blur';
-import { useColorScheme } from 'nativewind';
 import type { ReactNode } from 'react';
 import { View, type ViewProps } from 'react-native';
+
+import { useThemeMode } from '@/constants/ThemeMode';
 
 type GlassCardProps = ViewProps & {
   children: ReactNode;
@@ -17,12 +18,12 @@ export default function GlassCard({
   style,
   ...rest
 }: GlassCardProps) {
-  const { colorScheme } = useColorScheme();
+  const { mode } = useThemeMode();
   return (
     <View className={`overflow-hidden rounded-card ${className ?? ''}`} style={style} {...rest}>
       <BlurView
         intensity={intensity}
-        tint={colorScheme === 'dark' ? 'dark' : 'light'}
+        tint={mode === 'dark' ? 'dark' : 'light'}
         className="border border-outline-variant/40 bg-surface-glass p-4">
         {children}
       </BlurView>

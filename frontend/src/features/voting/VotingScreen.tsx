@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useColorScheme } from 'nativewind';
+import { useThemeMode } from '@/constants/ThemeMode';
 
 import Chip from '@/components/Chip';
 import TopBar from '@/components/TopBar';
@@ -20,8 +20,8 @@ const TABS: { type: CompetitionPeriodType; label: string; winnerLabel: string }[
 ];
 
 export default function VotingScreen() {
-  const { colorScheme } = useColorScheme();
-  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  const { mode } = useThemeMode();
+  const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const [activeTab, setActiveTab] = useState<CompetitionPeriodType>('day');
   const [selectedContent, setSelectedContent] = useState<StandingContent | null>(null);
 

@@ -47,11 +47,16 @@ interface WebLeaderboardRowProps {
  * per the accessibility checklist's "color is never the only signal" rule.
  */
 export function WebLeaderboardRow({ rank, name, score, avatarUrl, isViewer, accessibilityLabel }: WebLeaderboardRowProps) {
-  const { colors, type, radius, spacing } = useVaporwaveTheme();
+  const { colors, type, radius, spacing, mode } = useVaporwaveTheme();
   const styles = useMemo(() => createStyles(colors, radius, spacing), [colors, radius, spacing]);
   const tierFill = rank === 1 ? colors.accentGold : rank === 2 ? colors.rankSilver : rank === 3 ? colors.rankBronze : undefined;
   const tierText = rank === 1 || rank === 2 ? colors.onAccentInk : colors.onAccent;
   const tierHover = rank === 1 ? colors.rankGoldHover : rank === 2 ? colors.rankSilverHover : rank === 3 ? colors.rankBronzeHover : undefined;
+  // Pink "this is you" hover — only for ranks 4+. A top-3 viewer row's hover is the medal color
+  // alone (see below); the "You" badge and rankWrap medal fill already carry the "this is you"/
+  // "this is top-3" signals without needing the pink wash on top, which read as a muddled mix of
+  // two competing color signals on the same row.
+  const viewerHoverBg = mode === 'dark' ? 'rgba(219, 39, 119, 0.22)' : 'rgba(190, 24, 93, 0.16)';
 
   return (
     <Pressable
@@ -60,8 +65,9 @@ export function WebLeaderboardRow({ rank, name, score, avatarUrl, isViewer, acce
       style={({ hovered }: WebPressableState) => [
         styles.row,
         isViewer && styles.rowViewer,
-        hovered && tierHover && { backgroundColor: tierHover, borderColor: tierFill },
-        hovered && !tierHover && { backgroundColor: colors.surfaceHover },
+        hovered && tierHover && { backgroundColor: tierHover, borderColor: tierFill, borderLeftColor: tierFill },
+        hovered && !tierHover && isViewer && { backgroundColor: viewerHoverBg },
+        hovered && !tierHover && !isViewer && { backgroundColor: colors.surfaceHover },
       ]}>
       <View style={[styles.rankWrap, tierFill && { backgroundColor: tierFill }]}>
         <Text style={[type.title, { color: tierFill ? tierText : colors.foregroundMuted }]}>{rank}</Text>

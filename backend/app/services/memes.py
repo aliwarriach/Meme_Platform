@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
     InvalidAudienceSelectionError,
+    InvalidImageSourceError,
     MemeNotFoundError,
     NotMemeAuthorError,
 )
@@ -25,7 +26,7 @@ from app.schemas.auth import PublicUserOut
 from app.schemas.memes import CommunityBadge, FeedPage, HotFeedPage, MemeOut, MemeViewOut
 from app.services.blocks import is_blocked_clause
 from app.services.communities import require_active_membership
-from app.services.media import delete_uploaded_image, validate_and_upload_image
+from app.services.media import confirm_pending_upload, delete_uploaded_image, validate_and_upload_image
 from app.services.scoring import hot_score_expr
 
 
@@ -121,16 +122,31 @@ async def stage_personal_meme(
     author_id: uuid.UUID,
     caption: str | None,
     audiences: set[AudienceType],
-    image: UploadFile,
+    image: UploadFile | None = None,
+    confirmed_image_public_id: str | None = None,
 ) -> Meme:
     """Uploads the image and stages the `Meme` + its `PostAudience` rows **without
     committing** — the caller owns the transaction. Counterpart to `stage_community_meme`,
     split out so an open challenge (which has no community) can create its public entry
     meme and its `ChallengeSubmission` atomically.
 
-    Audience validity must already be checked by the caller.
+    Audience validity must already be checked by the caller. Exactly one of `image` (the
+    legacy proxied-upload path, still used by the open-challenge entry flow) or
+    `confirmed_image_public_id` (Roadmap_Scaling.md A4's direct-upload path, used by
+    `POST /memes`) must be given — the latter has already round-tripped through
+    `POST /media/upload-signature` and `confirm_pending_upload` by the time it gets here,
+    so this just resolves it to a URL rather than re-verifying anything.
     """
-    image_url, image_public_id = await validate_and_upload_image(image, folder="memes")
+    if confirmed_image_public_id is not None:
+        if image is not None:
+            raise InvalidImageSourceError(
+                "Provide either an image file or image_public_id, not both"
+            )
+        image_url, image_public_id = await confirm_pending_upload(author_id, confirmed_image_public_id)
+    elif image is not None:
+        image_url, image_public_id = await validate_and_upload_image(image, folder="memes")
+    else:
+        raise InvalidImageSourceError("An image file or image_public_id is required")
 
     meme = Meme(
         author_id=author_id,
@@ -152,8 +168,9 @@ async def create_meme(
     current_user: User,
     caption: str | None,
     audiences: list[AudienceType],
-    image: UploadFile,
+    image: UploadFile | None,
     hashtags: list[str] | None = None,
+    image_public_id: str | None = None,
 ) -> MemeOut:
     if AudienceType.community in audiences:
         raise InvalidAudienceSelectionError(
@@ -165,7 +182,10 @@ async def create_meme(
     if not unique_audiences:
         raise InvalidAudienceSelectionError("Choose at least one audience")
 
-    meme = await stage_personal_meme(db, current_user.id, caption, unique_audiences, image)
+    meme = await stage_personal_meme(
+        db, current_user.id, caption, unique_audiences, image,
+        confirmed_image_public_id=image_public_id,
+    )
 
     if hashtags:
         # Imported lazily to keep the dependency one-directional — services.hashtags reads

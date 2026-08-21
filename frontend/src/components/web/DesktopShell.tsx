@@ -8,7 +8,7 @@ import {
   DESKTOP_FEED_CONTENT_MAX_WIDTH,
   DESKTOP_FRAME_MIN_WIDTH,
 } from '@/constants/webLayout';
-import { useWebThemeMode } from '@/constants/WebThemeMode';
+import { useThemeMode } from '@/constants/ThemeMode';
 
 interface DesktopShellProps {
   children: ReactNode;
@@ -23,14 +23,14 @@ interface DesktopShellProps {
  * The Feed route gets a wider column than every other screen, to leave room for its open
  * inbox side panel (`DesktopInboxPanel`, mounted by `FeedScreen` itself, not here).
  *
- * Reads the same app-wide `useWebThemeMode()` every screen does (this component is mounted
- * inside `WebThemeModeProvider` in `app/_layout.tsx`) — the canvas and the sidebar-divider
+ * Reads the same app-wide `useThemeMode()` every screen does (this component is mounted
+ * inside `ThemeModeProvider` in `app/_layout.tsx`) — the canvas and the sidebar-divider
  * repaint with the rest of the app instead of staying dark-only regardless of the current mode.
  */
 export default function DesktopShell({ children }: DesktopShellProps) {
   const { width } = useWindowDimensions();
   const pathname = usePathname();
-  const { mode } = useWebThemeMode();
+  const { mode } = useThemeMode();
 
   if (Platform.OS !== 'web' || width < DESKTOP_FRAME_MIN_WIDTH) {
     return <>{children}</>;

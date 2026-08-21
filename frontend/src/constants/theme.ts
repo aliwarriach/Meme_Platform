@@ -1,13 +1,14 @@
 /**
  * Mode-aware hex values for native color props that can't take a NativeWind className
  * (e.g. `ActivityIndicator`'s `color`, `TextInput`'s `placeholderTextColor`, `MaterialIcons`'s
- * `color`, `shadowColor`). These must mirror the matching CSS variable in `src/global.css` —
- * keep in sync by hand, there is no build-time link between the two.
+ * `color`, `shadowColor`). These must mirror the matching CSS variable in `src/global.css` (and
+ * `constants/cssThemeVars.ts`) — keep in sync by hand, there is no build-time link between them.
  *
- * Get the active palette via NativeWind's own `useColorScheme()` (from `nativewind`, already kept
- * in sync with the `theme` Redux slice by `store/themeSlice.ts`), not a bespoke hook:
- *   const { colorScheme } = useColorScheme();
- *   const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+ * Get the active palette via the one app-wide `useThemeMode()` (`constants/ThemeMode.tsx`), not
+ * NativeWind's own `useColorScheme()` — that one always tracks the OS's real appearance on
+ * native, never this app's own light/dark/system choice:
+ *   const { mode } = useThemeMode();
+ *   const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
  *   <MaterialIcons color={c.inkMuted} />
  */
 

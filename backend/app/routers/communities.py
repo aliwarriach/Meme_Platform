@@ -3,7 +3,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Form, Query, UploadFile
 
-from app.core.deps import CurrentUser, CurrentVerifiedUser, DbSession
+from app.core.deps import CurrentUser, CurrentVerifiedUser, DbSession, ReadDbSession
 from app.models.community import CommunityPrivacy
 from app.schemas.communities import CommunityOut, CommunityPage, MembershipOut
 from app.schemas.leaderboards import IndividualLeaderboardPage
@@ -105,7 +105,7 @@ async def create_community_meme(
 async def get_community_feed(
     community_id: uuid.UUID,
     current_user: CurrentUser,
-    db: DbSession,
+    db: ReadDbSession,
     cursor: str | None = None,
     limit: Annotated[int, Query(ge=1, le=50)] = 20,
 ) -> FeedPage:
@@ -116,7 +116,7 @@ async def get_community_feed(
 async def get_internal_community_leaderboard(
     community_id: uuid.UUID,
     current_user: CurrentUser,
-    db: DbSession,
+    db: ReadDbSession,
     page: Annotated[int, Query(ge=1)] = 1,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> IndividualLeaderboardPage:

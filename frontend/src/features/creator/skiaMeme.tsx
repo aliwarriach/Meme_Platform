@@ -87,12 +87,18 @@ function buildParagraph(layer: TextLayer, width: number, stroke: boolean): SkPar
 
   // Web's CanvasKit requires an explicit typeface provider (registered in `skiaFonts.web.ts`)
   // or throws "SkTypefaceFontProvider is required on React Native Web"; native resolves
-  // `fontFamilies` through its own system font manager and ignores the extra argument.
-  const fontProvider = Platform.OS === 'web' ? (getWebFontProvider() ?? undefined) : undefined;
-  const builder = Skia.ParagraphBuilder.Make(
-    { textAlign: SKIA_ALIGN[style.align], maxLines: 8 },
-    fontProvider
-  );
+  // `fontFamilies` through its own system font manager instead.
+  //
+  // The provider argument must be OMITTED on native, never passed as `undefined`: Make is a
+  // JSI binding that branches on argument *count*, not value —
+  //   `count > 1 ? JsiSkTypefaceFontProvider::fromValue(runtime, arguments[1]) : nullptr`
+  // — so an explicit `undefined` makes it coerce undefined into an SkTypefaceFontProvider and
+  // hard-crash the process (no JS error, app dies on the first text layer).
+  const paragraphStyle = { textAlign: SKIA_ALIGN[style.align], maxLines: 8 };
+  const fontProvider = Platform.OS === 'web' ? getWebFontProvider() : null;
+  const builder = fontProvider
+    ? Skia.ParagraphBuilder.Make(paragraphStyle, fontProvider)
+    : Skia.ParagraphBuilder.Make(paragraphStyle);
   if (stroke) {
     const paint = Skia.Paint();
     paint.setStyle(PaintStyle.Stroke);

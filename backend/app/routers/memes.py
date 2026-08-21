@@ -3,7 +3,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Form, Query, Request, UploadFile
 
-from app.core.deps import CurrentUser, CurrentVerifiedUser, DbSession
+from app.core.deps import CurrentUser, CurrentVerifiedUser, DbSession, ReadDbSession
 from app.core.rate_limit import limiter
 from app.models.post_audience import AudienceType
 from app.schemas.comments import CommentCreate, CommentOut
@@ -22,15 +22,19 @@ router = APIRouter(prefix="/memes", tags=["memes"])
 @limiter.limit("20/minute")
 async def create_meme(
     request: Request,
-    image: UploadFile,
     current_user: CurrentUser,
     db: DbSession,
+    image: UploadFile | None = None,
+    image_public_id: Annotated[str | None, Form()] = None,
     audiences: Annotated[list[AudienceType], Form()] = [],
     caption: Annotated[str | None, Form(max_length=500)] = None,
     hashtags: Annotated[list[str], Form()] = [],
 ) -> MemeOut:
+    """`image` (legacy multipart upload) and `image_public_id` (Roadmap_Scaling.md A4's
+    direct-to-Cloudinary flow — confirm the `public_id` from
+    `POST /media/upload-signature`) are mutually exclusive; exactly one is required."""
     return await memes_service.create_meme(
-        db, current_user, caption, audiences, image, hashtags
+        db, current_user, caption, audiences, image, hashtags, image_public_id=image_public_id
     )
 
 
@@ -44,7 +48,7 @@ async def delete_meme(meme_id: uuid.UUID, current_user: CurrentUser, db: DbSessi
 @router.get("/feed", response_model=MergedFeedPage)
 async def get_feed(
     current_user: CurrentUser,
-    db: DbSession,
+    db: ReadDbSession,
     offset: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=50)] = 20,
 ) -> MergedFeedPage:

@@ -6,11 +6,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import EmailNotVerifiedError
 from app.core.security import InvalidTokenError, decode_access_token
-from app.db.session import get_db_session
+from app.db.session import get_db_session, get_read_db_session
 from app.models.user import User
 from app.services import users as users_service
 
 DbSession = Annotated[AsyncSession, Depends(get_db_session)]
+# Only for routes that are read-only and safe against replica lag (leaderboards, feed) —
+# see app/db/session.py::get_read_db_session (Roadmap_Scaling.md A2).
+ReadDbSession = Annotated[AsyncSession, Depends(get_read_db_session)]
 
 _bearer_scheme = HTTPBearer(auto_error=False)
 

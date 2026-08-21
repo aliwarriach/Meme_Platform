@@ -1,4 +1,4 @@
-import { useColorScheme } from 'nativewind';
+import { useThemeMode } from '@/constants/ThemeMode';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 import Avatar from '@/components/Avatar';
@@ -13,8 +13,8 @@ interface JoinRequestRowProps {
 }
 
 export function JoinRequestRow({ request, onApprove, onReject, isPending }: JoinRequestRowProps) {
-  const { colorScheme } = useColorScheme();
-  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  const { mode } = useThemeMode();
+  const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
 
   return (
     <View className="flex-row items-center border-b border-outline-variant/30 py-3">

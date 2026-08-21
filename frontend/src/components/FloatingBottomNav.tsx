@@ -1,12 +1,11 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useColorScheme } from 'nativewind';
 import { useMemo } from 'react';
 import { Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DESKTOP_FRAME_MIN_WIDTH } from '@/constants/webLayout';
-import { useWebThemeMode, type WebThemeMode } from '@/constants/WebThemeMode';
+import { useThemeMode, type ThemeMode } from '@/constants/ThemeMode';
 
 export type NavDestination = 'feed' | 'communities' | 'compete' | 'profile';
 
@@ -40,29 +39,10 @@ interface NavTintTokens {
   createIcon: string;
 }
 
-// Native Neon Plum tokens, mode-aware — mirrors `WEB_TOKENS`'s shape/values below (same source
-// tokens, `webFeedThemeVapor.ts`'s indigoPrimary/indigoSecondary), read from NativeWind's
-// `colorScheme` (kept in sync with the `theme` Redux slice) instead of `useWebThemeMode()`.
-const NATIVE_TOKENS: Record<'dark' | 'light', NavTintTokens> = {
-  dark: {
-    activeTint: '#FF5CA0',
-    inactiveTint: '#C9A9BA',
-    barBorder: 'rgba(255, 255, 255, 0.10)',
-    barBg: '#241328',
-    createIcon: '#FFFFFF',
-  },
-  light: {
-    activeTint: '#EC4899',
-    inactiveTint: '#6B4A5C',
-    barBorder: '#F3D9E7',
-    barBg: '#FFFFFF',
-    createIcon: '#FFFFFF',
-  },
-};
-
-// Web-only Neon Plum tokens, mode-aware — this bar only renders on web at narrow (non-desktop)
-// viewports, since `DesktopSidebarNav` takes over at >= DESKTOP_FRAME_MIN_WIDTH.
-const WEB_TOKENS: Record<WebThemeMode, NavTintTokens> = {
+// Neon Plum tokens, mode-aware — same values on both platforms, driven by the one app-wide
+// `useThemeMode()`. (This bar only renders on native, and on web at narrow non-desktop
+// viewports — `DesktopSidebarNav` takes over web at >= DESKTOP_FRAME_MIN_WIDTH.)
+const TOKENS: Record<ThemeMode, NavTintTokens> = {
   dark: {
     activeTint: '#FF5CA0',
     inactiveTint: '#C9A9BA',
@@ -87,16 +67,14 @@ const WEB_TOKENS: Record<WebThemeMode, NavTintTokens> = {
  * was also unreliable for this overlay). Inline styles render identically on every device with no
  * transform in the path — the reliable choice for this one always-on-top chrome element.
  *
- * Reads `useWebThemeMode()` for its web-rendered tokens and NativeWind's `colorScheme` for its
- * native-rendered tokens — each platform's own mode toggle drives its own token set.
+ * Reads the one app-wide `useThemeMode()` — same tokens, same mode, on both platforms.
  */
 export default function FloatingBottomNav({ active }: FloatingBottomNavProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const { mode: webMode } = useWebThemeMode();
-  const { colorScheme } = useColorScheme();
-  const t = Platform.OS === 'web' ? WEB_TOKENS[webMode] : NATIVE_TOKENS[colorScheme === 'light' ? 'light' : 'dark'];
+  const { mode } = useThemeMode();
+  const t = TOKENS[mode];
   const styles = useMemo(() => createStyles(t), [t]);
 
   // DesktopShell's DesktopSidebarNav takes over navigation on wide desktop-web viewports —

@@ -14,7 +14,14 @@ See `Idea.md` (pitch/positioning) and `Project_Requirements.md` (detailed number
 /shared    cross-cutting types/contracts (API response shapes, enums)
 /.claude/memory     per-feature technical memory (see below) — READ BEFORE working on a known feature
 /.claude/agents     delegated-search subagent definitions (auto-discovered by Claude Code)
+/Roadmap_*.md       multi-phase implementation plans, each with per-phase status + instructions
 ```
+
+`Roadmap_Scaling.md` (root) is the source of truth for infrastructure/scaling work — containerization,
+Kubernetes, autoscaling, load testing. It carries a greppable per-phase status board
+(`grep "^\*\*STATUS:" Roadmap_Scaling.md`). **If a task touches deployment, scaling, Docker, K8s,
+Terraform, or connection/pool/socket architecture, read it before starting and update the phase's
+STATUS line in the same changeset.**
 
 ## Core services (backend, conceptual)
 Auth & Profile (incl. friends) · Communities (membership, community feed, community-private template library) · Meme Feed (infinite scroll, reactions, multi-audience posts: Friends/Public/Community) · Meme Creator (upload, text overlays, templates) · Template Library (global + per-community private) · Meme Scoring Engine (rule-based, shared by leaderboards + challenges) · Leaderboards (individual + community) · Community Challenges (intra-community team vs. team, community vs. community; setup/active/evaluation/results lifecycle) · Voting & Competitions (Meme of the Day/Week/Month, feed-level) · Real-time Meme Sending (WebSockets, lightweight inbox) · AI Caption/Joke Generator (Groq/OpenAI-compatible LLM) · Instagram Companion Mode (`MemeContainer` wrapping external Reels/posts) · Media Storage (Cloudinary/S3). Data stores: PostgreSQL (system of record), Redis (cache + real-time pub/sub), Cloudinary or S3 (media).

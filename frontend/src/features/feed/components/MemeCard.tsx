@@ -1,6 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useColorScheme } from 'nativewind';
+import { useThemeMode } from '@/constants/ThemeMode';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
@@ -19,7 +19,7 @@ interface MemeCardProps {
   meme: MemeResponse;
 }
 
-/** Instagram-style post card: fixed 4:5 media ratio, avatar+username header, vote-pill + send/share/comment action row. */
+/** Bordered card: fixed 4:5 media ratio, avatar+username header, up/down vote control + send/share/comment action row. */
 export function MemeCard({ meme }: MemeCardProps) {
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [sendModalOpen, setSendModalOpen] = useState(false);
@@ -28,8 +28,8 @@ export function MemeCard({ meme }: MemeCardProps) {
   const castVote = useCastVoteMutation();
   const recordView = useRecordMemeViewMutation();
   const cardRef = useRecordViewOnVisible(() => recordView.mutate(meme.id));
-  const { colorScheme } = useColorScheme();
-  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  const { mode } = useThemeMode();
+  const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
 
   const isVoting = castVote.isPending;
 
@@ -48,7 +48,9 @@ export function MemeCard({ meme }: MemeCardProps) {
   const onVote = (value: 1 | -1) => castVote.mutate({ memeId: meme.id, value });
 
   return (
-    <View ref={cardRef} className="mb-3 border-b border-outline-variant/30 bg-bg pb-3">
+    <View
+      ref={cardRef}
+      className="mx-3 mb-4 overflow-hidden rounded-card border border-outline-variant/30 bg-surface pb-3">
       <View className="flex-row items-center px-4 py-3">
         <View className="mr-3">
           <Avatar username={meme.author.username} size="sm" />

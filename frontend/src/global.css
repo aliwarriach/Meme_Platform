@@ -102,7 +102,12 @@
   --color-error-container: 186 26 26; /* light mode's `error` reused as a dark-mode solid fill */
 
   --color-outline: 74 44 66; /* borderSolid #4A2C42 */
-  --color-outline-variant: 255 255 255; /* border rgba(255,255,255,0.10) — base white, opacity via /NN modifier */
+  /* NOT the raw `border rgba(255,255,255,0.10)` white — Tailwind's `/NN` opacity modifier is
+     per-usage-site, and most `border-outline-variant` call sites use no modifier or a high one
+     (e.g. `Chip.tsx`'s unselected state), so baking in solid white rendered a bright white border
+     almost everywhere in dark mode instead of a faint divider. This is the flat-RGB equivalent of
+     "10% white over the dark canvas" instead. */
+  --color-outline-variant: 91 63 70;
 
   --color-heading: 253 242 248; /* foreground #FDF2F8 */
   --color-ink: 253 242 248; /* foreground #FDF2F8 */

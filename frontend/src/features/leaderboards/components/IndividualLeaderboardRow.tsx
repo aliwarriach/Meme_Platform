@@ -1,7 +1,7 @@
 import { Text, View } from 'react-native';
 
 import Avatar from '@/components/Avatar';
-import { RankBadge, rankTintClassName } from '@/features/leaderboards/components/RankBadge';
+import { RankBadge, rankTintClassName } from '@/components/RankBadge';
 import type { IndividualLeaderboardEntryResponse } from '@/services/leaderboards';
 
 interface IndividualLeaderboardRowProps {

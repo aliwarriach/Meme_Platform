@@ -63,4 +63,4 @@ async def meme_sending_socket(
     except WebSocketDisconnect:
         pass
     finally:
-        connection_manager.disconnect(user_id)
+        await connection_manager.disconnect(user_id)

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
-import { useColorScheme } from 'nativewind';
+import { useThemeMode } from '@/constants/ThemeMode';
 
 import Chip from '@/components/Chip';
 import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
@@ -31,8 +31,8 @@ function displaySlug(raw: string): string {
 }
 
 export function HashtagInput({ tags, onTagsChange, challengeEntry, onChallengeEntryChange }: HashtagInputProps) {
-  const { colorScheme } = useColorScheme();
-  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  const { mode } = useThemeMode();
+  const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const [draft, setDraft] = useState('');
   const [pendingChallenge, setPendingChallenge] = useState<HashtagSuggestionResponse | null>(null);
 

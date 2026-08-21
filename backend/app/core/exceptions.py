@@ -65,6 +65,28 @@ class MediaUploadFailedError(DomainError):
     status_code = status.HTTP_502_BAD_GATEWAY
 
 
+class InvalidImageSourceError(DomainError):
+    """Exactly one of an uploaded file or a confirmed `image_public_id` is required —
+    raised for neither or both (Roadmap_Scaling.md A4)."""
+
+    status_code = status.HTTP_400_BAD_REQUEST
+
+
+class UploadSignatureNotFoundError(DomainError):
+    """The `public_id` was never issued by `POST /media/upload-signature`, or its
+    15-minute pending window already expired (Roadmap_Scaling.md A4)."""
+
+    status_code = status.HTTP_400_BAD_REQUEST
+
+
+class UploadSignatureOwnerMismatchError(DomainError):
+    """The `public_id` was issued to a different user — a naive direct-upload flow
+    would let a client claim any signature it can guess/observe; this is the check that
+    stops it (Roadmap_Scaling.md A4)."""
+
+    status_code = status.HTTP_403_FORBIDDEN
+
+
 class MemeNotFoundError(DomainError):
     status_code = status.HTTP_404_NOT_FOUND
 

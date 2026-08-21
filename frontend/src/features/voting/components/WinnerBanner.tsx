@@ -1,7 +1,7 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
-import { useColorScheme } from 'nativewind';
+import { useThemeMode } from '@/constants/ThemeMode';
 
 import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import type { StandingContent, WinnerResponse } from '@/services/competitions';
@@ -15,37 +15,38 @@ interface WinnerBannerProps {
 }
 
 export function WinnerBanner({ winner, isLoading, isError, label, onPress }: WinnerBannerProps) {
-  const { colorScheme } = useColorScheme();
-  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  const { mode } = useThemeMode();
+  const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const content = winner?.content;
   const imageUrl =
     content?.kind === 'container' ? content.container.thumbnail_url : content?.meme.image_url;
   const authorName =
     content?.kind === 'container' ? content.container.submitter.username : content?.meme.author.username;
 
-  return (
-    <View className="mx-4 mb-3 rounded-card border border-primary/30 bg-primary/10 p-4">
-      <View className="mb-2 flex-row items-center gap-1.5">
-        <MaterialIcons name="emoji-events" size={16} color={c.primaryDim} />
-        <Text className="font-label text-xs uppercase text-primary-dim">{label}</Text>
-        {!isLoading && !isError && content ? (
-          <View className="ml-1 rounded-full bg-primary-container px-2 py-0.5">
-            <Text className="font-label text-[10px] text-white">#1</Text>
-          </View>
-        ) : null}
-      </View>
-      {isLoading ? (
-        <ActivityIndicator size="small" color={c.inkMuted} />
-      ) : isError ? (
-        <Text className="font-body text-sm text-ink-muted">Couldn&apos;t load the winner.</Text>
-      ) : !content ? (
-        <Text className="font-body text-sm text-ink-muted">No votes were cast in that period.</Text>
-      ) : (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Open meme by ${authorName}`}
-          onPress={() => onPress(content)}
-          className="flex-row items-center">
+  const header = (
+    <View className="mb-2 flex-row items-center gap-1.5">
+      <MaterialIcons name="emoji-events" size={16} color={c.primaryDim} />
+      <Text className="font-label text-xs uppercase text-primary-dim">{label}</Text>
+      {!isLoading && !isError && content ? (
+        <View className="ml-1 rounded-full bg-primary-container px-2 py-0.5">
+          <Text className="font-label text-[10px] text-white">#1</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+
+  // Whole card is one press target (header + entry), not just the inner row — a partial-card
+  // press target reads as broken on a touch device just as much as it did as a partial hover
+  // on web.
+  if (!isLoading && !isError && content) {
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Open meme by ${authorName}`}
+        onPress={() => onPress(content)}
+        className="mx-4 mb-3 rounded-card border border-primary/30 bg-primary/10 p-4 active:bg-primary/20">
+        {header}
+        <View className="flex-row items-center">
           {imageUrl ? (
             <Image source={{ uri: imageUrl }} style={{ width: 48, height: 48, borderRadius: 16 }} contentFit="cover" />
           ) : (
@@ -59,7 +60,20 @@ export function WinnerBanner({ winner, isLoading, isError, label, onPress }: Win
             </Text>
             <Text className="font-body text-xs text-ink-muted">score {winner.score}</Text>
           </View>
-        </Pressable>
+        </View>
+      </Pressable>
+    );
+  }
+
+  return (
+    <View className="mx-4 mb-3 rounded-card border border-primary/30 bg-primary/10 p-4">
+      {header}
+      {isLoading ? (
+        <ActivityIndicator size="small" color={c.inkMuted} />
+      ) : isError ? (
+        <Text className="font-body text-sm text-ink-muted">Couldn&apos;t load the winner.</Text>
+      ) : (
+        <Text className="font-body text-sm text-ink-muted">No votes were cast in that period.</Text>
       )}
     </View>
   );

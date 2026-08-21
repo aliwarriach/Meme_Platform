@@ -304,4 +304,4 @@ async def send_meme_message(
     )
     # Read *after* the send: a push that fails mid-flight makes the manager drop the
     # socket, so this reflects real delivery rather than a stale pre-send registry hit.
-    return out, recipient, connection_manager.is_online(recipient_id)
+    return out, recipient, await connection_manager.is_online(recipient_id)

@@ -1,4 +1,4 @@
-import { useColorScheme } from 'nativewind';
+import { useThemeMode } from '@/constants/ThemeMode';
 import { Text, View } from 'react-native';
 
 import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
@@ -14,8 +14,8 @@ const TIER_CLASSES: Record<1 | 2 | 3, string> = {
  * `heading`-colored text otherwise. Shared by `IndividualLeaderboardRow`/`CommunityLeaderboardRow`
  * so both leaderboards carry the same medal treatment. */
 export function RankBadge({ rank }: { rank: number }) {
-  const { colorScheme } = useColorScheme();
-  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  const { mode } = useThemeMode();
+  const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
 
   if (rank === 1 || rank === 2 || rank === 3) {
     return (

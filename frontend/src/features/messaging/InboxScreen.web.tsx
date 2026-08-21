@@ -17,8 +17,8 @@ import type { RootState } from '@/store/store';
  * untouched — Metro/Expo Router's platform-extension resolution prefers this file for the web
  * bundle at `app/inbox.tsx`, which needs zero changes). Full conversation-list page, reusing the
  * Vaporwave/Luminous glass design system already shipped on Feed/Friends/Voting/Challenges/
- * Leaderboard/Profile — mode comes from the single app-wide `WebThemeModeProvider` (see
- * `constants/WebThemeMode.tsx`), not a per-screen provider.
+ * Leaderboard/Profile — mode comes from the single app-wide `ThemeModeProvider` (see
+ * `constants/ThemeMode.tsx`), not a per-screen provider.
  *
  * Relationship to `components/web/DesktopInboxPanel.tsx` / `components/web/WebFeedRail.tsx`:
  * this is a different surface (a full standalone page, not a rail preview). Opening a thread from

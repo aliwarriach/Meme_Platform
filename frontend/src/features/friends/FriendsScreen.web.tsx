@@ -26,7 +26,7 @@ import {
  * untouched — Metro/Expo Router's platform-extension resolution prefers this file for every web
  * bundle, `app/friends.tsx` needs zero changes). Reuses the Vaporwave/Luminous glass design
  * system already shipped on the web feed (`constants/webFeedThemeVapor.ts`) — mode comes from the
- * single app-wide `WebThemeModeProvider` (see `constants/WebThemeMode.tsx`), so a mode chosen on
+ * single app-wide `ThemeModeProvider` (see `constants/ThemeMode.tsx`), so a mode chosen on
  * Feed is already active here, instantly, not just on next visit.
  *
  * `DesktopShell` (mounted app-wide in `app/_layout.tsx`) already centers this screen in the

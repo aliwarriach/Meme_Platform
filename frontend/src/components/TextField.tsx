@@ -1,4 +1,4 @@
-import { useColorScheme } from 'nativewind';
+import { useThemeMode } from '@/constants/ThemeMode';
 import { Text, TextInput, View, type TextInputProps } from 'react-native';
 
 import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
@@ -9,8 +9,8 @@ interface TextFieldProps extends TextInputProps {
 }
 
 export function TextField({ label, error, ...inputProps }: TextFieldProps) {
-  const { colorScheme } = useColorScheme();
-  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  const { mode } = useThemeMode();
+  const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
 
   return (
     <View className="mb-4">

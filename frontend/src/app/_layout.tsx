@@ -17,9 +17,8 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Provider as ReduxProvider, useDispatch, useSelector } from 'react-redux';
 
 import DesktopShell from '@/components/web/DesktopShell';
-import { WebThemeModeProvider } from '@/constants/WebThemeMode';
+import { ThemeModeProvider, useThemeMode } from '@/constants/ThemeMode';
 import { bootstrapAuth } from '@/store/authSlice';
-import { hydrateThemeMode, selectIsThemeHydrated, selectThemeMode } from '@/store/themeSlice';
 import { store, type AppDispatch, type RootState } from '@/store/store';
 import { connectMemeSendingSocket, disconnectMemeSendingSocket } from '@/services/memeSendingSocket';
 import { useMessagingSocketSync } from '@/services/useMessaging';
@@ -46,15 +45,13 @@ function AuthBoundary({ fontsLoaded }: { fontsLoaded: boolean }) {
   const dispatch = useDispatch<AppDispatch>();
   const isBootstrapped = useSelector((state: RootState) => state.auth.isBootstrapped);
   const token = useSelector((state: RootState) => state.auth.token);
-  const isThemeHydrated = useSelector(selectIsThemeHydrated);
-  const themeMode = useSelector(selectThemeMode);
+  const { mode, isHydrated: isThemeHydrated } = useThemeMode();
   const registerPushToken = useRegisterPushTokenMutation();
   const unregisterPushToken = useUnregisterPushTokenMutation();
   const expoPushTokenRef = useRef<string | null>(null);
 
   useEffect(() => {
     dispatch(bootstrapAuth());
-    dispatch(hydrateThemeMode());
   }, [dispatch]);
 
   useEffect(() => {
@@ -110,36 +107,34 @@ function AuthBoundary({ fontsLoaded }: { fontsLoaded: boolean }) {
   if (!isBootstrapped || !isThemeHydrated || !fontsLoaded) return null;
 
   return (
-    <ThemeProvider value={themeMode === 'dark' ? NEON_PLUM_NAV_DARK : NEON_PLUM_NAV_LIGHT}>
-      <StatusBar style={themeMode === 'dark' ? 'light' : 'dark'} />
-      <WebThemeModeProvider>
-        <DesktopShell>
-          <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="login" />
-          <Stack.Screen name="register" />
-          <Stack.Screen name="profile" />
-          <Stack.Screen name="friends" />
-          <Stack.Screen name="feed" />
-          <Stack.Screen name="new-post" />
-          <Stack.Screen name="communities" />
-          <Stack.Screen name="communities/new" />
-          <Stack.Screen name="communities/[id]" />
-          <Stack.Screen name="communities/[id]/challenges/new" />
-          <Stack.Screen name="communities/[id]/challenges/vs" />
-          <Stack.Screen name="communities/[id]/challenges/[challengeId]" />
-          <Stack.Screen name="leaderboards" />
-          <Stack.Screen name="voting" />
-          <Stack.Screen name="inbox" />
-          <Stack.Screen name="inbox/[conversationId]" />
-          <Stack.Screen name="notifications" />
-          <Stack.Screen name="challenges/[challengeId]" />
-          <Stack.Screen name="compete" />
-          <Stack.Screen name="compete/open/new" />
-          <Stack.Screen name="tag/[slug]" />
-          </Stack>
-        </DesktopShell>
-      </WebThemeModeProvider>
+    <ThemeProvider value={mode === 'dark' ? NEON_PLUM_NAV_DARK : NEON_PLUM_NAV_LIGHT}>
+      <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
+      <DesktopShell>
+        <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" />
+        <Stack.Screen name="login" />
+        <Stack.Screen name="register" />
+        <Stack.Screen name="profile" />
+        <Stack.Screen name="friends" />
+        <Stack.Screen name="feed" />
+        <Stack.Screen name="new-post" />
+        <Stack.Screen name="communities" />
+        <Stack.Screen name="communities/new" />
+        <Stack.Screen name="communities/[id]" />
+        <Stack.Screen name="communities/[id]/challenges/new" />
+        <Stack.Screen name="communities/[id]/challenges/vs" />
+        <Stack.Screen name="communities/[id]/challenges/[challengeId]" />
+        <Stack.Screen name="leaderboards" />
+        <Stack.Screen name="voting" />
+        <Stack.Screen name="inbox" />
+        <Stack.Screen name="inbox/[conversationId]" />
+        <Stack.Screen name="notifications" />
+        <Stack.Screen name="challenges/[challengeId]" />
+        <Stack.Screen name="compete" />
+        <Stack.Screen name="compete/open/new" />
+        <Stack.Screen name="tag/[slug]" />
+        </Stack>
+      </DesktopShell>
     </ThemeProvider>
   );
 }
@@ -157,7 +152,9 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ReduxProvider store={store}>
         <QueryClientProvider client={queryClient}>
-          <AuthBoundary fontsLoaded={fontsLoaded} />
+          <ThemeModeProvider>
+            <AuthBoundary fontsLoaded={fontsLoaded} />
+          </ThemeModeProvider>
         </QueryClientProvider>
       </ReduxProvider>
     </GestureHandlerRootView>

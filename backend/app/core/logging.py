@@ -11,6 +11,8 @@ import uuid
 from contextvars import ContextVar
 from typing import Any
 
+from app.core.config import settings
+
 request_id_var: ContextVar[str | None] = ContextVar("request_id", default=None)
 
 # Every attribute a bare `logging.LogRecord` carries — anything else on a record is a
@@ -40,8 +42,13 @@ class JsonFormatter(logging.Formatter):
 
 
 def configure_logging() -> None:
+    # stdout only (Roadmap_Scaling.md A5) — no file handlers, no rotation; the container
+    # runtime (or, locally, the terminal) owns that.
     handler = logging.StreamHandler()
-    handler.setFormatter(JsonFormatter())
+    if settings.log_format == "json":
+        handler.setFormatter(JsonFormatter())
+    else:
+        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
     root = logging.getLogger()
     root.handlers = [handler]
     root.setLevel(logging.INFO)

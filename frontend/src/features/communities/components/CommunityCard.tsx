@@ -1,6 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useColorScheme } from 'nativewind';
+import { useThemeMode } from '@/constants/ThemeMode';
 import { Pressable, Text, View } from 'react-native';
 
 import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
@@ -17,8 +17,8 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export function CommunityCard({ community, onPress }: CommunityCardProps) {
-  const { colorScheme } = useColorScheme();
-  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  const { mode } = useThemeMode();
+  const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
 
   return (
     <Pressable
@@ -50,8 +50,15 @@ export function CommunityCard({ community, onPress }: CommunityCardProps) {
       )}
 
       <View className="ml-3 flex-1">
-        <Text className="font-title text-base text-heading">{community.name}</Text>
-        <Text className="font-body text-xs text-ink-muted">
+        <Text className="font-title text-base text-heading" numberOfLines={1}>
+          {community.name}
+        </Text>
+        {community.description ? (
+          <Text className="mt-0.5 font-body text-xs text-ink-muted" numberOfLines={1} ellipsizeMode="tail">
+            {community.description}
+          </Text>
+        ) : null}
+        <Text className="mt-0.5 font-body text-xs text-ink-muted">
           {community.member_count} member{community.member_count === 1 ? '' : 's'} ·{' '}
           {community.privacy === 'open' ? 'Open' : 'Invite only'}
         </Text>

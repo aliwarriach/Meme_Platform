@@ -1,6 +1,6 @@
 import { Text, View } from 'react-native';
 
-import { RankBadge, rankTintClassName } from '@/features/leaderboards/components/RankBadge';
+import { RankBadge, rankTintClassName } from '@/components/RankBadge';
 import type { CommunityLeaderboardEntryResponse } from '@/services/leaderboards';
 
 interface CommunityLeaderboardRowProps {

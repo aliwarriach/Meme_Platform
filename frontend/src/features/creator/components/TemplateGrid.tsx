@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { useColorScheme } from 'nativewind';
+import { useThemeMode } from '@/constants/ThemeMode';
 import { ActivityIndicator, FlatList, Pressable, Text } from 'react-native';
 
 import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
@@ -24,11 +24,12 @@ export function TemplateGrid({
   onSelect,
   emptyMessage,
 }: TemplateGridProps) {
-  const { colorScheme } = useColorScheme();
-  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  const { mode } = useThemeMode();
+  const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   return (
     <FlatList
       data={items}
+      style={{ flex: 1 }}
       keyExtractor={(item) => item.id}
       numColumns={3}
       contentContainerStyle={{ padding: 8 }}

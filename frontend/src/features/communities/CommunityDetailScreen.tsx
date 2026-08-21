@@ -1,7 +1,7 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { useColorScheme } from 'nativewind';
+import { useThemeMode } from '@/constants/ThemeMode';
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -15,8 +15,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
 
-import Chip from '@/components/Chip';
 import PillButton from '@/components/PillButton';
+import { SegmentedControl } from '@/components/SegmentedControl';
 import TopBar from '@/components/TopBar';
 import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import { ChallengeRow } from '@/features/challenges/components/ChallengeRow';
@@ -50,8 +50,8 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
   const router = useRouter();
   const currentUser = useSelector((state: RootState) => state.auth.user);
   const [activeTab, setActiveTab] = useState<Tab>('feed');
-  const { colorScheme } = useColorScheme();
-  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  const { mode } = useThemeMode();
+  const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
 
   const communityQuery = useCommunity(communityId);
   const membersQuery = useMembers(communityId);
@@ -256,26 +256,16 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
       ) : null}
 
       {isMember ? (
-        <View className="mb-4 flex-row items-center justify-between">
-          <View className="flex-1 flex-row flex-wrap gap-2">
-            <Chip label="Feed" selected={activeTab === 'feed'} onPress={() => setActiveTab('feed')} />
-            <Chip
-              label="Members"
-              selected={activeTab === 'members'}
-              onPress={() => setActiveTab('members')}
-            />
-            <Chip
-              label="Leaderboard"
-              selected={activeTab === 'leaderboard'}
-              onPress={() => setActiveTab('leaderboard')}
-            />
-            <Chip
-              label="Challenges"
-              selected={activeTab === 'challenges'}
-              onPress={() => setActiveTab('challenges')}
-            />
-          </View>
-        </View>
+        <SegmentedControl
+          options={[
+            { key: 'feed', label: 'Feed' },
+            { key: 'members', label: 'Members' },
+            { key: 'leaderboard', label: 'Leaderboard' },
+            { key: 'challenges', label: 'Challenges' },
+          ]}
+          value={activeTab}
+          onChange={setActiveTab}
+        />
       ) : null}
 
       {isMember && activeTab === 'feed' ? (
@@ -294,7 +284,8 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
       {isMember && activeTab === 'challenges' && isOwner ? (
         <View className="mb-4 flex-row gap-3">
           <PillButton
-            label="+ Team Challenge"
+            label="Team"
+            accessibilityLabel="Start a team challenge"
             className="flex-1"
             onPress={() =>
               router.push({
@@ -304,8 +295,8 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
             }
           />
           <PillButton
-            label="Challenge a Community"
-            variant="outline"
+            label="Community"
+            accessibilityLabel="Challenge another community"
             className="flex-1"
             onPress={() =>
               router.push({

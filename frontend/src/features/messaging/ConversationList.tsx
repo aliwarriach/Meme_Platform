@@ -1,6 +1,6 @@
 import { formatDistanceToNowStrict } from 'date-fns';
 import { useRouter } from 'expo-router';
-import { useColorScheme } from 'nativewind';
+import { useThemeMode } from '@/constants/ThemeMode';
 import { ActivityIndicator, FlatList, Pressable, Text, View } from 'react-native';
 
 import Avatar from '@/components/Avatar';
@@ -77,8 +77,8 @@ function ConversationRow({ conversation }: { conversation: ConversationResponse 
  */
 export function ConversationList() {
   const { data: conversations, isLoading, isError, error, refetch, isRefetching } = useConversations();
-  const { colorScheme } = useColorScheme();
-  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  const { mode } = useThemeMode();
+  const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
 
   if (isLoading) return <ActivityIndicator className="mt-8" color={c.inkMuted} />;
 

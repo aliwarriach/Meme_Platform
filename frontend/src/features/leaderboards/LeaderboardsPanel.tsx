@@ -1,4 +1,4 @@
-import { useColorScheme } from 'nativewind';
+import { useThemeMode } from '@/constants/ThemeMode';
 import { useState } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, Text, View } from 'react-native';
 import { useSelector } from 'react-redux';
@@ -20,8 +20,8 @@ type Tab = 'individual' | 'communities';
 export default function LeaderboardsPanel() {
   const currentUser = useSelector((state: RootState) => state.auth.user);
   const [activeTab, setActiveTab] = useState<Tab>('individual');
-  const { colorScheme } = useColorScheme();
-  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  const { mode } = useThemeMode();
+  const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
 
   const individualQuery = useIndividualLeaderboard();
   const communityQuery = useGlobalCommunityLeaderboard();

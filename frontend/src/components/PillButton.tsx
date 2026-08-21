@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { useColorScheme } from 'nativewind';
+import { useThemeMode } from '@/constants/ThemeMode';
 import { ActivityIndicator, Pressable, Text, type GestureResponderEvent } from 'react-native';
 
 import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
@@ -47,8 +47,8 @@ export default function PillButton({
   className,
 }: PillButtonProps) {
   const isDisabled = disabled || loading;
-  const { colorScheme } = useColorScheme();
-  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  const { mode } = useThemeMode();
+  const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const spinnerColor = variant === 'outline' || variant === 'ghost' ? c.heading : c.white;
 
   return (

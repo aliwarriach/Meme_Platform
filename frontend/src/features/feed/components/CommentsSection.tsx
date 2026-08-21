@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useColorScheme } from 'nativewind';
+import { useThemeMode } from '@/constants/ThemeMode';
 import { Controller, useForm } from 'react-hook-form';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
@@ -16,8 +16,8 @@ interface CommentsSectionProps {
 export function CommentsSection({ memeId }: CommentsSectionProps) {
   const commentsQuery = useComments(memeId, true);
   const addComment = useAddCommentMutation(memeId);
-  const { colorScheme } = useColorScheme();
-  const c = colorScheme === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  const { mode } = useThemeMode();
+  const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
 
   const {
     control,
@@ -67,6 +67,7 @@ export function CommentsSection({ memeId }: CommentsSectionProps) {
                 value={field.value}
                 onChangeText={field.onChange}
                 error={errors.body?.message}
+                autoFocus
               />
             )}
           />
@@ -76,7 +77,7 @@ export function CommentsSection({ memeId }: CommentsSectionProps) {
           accessibilityLabel="Post comment"
           onPress={onSubmit}
           disabled={addComment.isPending}
-          className="mb-6 min-h-[44px] items-center justify-center rounded-full bg-primary-container px-5 disabled:opacity-50">
+          className="mb-6 min-h-[44px] items-center justify-center rounded-full bg-primary-container px-5 py-3 disabled:opacity-50">
           <Text className="font-title text-sm text-white">
             {addComment.isPending ? 'Posting…' : 'Post'}
           </Text>
