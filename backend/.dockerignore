@@ -1,0 +1,19 @@
+# Roadmap_Scaling.md A6 — secrets and dev-only cruft must never enter the build context,
+# let alone the shipped image. .env is the one that actually matters (a real leak risk if
+# baked into an image pushed to ECR) but everything below is genuine bloat/noise too.
+.env
+.env.example
+.git
+.gitignore
+__pycache__
+**/__pycache__
+*.pyc
+.pytest_cache
+tests/
+frontend/
+venv/
+.venv/
+*.md
+CLAUDE.md
+Dockerfile
+.dockerignore
