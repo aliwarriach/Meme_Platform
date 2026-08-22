@@ -9,8 +9,12 @@ the one phase you're implementing in §3. Then `backend/CLAUDE.md`, then
 `/.claude/memory/<feature>.md` for whichever domain the phase touches.
 
 **Global status: Stage A — IN PROGRESS.** A1 (Redis pub/sub connection manager), A2 (DB
-pool + read/write seam), and A3 (liveness/readiness + graceful shutdown) are implemented.
-No containerization or infra code exists yet; A4–A7 remain PENDING.
+pool + read/write seam), A3 (liveness/readiness + graceful shutdown), and A5 (JSON logs)
+are implemented. A4 (direct signed Cloudinary uploads) is partially done — backend
+signing/verification mechanism plus one flagship migrated endpoint (`POST /memes`); see
+its own implementation note for the narrowed scope. A6 is BLOCKED (no Docker on this
+machine, no admin rights to install it) — see its note. A7 depends on A6 and hasn't
+been attempted.
 
 **Statuses are greppable.** `grep "^\*\*STATUS:" Roadmap_Scaling.md` prints the whole board.
 Allowed values, exactly: `PENDING` · `IN PROGRESS` · `IMPLEMENTED` · `BLOCKED`.
@@ -28,8 +32,8 @@ is worse than no roadmap, because the next session will trust it.
 | A2 | DB pool config + read/write seam | IMPLEMENTED | 2d | C4 (autoscaling) |
 | A3 | Liveness/readiness + graceful shutdown | IMPLEMENTED | 2d | C2 (Helm) |
 | A4 | Direct signed Cloudinary uploads | IN PROGRESS | 4–5d | — |
-| A5 | JSON logs to stdout | PENDING | 1d | C5 (observability) |
-| A6 | Dockerfiles (api / realtime / worker) | PENDING | 3d | A7, all of Stage C |
+| A5 | JSON logs to stdout | IMPLEMENTED | 1d | C5 (observability) |
+| A6 | Dockerfiles (api / realtime / worker) | BLOCKED | 3d | A7, all of Stage C |
 | A7 | Local multi-instance proof | PENDING | 4d | **Gate to Stage B** |
 | **Stage B — AWS foundation, $0–24/mo** | | | **1.5–2 wks** | |
 | B1 | Account guardrails (budget, credit expiry) | PENDING | 0.5d | Do this first, before any resource |
@@ -510,8 +514,17 @@ image bytes pass through a FastAPI route.
 
 ### A5 — JSON logs to stdout
 
-**STATUS:** PENDING
+**STATUS:** IMPLEMENTED (2026-08-22)
 **Est:** 1 day · **Stage:** A · **Blocks:** C5
+
+**Implementation note.** The structured `JsonFormatter` (timestamp/level/logger/message/
+request_id/extra-fields-as-top-level-keys) already existed pre-A5 (SecurityFeatures.md
+F-6) and was already unconditionally active — this phase's actual gap was just the
+`log_format` setting (`"text"` default for local dev, `"json"` for deployment) and its
+own test coverage. `tests/test_logging.py` (4 tests): formatter output is valid JSON with
+required fields, `log_security_event` kwargs survive as top-level fields (never flattened
+into the message), `configure_logging` picks the right formatter per setting, and a real
+request's log line's `request_id` matches its `X-Request-ID` response header.
 
 **WHY.** Kubernetes collects logs from stdout and log aggregators parse JSON, not prose. The
 structured logging and request-ID plumbing already exist (`app/core/logging.py`,
@@ -538,8 +551,29 @@ top-level fields.
 
 ### A6 — Dockerfiles
 
-**STATUS:** PENDING
+**STATUS:** BLOCKED (2026-08-22)
 **Est:** 3 days · **Stage:** A · **Blocks:** A7 and all of Stage C
+
+**Blocker.** No Docker installation exists on this dev machine, and this phase's own TEST
+section is inherently Docker-dependent (`docker build`, `docker run`, `docker exec`,
+`docker history`) — there's no meaningful way to write or verify a Dockerfile without a
+working daemon to build and run it against. Investigated getting one:
+- `docker` — not on PATH, not installed.
+- `winget` is available, but the Windows account this session runs as (`desktop-dop2vu8\newuser`)
+  is **not an administrator** (`IsInRole(Administrator)` → `False`) — confirmed directly.
+  Docker Desktop's installer requires elevation (it installs a system service and, on
+  Windows, sets up the WSL2 or Hyper-V backend).
+- WSL2 as an alternative path (running `dockerd` directly inside a WSL distro, bypassing
+  Docker Desktop) is also unavailable: `wsl --status` reports WSL itself isn't installed,
+  and `wsl --install` / enabling the WSL Windows feature both need admin rights this
+  session doesn't have either.
+
+**Seam for whoever unblocks this:** once Docker (or WSL2 + dockerd) is available — either
+by installing Docker Desktop with an admin account, or handing this session admin rights —
+A6 can proceed exactly as written below; nothing about the plan itself needs to change.
+A7 is blocked transitively (it builds on A6's image). The autonomous loop through
+Roadmap_Scaling.md stopped here per its own instructions ("if you genuinely can't, set
+STATUS to BLOCKED... and stop").
 
 **WHY.** Kubernetes runs containers, not Python processes. Prerequisite for everything after it.
 

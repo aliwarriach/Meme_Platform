@@ -110,6 +110,120 @@ jobs:
       - name: Dependency audit (advisory)
         run: npm audit --audit-level=high || true
 
+  docker:
+    # Roadmap_Scaling.md A6 — builds and verifies the api/realtime/worker image the way
+    # the phase's own TEST section asks for, on a runner that has Docker preinstalled.
+    # This dev machine has no local Docker (WSL2 unavailable, no admin rights to install
+    # it) — CI stands in for `docker build`/`docker run` until that's resolved, same $0
+    # cost, just a slower feedback loop than truly local.
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: meme_platform
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      # --network host (used on every `docker run` below) puts the container on the
+      # runner's own network namespace, so these service containers are reachable at
+      # plain localhost — same as any other step in this job.
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/meme_platform
+      REDIS_URL: redis://localhost:6379/0
+      JWT_SECRET: ci-docker-verify-secret-not-for-production-use
+      CLOUDINARY_CLOUD_NAME: test
+      CLOUDINARY_API_KEY: test
+      CLOUDINARY_API_SECRET: test
+      GROQ_API_KEY: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t meme-platform-api:ci .
+
+      - name: No secrets baked into the image itself
+        # Deliberately zero -e flags — this is about what the Dockerfile's own ENV
+        # instructions define, not what a caller injects at runtime (that's how
+        # JWT_SECRET etc. are *supposed* to arrive, via K8s Secrets later).
+        run: |
+          set -e
+          if docker run --rm meme-platform-api:ci printenv | grep -i secret; then
+            echo "::error::a secret-named env var is baked into the image"; exit 1
+          fi
+          if docker run --rm meme-platform-api:ci sh -c 'test -f /app/.env'; then
+            echo "::error::.env made it into the image filesystem"; exit 1
+          fi
+          echo "clean: no baked-in secrets, no .env in the image"
+
+      - name: No build toolchain in the final image
+        run: |
+          set -e
+          if docker run --rm meme-platform-api:ci sh -c 'command -v gcc || command -v cc'; then
+            echo "::error::a C compiler is present in the final image — multi-stage build leaked the builder stage"
+            exit 1
+          fi
+          docker history --no-trunc meme-platform-api:ci
+
+      - name: Run migrations from the image (api command's DB actually reachable)
+        run: |
+          docker run --rm --network host \
+            -e DATABASE_URL -e REDIS_URL -e JWT_SECRET \
+            -e CLOUDINARY_CLOUD_NAME -e CLOUDINARY_API_KEY -e CLOUDINARY_API_SECRET -e GROQ_API_KEY \
+            meme-platform-api:ci alembic upgrade head
+
+      - name: Start the api command, verify non-root + /health/live
+        run: |
+          set -e
+          docker run -d --name api-smoke --network host \
+            -e DATABASE_URL -e REDIS_URL -e JWT_SECRET \
+            -e CLOUDINARY_CLOUD_NAME -e CLOUDINARY_API_KEY -e CLOUDINARY_API_SECRET -e GROQ_API_KEY \
+            meme-platform-api:ci
+          user=$(docker exec api-smoke whoami)
+          echo "running as: $user"
+          if [ "$user" = "root" ]; then echo "::error::container runs as root"; exit 1; fi
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8000/health/live; then echo; echo "live"; exit 0; fi
+            sleep 1
+          done
+          echo "::error::/health/live never came up"
+          docker logs api-smoke
+          exit 1
+
+      - name: Verify the worker command also runs from the same image
+        run: |
+          set -e
+          docker run -d --name worker-smoke --network host \
+            -e DATABASE_URL -e REDIS_URL -e JWT_SECRET \
+            -e CLOUDINARY_CLOUD_NAME -e CLOUDINARY_API_KEY -e CLOUDINARY_API_SECRET -e GROQ_API_KEY \
+            meme-platform-api:ci arq app.workers.arq_worker.WorkerSettings
+          sleep 5
+          if [ "$(docker inspect -f '{{.State.Running}}' worker-smoke)" != "true" ]; then
+            echo "::error::worker command exited early"; docker logs worker-smoke; exit 1
+          fi
+          docker logs worker-smoke
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker rm -f api-smoke worker-smoke 2>/dev/null || true
+
   secrets-scan:
     runs-on: ubuntu-latest
     steps:
