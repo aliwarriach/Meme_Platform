@@ -4,6 +4,10 @@
 # "Local, $0" is the point: find multi-instance bugs here before EKS ever exists.
 
 x-app-image: &app-build
+  # Named + tagged explicitly so all 6 app containers share ONE built image (docker
+  # compose builds it once for whichever service is built first, then reuses the tag for
+  # the rest) instead of 6 separately-tagged rebuilds of the identical Dockerfile/context.
+  image: meme-platform-api:scale-proof
   build:
     context: ./backend
     dockerfile: Dockerfile
@@ -57,23 +61,33 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    healthcheck:
-      # Plain TCP check via Python stdlib (this image's own entrypoint is Python-based,
-      # so it's guaranteed present) rather than `psql`, which this image may not ship —
-      # proves the listener is up and accepting connections, which is all `depends_on`
-      # needs; it doesn't need to prove a full authenticated query round-trip.
-      test: ["CMD", "python3", "-c", "import socket; socket.create_connection(('127.0.0.1', 6432), timeout=3).close()"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
+    # Deliberately no container-level healthcheck here: this is a third-party image
+    # (edoburu/pgbouncer) whose exact toolset (psql? python3? even bash vs ash) can't be
+    # verified without a working local Docker daemon to inspect it — a healthcheck
+    # command that doesn't exist in the image fails immediately and permanently
+    # ("unhealthy"), not just slowly, cascading a false failure through every
+    # `depends_on: pgbouncer: condition: service_healthy`. `migrate` below waits for
+    # real TCP readiness itself instead, using only our own image's guaranteed Python
+    # stdlib — no unverifiable assumption about pgbouncer's contents.
 
   migrate:
     <<: *app-build
     environment: *app-env
-    command: alembic upgrade head
+    # Waits for pgbouncer's TCP listener itself (pure bash `/dev/tcp`, no dependency on
+    # pgbouncer's own toolset — see the note on the pgbouncer service above) before
+    # running migrations. Every other app container depends on `migrate` completing
+    # successfully, so this one wait covers the whole stack's DB-readiness ordering.
+    command: |
+      bash -c '
+      for i in $(seq 1 60); do
+        (exec 3<>/dev/tcp/pgbouncer/6432) 2>/dev/null && exec 3<&- && exec 3>&- && break
+        sleep 2
+      done
+      alembic upgrade head
+      '
     depends_on:
       pgbouncer:
-        condition: service_healthy
+        condition: service_started
 
   api-1:
     <<: *app-build
