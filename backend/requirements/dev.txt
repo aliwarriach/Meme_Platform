@@ -5,6 +5,17 @@ ruff==0.15.22
 black==26.5.1
 python-dotenv==1.2.2
 # Regenerates the hash-locked *.lock files below after any change to base/prod/dev.txt:
-#   python -m piptools compile --generate-hashes --output-file=requirements/base.lock requirements/base.txt
+#   python -m piptools compile --generate-hashes --allow-unsafe --output-file=requirements/base.lock requirements/base.txt
 #   (repeat for prod.txt -> prod.lock and dev.txt -> dev.lock)
+#
+# MUST be run on Linux, not Windows (Roadmap_Scaling.md A6, 2026-08-24 — real incident,
+# not a hypothetical). pip-compile's classic resolver only pins packages relevant to
+# *the platform it's run on*: run on Windows, it silently omits Linux-only conditional
+# deps (e.g. uvloop, pulled in by uvicorn[standard] only on non-Windows) from the lock
+# file entirely. Every one of these lockfiles is installed with `--require-hashes` on
+# Linux (CI, the Docker image) — an omitted-on-Windows package has no pin/hash there and
+# breaks the install outright the first time anyone actually runs it on Linux. Regenerate
+# via a Linux CI job or WSL2, never a plain Windows shell. `--allow-unsafe` pins
+# setuptools/pip too (pip-compile's own default exclusion) — also required for
+# --require-hashes to work.
 pip-tools==7.6.1

@@ -8,13 +8,18 @@ pick up any phase and implement it without re-exploring the codebase or re-litig
 the one phase you're implementing in §3. Then `backend/CLAUDE.md`, then
 `/.claude/memory/<feature>.md` for whichever domain the phase touches.
 
-**Global status: Stage A — IN PROGRESS.** A1 (Redis pub/sub connection manager), A2 (DB
-pool + read/write seam), A3 (liveness/readiness + graceful shutdown), and A5 (JSON logs)
-are implemented. A4 (direct signed Cloudinary uploads) is partially done — backend
-signing/verification mechanism plus one flagship migrated endpoint (`POST /memes`); see
-its own implementation note for the narrowed scope. A6 is BLOCKED (no Docker on this
-machine, no admin rights to install it) — see its note. A7 depends on A6 and hasn't
-been attempted.
+**Global status: Stage A — nearly done.** A1 (Redis pub/sub connection manager), A2 (DB
+pool + read/write seam), A3 (liveness/readiness + graceful shutdown), A5 (JSON logs), A6
+(Dockerfiles), and A7 (local multi-instance proof — CI-verified, all three required
+proofs green) are implemented. A4 (direct signed Cloudinary uploads) is partially done
+— backend signing/verification mechanism plus one flagship migrated endpoint
+(`POST /memes`); see its own implementation note for the narrowed scope, still open for
+a future session (templates/community icon-banner/challenges/avatar uploads + the
+frontend rewrite). A6/A7 were verified via GitHub Actions CI rather than locally — this
+dev machine still has no working Docker daemon (Docker Desktop is installed but its
+Linux engine needs WSL2, which needs admin elevation this session never obtained); see
+each phase's implementation note. Stage A is otherwise ready for Stage B (do not start
+Stage B until A4 is either finished or explicitly deferred by the project owner).
 
 **Statuses are greppable.** `grep "^\*\*STATUS:" Roadmap_Scaling.md` prints the whole board.
 Allowed values, exactly: `PENDING` · `IN PROGRESS` · `IMPLEMENTED` · `BLOCKED`.
@@ -33,8 +38,8 @@ is worse than no roadmap, because the next session will trust it.
 | A3 | Liveness/readiness + graceful shutdown | IMPLEMENTED | 2d | C2 (Helm) |
 | A4 | Direct signed Cloudinary uploads | IN PROGRESS | 4–5d | — |
 | A5 | JSON logs to stdout | IMPLEMENTED | 1d | C5 (observability) |
-| A6 | Dockerfiles (api / realtime / worker) | BLOCKED | 3d | A7, all of Stage C |
-| A7 | Local multi-instance proof | PENDING | 4d | **Gate to Stage B** |
+| A6 | Dockerfiles (api / realtime / worker) | IMPLEMENTED | 3d | A7, all of Stage C |
+| A7 | Local multi-instance proof | IMPLEMENTED | 4d | **Gate to Stage B** |
 | **Stage B — AWS foundation, $0–24/mo** | | | **1.5–2 wks** | |
 | B1 | Account guardrails (budget, credit expiry) | PENDING | 0.5d | Do this first, before any resource |
 | B2 | Terraform: persistent stack | PENDING | 1wk | C1 |
@@ -551,29 +556,45 @@ top-level fields.
 
 ### A6 — Dockerfiles
 
-**STATUS:** BLOCKED (2026-08-22)
+**STATUS:** IMPLEMENTED (2026-08-24)
 **Est:** 3 days · **Stage:** A · **Blocks:** A7 and all of Stage C
 
-**Blocker.** No Docker installation exists on this dev machine, and this phase's own TEST
-section is inherently Docker-dependent (`docker build`, `docker run`, `docker exec`,
-`docker history`) — there's no meaningful way to write or verify a Dockerfile without a
-working daemon to build and run it against. Investigated getting one:
-- `docker` — not on PATH, not installed.
-- `winget` is available, but the Windows account this session runs as (`desktop-dop2vu8\newuser`)
-  is **not an administrator** (`IsInRole(Administrator)` → `False`) — confirmed directly.
-  Docker Desktop's installer requires elevation (it installs a system service and, on
-  Windows, sets up the WSL2 or Hyper-V backend).
-- WSL2 as an alternative path (running `dockerd` directly inside a WSL distro, bypassing
-  Docker Desktop) is also unavailable: `wsl --status` reports WSL itself isn't installed,
-  and `wsl --install` / enabling the WSL Windows feature both need admin rights this
-  session doesn't have either.
+**Implementation note — verified via CI, not locally.** This dev machine still has no
+working local Docker (Docker Desktop got installed, but its Linux engine needs WSL2,
+which needs admin elevation this session never obtained — see the prior BLOCKED note,
+kept below for the record). Unblocked instead by building/verifying the image on
+GitHub Actions' `ubuntu-latest` runners (real Docker preinstalled), added as a `docker`
+job in `.github/workflows/ci.yml`: build, non-root check, no-baked-in-secrets check,
+no-build-toolchain-in-final-image check, `alembic upgrade head` + `/health/live` smoke
+test, and the worker command smoke test — all five negative/positive checks the phase's
+TEST section asks for. Same $0 cost as local, just CI-speed feedback instead of instant.
 
-**Seam for whoever unblocks this:** once Docker (or WSL2 + dockerd) is available — either
-by installing Docker Desktop with an admin account, or handing this session admin rights —
-A6 can proceed exactly as written below; nothing about the plan itself needs to change.
-A7 is blocked transitively (it builds on A6's image). The autonomous loop through
-Roadmap_Scaling.md stopped here per its own instructions ("if you genuinely can't, set
-STATUS to BLOCKED... and stop").
+**What actually broke, in order (real bugs found only by running this for real, not
+latent — nobody had ever run a fresh `alembic upgrade head` or hash-verified prod
+install on Linux before):**
+1. `requirements/prod.lock`/`dev.lock` were generated on Windows — pip-compile never
+   pinned `uvloop` (a Linux-only conditional dep of `uvicorn[standard]`) or hashed
+   `setuptools` (pip-compile's own default exclusion). Both broke
+   `pip install --require-hashes` on Linux. Fixed by regenerating both lockfiles *on* a
+   Linux runner (pip-compile has no cross-platform "universal" mode in the classic
+   resolver) with `--allow-unsafe`.
+2. `alembic/env.py` didn't set `transaction_per_migration=True` — `alembic upgrade head`
+   ran every revision in one transaction, and Postgres rejects using a brand-new enum
+   value (added by migration `9b1d4e6a2f53`) before that revision's transaction commits.
+   The migration's own docstring documented a manual two-step workaround for this that
+   nobody had ever needed to automate before. Fixed properly (see A6/A7 commits);
+   two-step workaround no longer needed.
+3. 9 pre-existing `ruff` violations, surfaced only now because the broken lockfile
+   always blocked `Lint` from running to completion in CI before. Fixed (2 genuine
+   SQLAlchemy circular-relationship false positives via `TYPE_CHECKING` imports, rest
+   mechanical).
+
+**Original blocker investigation, kept for the record.** No Docker installation existed
+on this dev machine at the time; `winget` was available but the Windows account wasn't
+an administrator, and WSL2 (the alternative path) also needed admin rights this session
+didn't have. Unblocked once the project owner installed Docker Desktop themselves — but
+its engine still couldn't start without WSL2, which needed the same missing admin
+elevation, so CI-based verification (above) was used instead of waiting on that.
 
 **WHY.** Kubernetes runs containers, not Python processes. Prerequisite for everything after it.
 
@@ -608,8 +629,46 @@ STATUS to BLOCKED... and stop").
 
 ### A7 — Local multi-instance proof
 
-**STATUS:** PENDING
+**STATUS:** IMPLEMENTED (2026-08-24)
 **Est:** 4 days · **Stage:** A · **This is the gate to Stage B**
+
+**Implementation note — verified via CI, not locally (same reason as A6: no working
+local Docker on this dev machine).** `docker-compose.scale.yml` + `deploy/nginx.conf` +
+`deploy/pgbouncer.ini` exactly as specified, run via a `scale-proof` job in
+`.github/workflows/ci.yml` on GitHub Actions' `ubuntu-latest` runner. The three required
+proofs are a dedicated script (`backend/scripts/scale_proof.py`) rather than a literal
+"point `pytest backend/tests/` at nginx" — that suite is built entirely around
+`ASGITransport` + `app.dependency_overrides` (isolated test DB, mocked Cloudinary, a
+fake arq pool), none of which applies to a separately-running, multi-process stack
+fronted by a real load balancer. The script proves the same things pytest would have:
+core HTTP flow through nginx → api pods → PgBouncer → Postgres; cross-pod WebSocket
+delivery over real Redis pub/sub (two genuinely separate processes, not the A1 unit
+test's two-managers-in-one-process simulation); and zero dropped requests during
+`docker kill` on one api container mid-traffic. `pg_stat_activity` connection-count
+bound (A2 + PgBouncer together) is a separate CI step.
+
+**Bugs found only by actually running this (all fixed, see commit history on the
+`scaling/a6-dockerfiles` branch for the full trail):**
+- PgBouncer healthcheck used `python3` inside a third-party image whose toolset
+  couldn't be verified without local Docker — removed it; `migrate` now waits for
+  PgBouncer's TCP port itself via pure bash `/dev/tcp` in *our own* image instead.
+- PgBouncer's `auth_type = trust` with no `auth_file` rejected every connection —
+  PgBouncer's trust mode is more ambiguous across versions than the name suggests.
+  Switched to `auth_type = plain` + a real `userlist.txt`, plus explicit backend
+  credentials in `[databases]` so the PgBouncer→Postgres leg doesn't depend on
+  client-credential pass-through resolving correctly either.
+- The proof script's own bugs, found by running it locally against a real dev server
+  before trusting CI with it: registration emails used a `.test` TLD (RFC 2606
+  reserved, guaranteed no DNS records — `pydantic`'s `EmailStr` rejects it outright);
+  and newly-registered users aren't email-verified, which `POST /messaging/conversations`
+  requires for a *new* thread (SecurityFeatures.md F-1) — fixed by marking test users
+  verified via a direct DB statement through `docker compose exec`, the same thing
+  `tests/conftest.py::mark_email_verified` does for the identical reason (this compose
+  stack has no real Gmail credentials configured, so the actual OTP flow can't run here).
+- The CI workflow itself called the proof script twice (once for proofs 1+2, again with
+  an argument for proof 3) — `/auth/register` is rate-limited 5/minute/IP, and the
+  second call redundantly re-ran proofs 1+2 within the same rate-limit window as the
+  first, 429ing. Fixed by calling it once; `main()` covers all three proofs in one pass.
 
 **WHY.** The checkpoint that makes the rest of the roadmap cheap. Multi-instance bugs are identical
 whether you debug them locally or on a live cluster — but locally they cost $0 and the feedback loop
