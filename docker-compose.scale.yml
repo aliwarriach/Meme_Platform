@@ -49,6 +49,7 @@ services:
     image: edoburu/pgbouncer:latest
     volumes:
       - ./deploy/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - ./deploy/pgbouncer_userlist.txt:/etc/pgbouncer/userlist.txt:ro
     environment:
       # This image's entrypoint wants these even though pgbouncer.ini already has the
       # real values — it uses them to wait for Postgres to accept connections before
