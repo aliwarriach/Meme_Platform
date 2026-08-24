@@ -1,0 +1,160 @@
+# Roadmap_Scaling.md A7 — local multi-instance proof. Same image (backend/Dockerfile,
+# A6) running three roles via command overrides, fronted by nginx, talking to Postgres
+# only through PgBouncer — the real production path (§2.3), not a simplified stand-in.
+# "Local, $0" is the point: find multi-instance bugs here before EKS ever exists.
+
+x-app-image: &app-build
+  build:
+    context: ./backend
+    dockerfile: Dockerfile
+
+x-app-env: &app-env
+  DATABASE_URL: postgresql+asyncpg://postgres:postgres@pgbouncer:6432/meme_platform
+  DB_USE_PGBOUNCER: "true"
+  REDIS_URL: redis://redis:6379/0
+  JWT_SECRET: local-scale-proof-secret-not-for-production-use
+  CLOUDINARY_CLOUD_NAME: test
+  CLOUDINARY_API_KEY: test
+  CLOUDINARY_API_SECRET: test
+  GROQ_API_KEY: test
+  ENVIRONMENT: development
+  LOG_FORMAT: json
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: meme_platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    volumes:
+      - ./deploy/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+    environment:
+      # This image's entrypoint wants these even though pgbouncer.ini already has the
+      # real values — it uses them to wait for Postgres to accept connections before
+      # starting.
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: meme_platform
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # Plain TCP check via Python stdlib (this image's own entrypoint is Python-based,
+      # so it's guaranteed present) rather than `psql`, which this image may not ship —
+      # proves the listener is up and accepting connections, which is all `depends_on`
+      # needs; it doesn't need to prove a full authenticated query round-trip.
+      test: ["CMD", "python3", "-c", "import socket; socket.create_connection(('127.0.0.1', 6432), timeout=3).close()"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    <<: *app-build
+    environment: *app-env
+    command: alembic upgrade head
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
+
+  api-1:
+    <<: *app-build
+    environment: *app-env
+    command: gunicorn app.main:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  api-2:
+    <<: *app-build
+    environment: *app-env
+    command: gunicorn app.main:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  api-3:
+    <<: *app-build
+    environment: *app-env
+    command: gunicorn app.main:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  realtime-1:
+    <<: *app-build
+    environment: *app-env
+    # Tuned worker count + raised fd limit (Roadmap_Scaling.md A6 IMPLEMENT step 4) —
+    # this is the deployment-level distinction between api and realtime; same image,
+    # same command shape, different flags.
+    command: gunicorn app.main:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --workers 4
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  realtime-2:
+    <<: *app-build
+    environment: *app-env
+    command: gunicorn app.main:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --workers 4
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  worker:
+    <<: *app-build
+    environment: *app-env
+    command: arq app.workers.arq_worker.WorkerSettings
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  nginx:
+    image: nginx:alpine
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "8080:80"
+    depends_on:
+      - api-1
+      - api-2
+      - api-3
+      - realtime-1
+      - realtime-2

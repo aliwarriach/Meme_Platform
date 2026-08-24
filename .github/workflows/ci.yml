@@ -271,6 +271,65 @@ jobs:
         run: |
           docker rm -f api-smoke worker-smoke 2>/dev/null || true
 
+  scale-proof:
+    # Roadmap_Scaling.md A7 — local multi-instance proof, run on this Linux CI runner
+    # since local Docker is unavailable on the dev machine (see the `docker` job's own
+    # note). "Local, $0" either way — this is $0 CI compute, just a slower feedback loop
+    # than truly local would be.
+    needs: [docker]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install proof script dependencies
+        run: pip install httpx websockets
+
+      - name: Bring up the multi-instance stack (postgres, redis, pgbouncer, 3x api, 2x realtime, worker, nginx)
+        run: docker compose -f docker-compose.scale.yml up -d --build
+
+      - name: Wait for nginx to serve a healthy api
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:8080/health/live; then echo; echo "up"; exit 0; fi
+            sleep 2
+          done
+          echo "::error::stack never became ready"
+          docker compose -f docker-compose.scale.yml logs
+          exit 1
+
+      - name: Connection count is bounded with all 6 app containers running (A2 + PgBouncer)
+        run: |
+          count=$(docker compose -f docker-compose.scale.yml exec -T postgres \
+            psql -U postgres -d meme_platform -t -c \
+            "SELECT count(*) FROM pg_stat_activity WHERE datname = 'meme_platform'")
+          echo "connections: $count"
+          # 6 app containers x (db_pool_size=5 + db_max_overflow=5) = 60 is the
+          # configured ceiling (app/core/config.py) — well below PgBouncer's
+          # max_client_conn=200 and Postgres's own default max_connections=100. A live
+          # count anywhere near 60 (not climbing unbounded) proves the pool is real.
+          if [ "$(echo "$count" | tr -d '[:space:]')" -gt 70 ]; then
+            echo "::error::connection count $count is not bounded as expected"
+            exit 1
+          fi
+
+      - name: Proofs 1 + 2 (core flow through the stack, cross-pod WebSocket delivery)
+        run: python backend/scripts/scale_proof.py
+
+      - name: Proof 3 (no dropped requests killing api-1 mid-traffic)
+        run: python backend/scripts/scale_proof.py api-1
+
+      - name: Dump stack logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.scale.yml logs --tail=200
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.scale.yml down -v
+
   secrets-scan:
     runs-on: ubuntu-latest
     steps:
