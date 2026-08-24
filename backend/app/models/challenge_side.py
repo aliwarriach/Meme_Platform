@@ -1,9 +1,15 @@
 import uuid
+from typing import TYPE_CHECKING
 
 from sqlalchemy import ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, UUIDPKMixin
+
+if TYPE_CHECKING:
+    # See the matching note in app/models/challenge.py — genuine circular reference,
+    # resolved by SQLAlchemy's mapper registry at runtime, not by this import.
+    from app.models.challenge import Challenge
 
 
 class ChallengeSide(UUIDPKMixin, TimestampMixin, Base):

@@ -160,7 +160,6 @@ async def test_invite_only_community_meme_is_not_public(client: AsyncClient):
 async def test_community_feed_shows_only_that_communitys_posts(client: AsyncClient):
     alice = await create_user(client, "alice")
     community_a = await _create_community(client, alice)
-    community_b = await _create_community(client, alice, privacy="invite_only")
 
     await _post_community_meme(client, alice, community_a["id"], caption="for A")
     await _post_meme(client, alice, audiences=["public"], caption="public only")

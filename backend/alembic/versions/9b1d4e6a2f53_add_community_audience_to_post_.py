@@ -6,9 +6,12 @@ Create Date: 2026-07-21 19:40:00.000000
 
 Split from the column/constraint migration (c47a1b2e9f60) on purpose: Postgres
 forbids using a brand-new enum value in the same transaction it was added
-(`UnsafeNewEnumValueUsageError`), and this repo's alembic env.py runs the whole
-`upgrade head` invocation in a single transaction. Apply this revision on its own
-first (`alembic upgrade 9b1d4e6a2f53`), then run `alembic upgrade head`.
+(`UnsafeNewEnumValueUsageError`). This still has to be a separate revision from
+c47a1b2e9f60 (which uses the new value) for that reason, but a plain
+`alembic upgrade head` from empty is safe end-to-end now — `alembic/env.py` sets
+`transaction_per_migration=True` (Roadmap_Scaling.md A6/A7), so each revision
+commits on its own before the next one starts. The old manual two-step
+(`alembic upgrade 9b1d4e6a2f53` then `alembic upgrade head`) is no longer needed.
 """
 from typing import Sequence, Union
 

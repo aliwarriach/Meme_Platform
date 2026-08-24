@@ -1,6 +1,7 @@
 import datetime
 import enum
 import uuid
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, ForeignKeyConstraint, String
 from sqlalchemy import Enum as SAEnum
@@ -9,6 +10,13 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampMixin, UUIDPKMixin
 from app.models.community import Community
 from app.models.hashtag import Hashtag
+
+if TYPE_CHECKING:
+    # Genuine circular reference at the model level (ChallengeSide.challenge points back
+    # here) — SQLAlchemy resolves the "ChallengeSide" string below via its own mapper
+    # registry at configure time, not via this import, so this exists purely so
+    # ruff/type-checkers can see what the forward reference refers to.
+    from app.models.challenge_side import ChallengeSide
 
 
 class ChallengeType(str, enum.Enum):

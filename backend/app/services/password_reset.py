@@ -5,7 +5,6 @@ and the two flows have genuinely different rules around it (reset must never con
 whether an email is registered; verification always knows exactly who it's for).
 """
 
-import datetime
 import hashlib
 import secrets
 

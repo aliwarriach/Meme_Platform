@@ -16,9 +16,11 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-from app.core.config import settings
-from app.db.base import Base
-import app.models  # noqa: F401  (registers all models on Base.metadata)
+# Standard Alembic template structure: these must come after fileConfig() above sets up
+# logging, so they stay below it despite E402.
+from app.core.config import settings  # noqa: E402
+from app.db.base import Base  # noqa: E402
+import app.models  # noqa: E402, F401  (registers all models on Base.metadata)
 
 target_metadata = Base.metadata
 config.set_main_option("sqlalchemy.url", settings.database_url)
@@ -47,6 +49,8 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        # See do_run_migrations() below for why this is required.
+        transaction_per_migration=True,
     )
 
     with context.begin_transaction():
@@ -54,7 +58,19 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
+    # transaction_per_migration=True: without it, Alembic wraps every revision applied in
+    # a single `alembic upgrade head` invocation into ONE outer transaction. Postgres
+    # forbids using a brand-new enum value (`ALTER TYPE ... ADD VALUE`) until the
+    # transaction that added it has committed — so a later revision in the same run that
+    # *uses* a value a previous revision just added (see 9b1d4e6a2f53 -> c47a1b2e9f60)
+    # fails with "unsafe use of new value ... New enum values must be committed before
+    # they can be used". Committing per-revision (this setting) is the standard Alembic
+    # fix and is what makes a single `alembic upgrade head` from an empty database safe —
+    # required for A6/A7's Docker image and B3's real RDS migration, neither of which can
+    # rely on a hand-run two-step workaround.
+    context.configure(
+        connection=connection, target_metadata=target_metadata, transaction_per_migration=True
+    )
 
     with context.begin_transaction():
         context.run_migrations()
