@@ -316,10 +316,14 @@ jobs:
             exit 1
           fi
 
-      - name: Proofs 1 + 2 (core flow through the stack, cross-pod WebSocket delivery)
-        run: python backend/scripts/scale_proof.py
-
-      - name: Proof 3 (no dropped requests killing api-1 mid-traffic)
+      - name: Proofs 1 + 2 + 3 (core flow, cross-pod WebSocket delivery, no dropped requests killing api-1)
+        # One invocation, not two: /auth/register is rate-limited (5/minute/IP,
+        # app/routers/auth.py) — every request in this job comes from the same runner
+        # IP, so a *second* separate `python scale_proof.py` call would redundantly
+        # re-run proofs 1+2 (registering 4 more users within the same rate-limit
+        # window as the first 4) and 429 outright. `main()` only runs each proof once
+        # per invocation regardless, so passing the kill-service argument here covers
+        # all three proofs in a single pass.
         run: python backend/scripts/scale_proof.py api-1
 
       - name: Dump stack logs on failure
