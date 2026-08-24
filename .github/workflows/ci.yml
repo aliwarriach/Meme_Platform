@@ -13,6 +13,53 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  fix-lockfiles:
+    # ONE-TIME repair, to be removed once verified green and merged. Discovered while
+    # setting up A6 (Roadmap_Scaling.md): requirements/prod.lock and dev.lock were
+    # generated on Windows, so pip-compile's platform-marker resolution never pinned
+    # Linux-only conditional deps (uvloop, pulled in by uvicorn[standard] only on
+    # non-Windows) and never hashed setuptools (pip-tools' own default "unsafe package"
+    # exclusion, unrelated to platform). Both break `pip install --require-hashes` the
+    # moment the lockfile is installed on Linux — every CI job here, and the Docker
+    # image, always would have hit this the first time anyone actually deployed.
+    # Regenerating *on* a Linux runner (this job) is what actually fixes it — pip-compile
+    # has no cross-platform "universal" mode in the classic resolver, it only resolves
+    # for whatever platform it's run on.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install pip-tools
+        run: pip install pip-tools
+
+      - name: Regenerate lockfiles on Linux
+        run: |
+          pip-compile --generate-hashes --allow-unsafe --output-file=requirements/prod.lock requirements/prod.txt
+          pip-compile --generate-hashes --allow-unsafe --output-file=requirements/dev.lock requirements/dev.txt
+
+      - name: Commit regenerated lockfiles if changed
+        run: |
+          if git diff --quiet -- requirements/prod.lock requirements/dev.lock; then
+            echo "No lockfile changes needed"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add requirements/prod.lock requirements/dev.lock
+          git commit -m "fix(deps): regenerate lockfiles on Linux (uvloop + setuptools hashes)"
+          git push origin HEAD:${{ github.head_ref }}
+
   backend:
     runs-on: ubuntu-latest
     services:
