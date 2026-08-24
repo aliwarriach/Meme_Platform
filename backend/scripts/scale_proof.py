@@ -17,6 +17,7 @@ Usage:
 import asyncio
 import json
 import os
+import re
 import subprocess
 import sys
 import uuid
@@ -29,17 +30,51 @@ WS_BASE_URL = BASE_URL.replace("http://", "ws://").replace("https://", "wss://")
 COMPOSE_FILE = os.environ.get("SCALE_PROOF_COMPOSE_FILE", "docker-compose.scale.yml")
 
 
+def _mark_verified(username: str) -> None:
+    """Starting a *new* conversation requires a verified email
+    (services/messaging.py::_get_or_create_conversation, SecurityFeatures.md F-1) — and
+    this compose stack has no real Gmail OAuth credentials configured (placeholder env
+    only), so the real request-OTP flow can't work here at all. Pokes the DB directly
+    instead, exactly like `tests/conftest.py::mark_email_verified` does for the identical
+    reason. Goes through `docker compose exec` rather than a host-exposed Postgres port —
+    nothing else in this script needs Postgres reachable from outside the compose network.
+
+    Direct f-string interpolation into SQL, not parameterized — verified safe *only*
+    because `username` was already validated against `^[a-zA-Z0-9_]+$` by
+    `RegisterRequest` before this is ever called (asserted again here defensively), so it
+    cannot contain a quote character. psql's own `-v`/`:'var'` substitution turned out not
+    to apply inside `-c`'s SQL text in this psql version (only inside backslash
+    meta-commands like `\\echo`) — confirmed directly, not assumed.
+    """
+    assert re.fullmatch(r"[a-zA-Z0-9_]+", username), f"unsafe username for SQL: {username!r}"
+    subprocess.run(
+        [
+            "docker", "compose", "-f", COMPOSE_FILE, "exec", "-T", "postgres",
+            "psql", "-U", "postgres", "-d", "meme_platform",
+            "-c", f"UPDATE users SET email_verified_at = now() WHERE username = '{username}'",
+        ],
+        check=True, capture_output=True, text=True,
+    )
+
+
 async def _register(client: httpx.AsyncClient, username: str) -> dict:
     response = await client.post(
         "/auth/register",
         json={
-            "email": f"{username}@scaleproof.test",
+            # NOT a .test/.invalid/.localhost TLD — those are RFC 2606 reserved and
+            # pydantic's EmailStr (email-validator) rejects them outright as
+            # "special-use or reserved", which is exactly what broke this the first time.
+            # test.com is a real, registered domain (same convention as
+            # tests/conftest.py's own fixtures) — deliverability is checked, existence
+            # of a mailbox is not.
+            "email": f"{username}@test.com",
             "username": username,
             "password": "password123",
             "date_of_birth": "2000-01-01",
         },
     )
     response.raise_for_status()
+    _mark_verified(username)
     return response.json()
 
 
