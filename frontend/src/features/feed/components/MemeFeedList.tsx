@@ -1,7 +1,15 @@
 import { useThemeMode } from '@/constants/ThemeMode';
 import type { ReactElement } from 'react';
 import { useCallback, useRef } from 'react';
-import { ActivityIndicator, FlatList, Platform, RefreshControl, Text, type ViewToken } from 'react-native';
+import {
+  ActivityIndicator,
+  FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  RefreshControl,
+  Text,
+  type ViewToken,
+} from 'react-native';
 
 import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import { MemeCard } from '@/features/feed/components/MemeCard';
@@ -51,6 +59,7 @@ export function MemeFeedList({
 }: MemeFeedListProps) {
   const recordMemeView = useRecordMemeViewMutation();
   const seenMemeIds = useRef(new Set<string>());
+  const listRef = useRef<FlatList<MemeResponse>>(null);
   const { mode } = useThemeMode();
   const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
 
@@ -68,31 +77,37 @@ export function MemeFeedList({
   );
 
   return (
-    <FlatList
-      data={memes}
-      keyExtractor={(item) => item.id}
-      renderItem={({ item }) => <MemeCard meme={item} />}
-      ListHeaderComponent={ListHeaderComponent}
-      contentContainerStyle={{ paddingBottom: 100 }}
-      onEndReachedThreshold={0.5}
-      onEndReached={() => {
-        if (hasNextPage && !isFetchingNextPage) onEndReached();
-      }}
-      {...(Platform.OS !== 'web'
-        ? { onViewableItemsChanged, viewabilityConfig: VIEWABILITY_CONFIG }
-        : {})}
-      refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={onRefresh} />}
-      ListFooterComponent={isFetchingNextPage ? <ActivityIndicator className="my-4" color={c.inkMuted} /> : null}
-      ListEmptyComponent={
-        isLoading ? (
-          <ActivityIndicator className="my-8" color={c.inkMuted} />
-        ) : isError ? (
-          <Text className="mx-4 font-body text-sm text-error">{errorMessage}</Text>
-        ) : (
-          <Text className="mx-4 mt-8 text-center font-body text-sm text-ink-muted">{emptyMessage}</Text>
-        )
-      }
-    />
+    <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <FlatList
+        ref={listRef}
+        data={memes}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item, index }) => <MemeCard meme={item} index={index} listRef={listRef} />}
+        ListHeaderComponent={ListHeaderComponent}
+        contentContainerStyle={{ paddingBottom: 100 }}
+        onEndReachedThreshold={0.5}
+        onEndReached={() => {
+          if (hasNextPage && !isFetchingNextPage) onEndReached();
+        }}
+        onScrollToIndexFailed={({ index, averageItemLength }) =>
+          listRef.current?.scrollToOffset({ offset: index * averageItemLength, animated: true })
+        }
+        {...(Platform.OS !== 'web'
+          ? { onViewableItemsChanged, viewabilityConfig: VIEWABILITY_CONFIG }
+          : {})}
+        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={onRefresh} />}
+        ListFooterComponent={isFetchingNextPage ? <ActivityIndicator className="my-4" color={c.inkMuted} /> : null}
+        ListEmptyComponent={
+          isLoading ? (
+            <ActivityIndicator className="my-8" color={c.inkMuted} />
+          ) : isError ? (
+            <Text className="mx-4 font-body text-sm text-error">{errorMessage}</Text>
+          ) : (
+            <Text className="mx-4 mt-8 text-center font-body text-sm text-ink-muted">{emptyMessage}</Text>
+          )
+        }
+      />
+    </KeyboardAvoidingView>
   );
 }
 
@@ -129,6 +144,7 @@ export function MergedFeedList({
   const recordMemeView = useRecordMemeViewMutation();
   const recordContainerView = useRecordContainerViewMutation();
   const seenIds = useRef(new Set<string>());
+  const listRef = useRef<FlatList<MergedFeedItem>>(null);
   const { mode } = useThemeMode();
   const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
 
@@ -147,36 +163,42 @@ export function MergedFeedList({
   );
 
   return (
-    <FlatList
-      data={items}
-      keyExtractor={(item) => (item.kind === 'meme' ? item.meme.id : item.container.id)}
-      renderItem={({ item }) =>
-        item.kind === 'meme' ? (
-          <MemeCard meme={item.meme} />
-        ) : (
-          <ContainerCard container={item.container} />
-        )
-      }
-      ListHeaderComponent={ListHeaderComponent}
-      contentContainerStyle={{ paddingBottom: 100 }}
-      onEndReachedThreshold={0.5}
-      onEndReached={() => {
-        if (hasNextPage && !isFetchingNextPage) onEndReached();
-      }}
-      {...(Platform.OS !== 'web'
-        ? { onViewableItemsChanged, viewabilityConfig: VIEWABILITY_CONFIG }
-        : {})}
-      refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={onRefresh} />}
-      ListFooterComponent={isFetchingNextPage ? <ActivityIndicator className="my-4" color={c.inkMuted} /> : null}
-      ListEmptyComponent={
-        isLoading ? (
-          <ActivityIndicator className="my-8" color={c.inkMuted} />
-        ) : isError ? (
-          <Text className="mx-4 font-body text-sm text-error">{errorMessage}</Text>
-        ) : (
-          <Text className="mx-4 mt-8 text-center font-body text-sm text-ink-muted">{emptyMessage}</Text>
-        )
-      }
-    />
+    <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <FlatList
+        ref={listRef}
+        data={items}
+        keyExtractor={(item) => (item.kind === 'meme' ? item.meme.id : item.container.id)}
+        renderItem={({ item, index }) =>
+          item.kind === 'meme' ? (
+            <MemeCard meme={item.meme} index={index} listRef={listRef} />
+          ) : (
+            <ContainerCard container={item.container} index={index} listRef={listRef} />
+          )
+        }
+        ListHeaderComponent={ListHeaderComponent}
+        contentContainerStyle={{ paddingBottom: 100 }}
+        onEndReachedThreshold={0.5}
+        onEndReached={() => {
+          if (hasNextPage && !isFetchingNextPage) onEndReached();
+        }}
+        onScrollToIndexFailed={({ index, averageItemLength }) =>
+          listRef.current?.scrollToOffset({ offset: index * averageItemLength, animated: true })
+        }
+        {...(Platform.OS !== 'web'
+          ? { onViewableItemsChanged, viewabilityConfig: VIEWABILITY_CONFIG }
+          : {})}
+        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={onRefresh} />}
+        ListFooterComponent={isFetchingNextPage ? <ActivityIndicator className="my-4" color={c.inkMuted} /> : null}
+        ListEmptyComponent={
+          isLoading ? (
+            <ActivityIndicator className="my-8" color={c.inkMuted} />
+          ) : isError ? (
+            <Text className="mx-4 font-body text-sm text-error">{errorMessage}</Text>
+          ) : (
+            <Text className="mx-4 mt-8 text-center font-body text-sm text-ink-muted">{emptyMessage}</Text>
+          )
+        }
+      />
+    </KeyboardAvoidingView>
   );
 }

@@ -38,7 +38,7 @@ export function SegmentedControl<T extends string>({ options, value, onChange }:
               className={`min-h-[40px] flex-row items-center justify-center rounded-full px-4 py-2 ${
                 selected ? 'bg-primary-container' : ''
               }`}>
-              <Text className={`font-title text-sm ${selected ? 'text-white' : 'text-ink-muted'}`} numberOfLines={1}>
+              <Text className={`font-title text-base ${selected ? 'text-white' : 'text-ink-muted'}`} numberOfLines={1}>
                 {option.label}
               </Text>
             </Pressable>

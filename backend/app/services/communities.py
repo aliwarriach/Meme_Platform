@@ -11,6 +11,7 @@ from app.core.exceptions import (
     CommunityAccessDeniedError,
     CommunityMembershipNotFoundError,
     CommunityNotFoundError,
+    InvalidImageSourceError,
     NotCommunityOwnerError,
 )
 from app.core.pagination import decode_cursor, encode_cursor
@@ -20,7 +21,27 @@ from app.models.community_membership import CommunityMembership, MembershipRole,
 from app.models.user import User
 from app.schemas.auth import PublicUserOut
 from app.schemas.communities import CommunityOut, CommunityPage, MembershipOut
-from app.services.media import validate_and_upload_image
+from app.services.media import confirm_pending_upload, validate_and_upload_image
+
+
+async def _resolve_optional_image(
+    user_id: uuid.UUID,
+    file: UploadFile | None,
+    public_id: str | None,
+    field_name: str,
+) -> tuple[str | None, str | None]:
+    """Shared optional-image resolution for community icon/banner — each is independently
+    optional, but if given, `file` and `public_id` are mutually exclusive (Roadmap_Scaling.md
+    A4). Returns `(url, public_id)`, both `None` when neither source was given."""
+    if public_id is not None:
+        if file is not None:
+            raise InvalidImageSourceError(
+                f"Provide either a {field_name} file or {field_name}_public_id, not both"
+            )
+        return await confirm_pending_upload(user_id, public_id)
+    if file is not None:
+        return await validate_and_upload_image(file, folder="communities")
+    return None, None
 
 
 async def _get_community_or_404(db: AsyncSession, community_id: uuid.UUID) -> Community:
@@ -109,14 +130,18 @@ async def create_community(
     privacy: CommunityPrivacy,
     icon: UploadFile | None,
     banner: UploadFile | None,
+    icon_public_id: str | None = None,
+    banner_public_id: str | None = None,
 ) -> CommunityOut:
-    icon_url = icon_public_id = None
-    if icon is not None:
-        icon_url, icon_public_id = await validate_and_upload_image(icon, folder="communities")
-
-    banner_url = banner_public_id = None
-    if banner is not None:
-        banner_url, banner_public_id = await validate_and_upload_image(banner, folder="communities")
+    """`icon`/`banner` (legacy multipart upload) and `icon_public_id`/`banner_public_id`
+    (Roadmap_Scaling.md A4's direct-to-Cloudinary flow) are each independently optional,
+    but mutually exclusive with their own file when given."""
+    icon_url, icon_public_id = await _resolve_optional_image(
+        current_user.id, icon, icon_public_id, "icon"
+    )
+    banner_url, banner_public_id = await _resolve_optional_image(
+        current_user.id, banner, banner_public_id, "banner"
+    )
 
     community = Community(
         owner_id=current_user.id,

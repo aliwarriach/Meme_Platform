@@ -956,7 +956,8 @@ async def create_and_submit_to_challenge(
     current_user: User,
     challenge_id: uuid.UUID,
     caption: str | None,
-    image: UploadFile,
+    image: UploadFile | None,
+    image_public_id: str | None = None,
 ) -> ChallengeSubmissionOut:
     """Create a meme **and** enter it into a challenge in one transaction.
 
@@ -966,6 +967,10 @@ async def create_and_submit_to_challenge(
     challenge existed. Doing it as two client calls instead would strand memes in a
     "posted but not submitted" state whenever the second call failed, which is the same
     confusing half-state, just automated.
+
+    `image` (legacy multipart upload) and `image_public_id` (Roadmap_Scaling.md A4's
+    direct-to-Cloudinary flow) are mutually exclusive; exactly one is required — enforced
+    by `stage_personal_meme`/`stage_community_meme` below.
 
     No "already submitted" check is needed here: the meme is created by this call, so it
     cannot already belong to a submission.
@@ -981,7 +986,8 @@ async def create_and_submit_to_challenge(
         # carrying the challenge's reserved tag — which is also what makes it show up in
         # that tag's feed alongside everyone else's entries.
         meme = await stage_personal_meme(
-            db, current_user.id, caption, {AudienceType.public}, image
+            db, current_user.id, caption, {AudienceType.public}, image,
+            confirmed_image_public_id=image_public_id,
         )
         if challenge.hashtag_id is not None:
             # Attached by id rather than via `challenge.hashtag.slug`: `_get_challenge_or_404`
@@ -993,7 +999,10 @@ async def create_and_submit_to_challenge(
         # public) is resolved *before* the Cloudinary upload, so a rejected submission never
         # wastes an upload — same ordering as `create_community_meme`.
         community = await require_active_membership(db, target_community_id, current_user.id)
-        meme = await stage_community_meme(db, community, current_user.id, caption, image)
+        meme = await stage_community_meme(
+            db, community, current_user.id, caption, image,
+            confirmed_image_public_id=image_public_id,
+        )
 
     submission = ChallengeSubmission(
         challenge_id=challenge.id,

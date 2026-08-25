@@ -5,6 +5,7 @@ import { Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch } from 'react-redux';
 
+import { DateField } from '@/components/DateField';
 import PillButton from '@/components/PillButton';
 import { TextField } from '@/components/TextField';
 import { GoogleSignInFlow } from '@/features/auth/GoogleSignInFlow';
@@ -96,13 +97,11 @@ export default function RegisterScreen() {
           control={control}
           name="dateOfBirth"
           render={({ field }) => (
-            <TextField
-              label="Date of Birth (YYYY-MM-DD)"
-              placeholder="2000-01-31"
-              keyboardType="number-pad"
-              maxLength={10}
+            <DateField
+              label="Date of Birth"
+              placeholder="Select your date of birth"
               value={field.value}
-              onChangeText={field.onChange}
+              onChange={field.onChange}
               error={errors.dateOfBirth?.message}
             />
           )}

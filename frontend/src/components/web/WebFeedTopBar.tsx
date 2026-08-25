@@ -9,6 +9,9 @@ import { useUnreadNotificationCount } from '@/services/useNotifications';
 
 interface WebFeedTopBarProps {
   onShareInstagramLink: () => void;
+  /** Only passed on narrow/mobile-width web — at desktop width `DesktopSidebarNav` already
+   * shows these sections permanently, so no hamburger is needed there. */
+  onOpenMenu?: () => void;
 }
 
 /** Per-column header for the web feed pilot (Twitter/Discord-style — scoped to the feed's own
@@ -17,7 +20,7 @@ interface WebFeedTopBarProps {
  * components directly, since both are native-resolved shared files. Also hosts the feed's
  * light/dark toggle (RESKIN MODE, 2026-08-19) — natural home alongside the other icon-button
  * affordances (share/notifications). */
-export default function WebFeedTopBar({ onShareInstagramLink }: WebFeedTopBarProps) {
+export default function WebFeedTopBar({ onShareInstagramLink, onOpenMenu }: WebFeedTopBarProps) {
   const router = useRouter();
   const unreadQuery = useUnreadNotificationCount();
   const unreadCount = unreadQuery.data?.count ?? 0;
@@ -27,7 +30,18 @@ export default function WebFeedTopBar({ onShareInstagramLink }: WebFeedTopBarPro
 
   return (
     <View style={styles.root}>
-      <Text style={[FEED_WEB_TYPE.display, styles.brand]}>MemeVerse</Text>
+      <View style={styles.leftGroup}>
+        {onOpenMenu ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Open menu"
+            onPress={onOpenMenu}
+            style={({ hovered }) => [styles.iconButton, hovered && styles.iconButtonHovered]}>
+            <MaterialIcons name="menu" size={20} color={FEED_WEB_COLORS.foreground} />
+          </Pressable>
+        ) : null}
+        <Text style={[FEED_WEB_TYPE.display, styles.brand]}>MemeVerse</Text>
+      </View>
 
       <View style={styles.actions}>
         <Pressable
@@ -79,6 +93,11 @@ const createStyles = (
     paddingHorizontal: FEED_WEB_SPACING.lg,
     borderBottomWidth: 1,
     borderBottomColor: FEED_WEB_COLORS.border,
+  },
+  leftGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: FEED_WEB_SPACING.sm,
   },
   brand: {
     color: FEED_WEB_COLORS.foreground,

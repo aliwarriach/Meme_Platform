@@ -1,6 +1,7 @@
 import { api } from '@/services/api';
 import type { PublicUserResponse } from '@/services/auth';
 import type { MemeContainerResponse } from '@/services/instagram';
+import { uploadImageDirect } from '@/services/media';
 import { appendImageToFormData } from '@/utils/multipartImage';
 
 export type AudienceType = 'public' | 'friends';
@@ -57,6 +58,10 @@ export function getFeedRequest(params: { offset?: number; limit?: number }) {
   return api.get<MergedFeedPageResponse>('/memes/feed', params);
 }
 
+export function getMemeRequest(memeId: string) {
+  return api.get<MemeResponse>(`/memes/${memeId}`);
+}
+
 export async function createMemeRequest(payload: {
   imageUri: string;
   imageName: string;
@@ -66,13 +71,15 @@ export async function createMemeRequest(payload: {
   // Personal posts only — community posts don't accept tags yet (backend scope limit).
   hashtags?: string[];
 }) {
-  const form = new FormData();
-  await appendImageToFormData(form, 'image', {
-    uri: payload.imageUri,
-    name: payload.imageName,
-    type: payload.imageType,
-  });
+  // Roadmap_Scaling.md A4 — image bytes go straight to Cloudinary; only the confirmed
+  // public_id is sent to our own backend.
+  const imagePublicId = await uploadImageDirect(
+    { uri: payload.imageUri, name: payload.imageName, type: payload.imageType },
+    'memes'
+  );
 
+  const form = new FormData();
+  form.append('image_public_id', imagePublicId);
   if (payload.caption) form.append('caption', payload.caption);
   payload.audiences.forEach((audience) => form.append('audiences', audience));
   payload.hashtags?.forEach((tag) => form.append('hashtags', tag));

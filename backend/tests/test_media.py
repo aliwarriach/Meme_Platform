@@ -1,10 +1,14 @@
 """Roadmap_Scaling.md A4 — direct signed Cloudinary uploads.
 
-Backend-only, meme creation is the one flagship migrated endpoint (scope agreed with the
-project owner given the phase's own 4-5 day estimate covering 5+ upload call sites plus
-frontend rewiring — see the phase's Roadmap_Scaling.md implementation note). Templates,
-community icon/banner, challenge images, and avatars remain on the legacy proxied
-`validate_and_upload_image` path.
+These tests exercise the shared signing/verification mechanism
+(`POST /media/upload-signature`, `confirm_pending_upload`) via `POST /memes`, the
+flagship migrated endpoint. Every other call site (`POST /templates`, community
+icon/banner, challenge images, avatar upload) repeats the same mechanism mechanically —
+see their own per-endpoint direct-upload tests in `test_templates.py`,
+`test_communities.py`, `test_challenge_compete.py`, and `test_content_deletion.py`
+rather than duplicating the full negative-path matrix here. The legacy proxied
+`validate_and_upload_image` path is kept working alongside the new flow until the
+frontend finishes migrating (IMPLEMENT step 6).
 
 Cloudinary itself is never called for real here — `get_image_resource` (the Admin API
 verification call) is monkeypatched per test to return a plausible resource, since these

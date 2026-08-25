@@ -1,8 +1,9 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
 import { useThemeMode } from '@/constants/ThemeMode';
-import { useState } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { useState, type RefObject } from 'react';
+import { ActivityIndicator, FlatList, Pressable, Text, View } from 'react-native';
 
 import Avatar from '@/components/Avatar';
 import VotePill from '@/components/VotePill';
@@ -17,10 +18,15 @@ import { useRecordViewOnVisible } from '@/utils/useRecordViewOnVisible';
 
 interface MemeCardProps {
   meme: MemeResponse;
+  // Only meaningful inside a FlatList (the feed) — omitted when this card is reused standalone
+  // (e.g. CompetitionEntryModal's single-item preview), where there's no list to scroll.
+  index?: number;
+  listRef?: RefObject<FlatList<any> | null>;
 }
 
 /** Bordered card: fixed 4:5 media ratio, avatar+username header, up/down vote control + send/share/comment action row. */
-export function MemeCard({ meme }: MemeCardProps) {
+export function MemeCard({ meme, index = 0, listRef }: MemeCardProps) {
+  const router = useRouter();
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [sendModalOpen, setSendModalOpen] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
@@ -52,18 +58,22 @@ export function MemeCard({ meme }: MemeCardProps) {
       ref={cardRef}
       className="mx-3 mb-4 overflow-hidden rounded-card border border-outline-variant/30 bg-surface pb-3">
       <View className="flex-row items-center px-4 py-3">
-        <View className="mr-3">
-          <Avatar username={meme.author.username} size="sm" />
-        </View>
-        <View className="flex-1 flex-row items-center justify-between">
-          <View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Open ${meme.author.username}'s profile`}
+          onPress={() => router.push({ pathname: '/users/[id]', params: { id: meme.author.id } })}
+          className="flex-1 flex-row items-center">
+          <View className="mr-3">
+            <Avatar username={meme.author.username} avatarUrl={meme.author.avatar_url} size="sm" />
+          </View>
+          <View className="flex-1">
             <Text className="font-title text-sm text-heading">{meme.author.username}</Text>
             {meme.community ? (
               <Text className="font-body text-xs text-ink-muted">in {meme.community.name}</Text>
             ) : null}
           </View>
-          <Text className="font-body text-xs text-ink-muted">{timeAgo(meme.created_at)}</Text>
-        </View>
+        </Pressable>
+        <Text className="font-body text-xs text-ink-muted">{timeAgo(meme.created_at)}</Text>
       </View>
 
       <Image
@@ -141,7 +151,7 @@ export function MemeCard({ meme }: MemeCardProps) {
 
       {shareError ? <Text className="px-4 pt-1 font-body text-xs text-error">{shareError}</Text> : null}
 
-      {commentsOpen ? <CommentsSection memeId={meme.id} /> : null}
+      {commentsOpen ? <CommentsSection memeId={meme.id} index={index} listRef={listRef} /> : null}
 
       <SendMemeModal
         memeId={meme.id}

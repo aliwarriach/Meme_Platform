@@ -1,5 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -29,6 +30,7 @@ interface WebMemeCardProps {
  * untouched and still used by `WebContainerCard` (Instagram Companion Mode), out of this scope.
  */
 export function WebMemeCard({ meme }: WebMemeCardProps) {
+  const router = useRouter();
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [sendModalOpen, setSendModalOpen] = useState(false);
   const castVote = useCastVoteMutation();
@@ -51,13 +53,19 @@ export function WebMemeCard({ meme }: WebMemeCardProps) {
   return (
     <View ref={cardRef} style={styles.card}>
       <View style={styles.header}>
-        <WebAvatar username={meme.author.username} avatarUrl={meme.author.avatar_url} size={36} />
-        <View style={styles.headerText}>
-          <Text style={[FEED_WEB_TYPE.title, styles.heading]}>{meme.author.username}</Text>
-          {meme.community ? (
-            <Text style={[FEED_WEB_TYPE.meta, styles.muted]}>in {meme.community.name}</Text>
-          ) : null}
-        </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Open ${meme.author.username}'s profile`}
+          onPress={() => router.push({ pathname: '/users/[id]', params: { id: meme.author.id } })}
+          style={styles.headerIdentity}>
+          <WebAvatar username={meme.author.username} avatarUrl={meme.author.avatar_url} size={36} />
+          <View style={styles.headerText}>
+            <Text style={[FEED_WEB_TYPE.title, styles.heading]}>{meme.author.username}</Text>
+            {meme.community ? (
+              <Text style={[FEED_WEB_TYPE.meta, styles.muted]}>in {meme.community.name}</Text>
+            ) : null}
+          </View>
+        </Pressable>
         <Text style={[FEED_WEB_TYPE.meta, styles.muted]}>{timeAgo(meme.created_at)}</Text>
       </View>
 
@@ -173,6 +181,12 @@ const createStyles = (
     gap: FEED_WEB_SPACING.md,
     paddingHorizontal: FEED_WEB_SPACING.lg,
     paddingVertical: FEED_WEB_SPACING.md,
+  },
+  headerIdentity: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: FEED_WEB_SPACING.md,
   },
   headerText: {
     flex: 1,

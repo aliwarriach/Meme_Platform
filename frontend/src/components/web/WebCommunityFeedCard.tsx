@@ -1,5 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -27,6 +28,7 @@ interface WebCommunityFeedCardProps {
  * (Send/Comments) reused as-is, unreskinned — same accepted scope boundary as the feed pilot.
  */
 export function WebCommunityFeedCard({ meme }: WebCommunityFeedCardProps) {
+  const router = useRouter();
   const { colors } = useCommunityWebTheme();
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [sendModalOpen, setSendModalOpen] = useState(false);
@@ -49,10 +51,16 @@ export function WebCommunityFeedCard({ meme }: WebCommunityFeedCardProps) {
   return (
     <View ref={cardRef} style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
       <View style={styles.header}>
-        <WebCommunityAvatar label={meme.author.username} imageUrl={meme.author.avatar_url} size={36} />
-        <Text style={[COMMUNITY_WEB_TYPE.title, styles.flex, { color: colors.cardForeground }]}>
-          {meme.author.username}
-        </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Open ${meme.author.username}'s profile`}
+          onPress={() => router.push({ pathname: '/users/[id]', params: { id: meme.author.id } })}
+          style={styles.headerIdentity}>
+          <WebCommunityAvatar label={meme.author.username} imageUrl={meme.author.avatar_url} size={36} />
+          <Text style={[COMMUNITY_WEB_TYPE.title, styles.flex, { color: colors.cardForeground }]}>
+            {meme.author.username}
+          </Text>
+        </Pressable>
         <Text style={[COMMUNITY_WEB_TYPE.meta, { color: colors.foregroundMuted }]}>{timeAgo(meme.created_at)}</Text>
       </View>
 
@@ -155,6 +163,12 @@ const styles = StyleSheet.create({
   },
   flex: {
     flex: 1,
+  },
+  headerIdentity: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: COMMUNITY_WEB_SPACING.md,
   },
   mediaWrap: {
     width: '100%',

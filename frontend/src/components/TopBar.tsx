@@ -10,11 +10,14 @@ import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 type TopBarProps = {
   title: string;
   showBack?: boolean;
+  /** Rendered in the same left slot as the back arrow — mutually exclusive with `showBack`
+   * (a screen that needs a back arrow never also needs a hamburger, and vice versa). */
+  leftActions?: ReactNode;
   rightActions?: ReactNode;
 };
 
-/** Shared top app bar: back arrow (optional) + pure-white title + right-aligned action icons. */
-export default function TopBar({ title, showBack = false, rightActions }: TopBarProps) {
+/** Shared top app bar: back arrow/left action (optional) + pure-white title + right-aligned action icons. */
+export default function TopBar({ title, showBack = false, leftActions, rightActions }: TopBarProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { mode } = useThemeMode();
@@ -33,7 +36,9 @@ export default function TopBar({ title, showBack = false, rightActions }: TopBar
             className="h-11 w-11 items-center justify-center">
             <MaterialIcons name="arrow-back" size={24} color={c.heading} />
           </Pressable>
-        ) : null}
+        ) : (
+          leftActions ?? null
+        )}
       </View>
       <Text className="font-heading text-lg text-heading" numberOfLines={1}>
         {title}

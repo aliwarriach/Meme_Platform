@@ -1,7 +1,8 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useThemeMode } from '@/constants/ThemeMode';
+import { useEffect, type RefObject } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Keyboard, Pressable, Text, View } from 'react-native';
 
 import Avatar from '@/components/Avatar';
 import { TextField } from '@/components/TextField';
@@ -11,13 +12,29 @@ import { useAddCommentMutation, useComments } from '@/services/useMemes';
 
 interface CommentsSectionProps {
   memeId: string;
+  index?: number;
+  listRef?: RefObject<FlatList<any> | null>;
 }
 
-export function CommentsSection({ memeId }: CommentsSectionProps) {
+export function CommentsSection({ memeId, index, listRef }: CommentsSectionProps) {
   const commentsQuery = useComments(memeId, true);
   const addComment = useAddCommentMutation(memeId);
   const { mode } = useThemeMode();
   const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+
+  // The parent feed screen wraps its FlatList in a KeyboardAvoidingView (same mechanism as the
+  // inbox composer), which shrinks the list's visible height once the keyboard is up. Once that
+  // resize has actually happened (`keyboardDidShow`, not the tap that triggers it), scroll this
+  // card's bottom — where the comment input lives — to the bottom of the now-shrunk viewport, so
+  // the input lands just above the keyboard instead of under it. Backs up the automatic RN
+  // scroll-into-view behavior, which can miss a card that isn't already near the screen edge.
+  useEffect(() => {
+    if (!listRef) return;
+    const sub = Keyboard.addListener('keyboardDidShow', () => {
+      listRef.current?.scrollToIndex({ index: index ?? 0, animated: true, viewPosition: 1 });
+    });
+    return () => sub.remove();
+  }, [index, listRef]);
 
   const {
     control,

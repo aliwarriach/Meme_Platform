@@ -1,7 +1,7 @@
 import { api } from '@/services/api';
 import type { PublicUserResponse } from '@/services/auth';
+import { uploadImageDirect } from '@/services/media';
 import type { MemeResponse } from '@/services/memes';
-import { appendImageToFormData } from '@/utils/multipartImage';
 
 export type ChallengeType = 'intra_community' | 'community_vs_community' | 'open' | 'duel';
 export type ChallengeStatus = 'setup' | 'active' | 'evaluated';
@@ -122,8 +122,12 @@ export async function createAndSubmitToChallengeRequest(
   image: { uri: string; name: string; type: string },
   caption?: string
 ) {
+  // Roadmap_Scaling.md A4 — image bytes go straight to Cloudinary; only the confirmed
+  // public_id is sent to our own backend.
+  const imagePublicId = await uploadImageDirect(image, 'challenges');
+
   const form = new FormData();
-  await appendImageToFormData(form, 'image', image);
+  form.append('image_public_id', imagePublicId);
   if (caption) form.append('caption', caption);
 
   return api.post<ChallengeSubmissionResponse>(

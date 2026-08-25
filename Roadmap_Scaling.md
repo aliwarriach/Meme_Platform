@@ -8,18 +8,23 @@ pick up any phase and implement it without re-exploring the codebase or re-litig
 the one phase you're implementing in §3. Then `backend/CLAUDE.md`, then
 `/.claude/memory/<feature>.md` for whichever domain the phase touches.
 
-**Global status: Stage A — nearly done.** A1 (Redis pub/sub connection manager), A2 (DB
-pool + read/write seam), A3 (liveness/readiness + graceful shutdown), A5 (JSON logs), A6
-(Dockerfiles), and A7 (local multi-instance proof — CI-verified, all three required
-proofs green) are implemented. A4 (direct signed Cloudinary uploads) is partially done
-— backend signing/verification mechanism plus one flagship migrated endpoint
-(`POST /memes`); see its own implementation note for the narrowed scope, still open for
-a future session (templates/community icon-banner/challenges/avatar uploads + the
-frontend rewrite). A6/A7 were verified via GitHub Actions CI rather than locally — this
-dev machine still has no working Docker daemon (Docker Desktop is installed but its
-Linux engine needs WSL2, which needs admin elevation this session never obtained); see
-each phase's implementation note. Stage A is otherwise ready for Stage B (do not start
-Stage B until A4 is either finished or explicitly deferred by the project owner).
+**Global status: Stage A and B done; C1 done and torn back down; rest of Stage C not
+started.** All of Stage A (A1–A7) and Stage B (B1–B3) are implemented — see each phase's
+own implementation note, especially B3's (real bugs found integrating B2's persistent
+stack with C1's cluster). Docker still doesn't work locally on this dev machine (A6/A7
+used GitHub Actions CI; B3's image push used AWS CodeBuild instead — see B3's note for
+why). **C1 (EKS + Karpenter) is implemented and verified** — built out of sequence with
+the original "pause before Stage C" instruction because B3 structurally required a
+running cluster (no NAT/bastion/VPN exists in this architecture, so nothing outside the
+VPC can reach RDS/ElastiCache); the project owner explicitly approved starting C1 early
+to unblock B3 (2026-08-25). The ephemeral stack (EKS, Karpenter, everything C1 built) was
+**destroyed at the end of that same session** and billing independently confirmed
+stopped (0 EKS clusters, 0 running EC2 instances via direct AWS CLI query) — see C1's
+TEST results. `infra/persistent` (RDS, ElastiCache, VPC, ECR) is untouched and still
+live, as designed. **Next up is C2** (Helm chart, three Deployments) — starting it means
+re-running `infra/ephemeral` from scratch (~15-20 min: `terraform apply -target
+module.eks -target module.karpenter` per C1's implementation note, then a full apply),
+since nothing from C1 persists across the destroy by design.
 
 **Statuses are greppable.** `grep "^\*\*STATUS:" Roadmap_Scaling.md` prints the whole board.
 Allowed values, exactly: `PENDING` · `IN PROGRESS` · `IMPLEMENTED` · `BLOCKED`.
@@ -36,16 +41,16 @@ is worse than no roadmap, because the next session will trust it.
 | A1 | Redis Pub/Sub connection manager | IMPLEMENTED | 3d | Everything. Hard blocker. |
 | A2 | DB pool config + read/write seam | IMPLEMENTED | 2d | C4 (autoscaling) |
 | A3 | Liveness/readiness + graceful shutdown | IMPLEMENTED | 2d | C2 (Helm) |
-| A4 | Direct signed Cloudinary uploads | IN PROGRESS | 4–5d | — |
+| A4 | Direct signed Cloudinary uploads | IMPLEMENTED | 4–5d | — |
 | A5 | JSON logs to stdout | IMPLEMENTED | 1d | C5 (observability) |
 | A6 | Dockerfiles (api / realtime / worker) | IMPLEMENTED | 3d | A7, all of Stage C |
 | A7 | Local multi-instance proof | IMPLEMENTED | 4d | **Gate to Stage B** |
 | **Stage B — AWS foundation, $0–24/mo** | | | **1.5–2 wks** | |
-| B1 | Account guardrails (budget, credit expiry) | PENDING | 0.5d | Do this first, before any resource |
-| B2 | Terraform: persistent stack | PENDING | 1wk | C1 |
-| B3 | Migrate schema + push images | PENDING | 2d | **Gate to Stage C** |
+| B1 | Account guardrails (budget, credit expiry) | IMPLEMENTED | 0.5d | Do this first, before any resource |
+| B2 | Terraform: persistent stack | IMPLEMENTED | 1wk | C1 |
+| B3 | Migrate schema + push images | IMPLEMENTED | 2d | **Gate to Stage C** |
 | **Stage C — cluster + autoscaling, ~$0.15/hr** | | | **3–4 wks** | |
-| C1 | EKS + Karpenter on spot | PENDING | 1wk | C2 |
+| C1 | EKS + Karpenter on spot | IMPLEMENTED | 1wk | C2 |
 | C2 | Helm chart, three deployments | PENDING | 1wk | C3 |
 | C3 | Ingress + PgBouncer + Cloudflare | PENDING | 4d | C4 |
 | C4 | Autoscaling (HPA / KEDA / Karpenter) | PENDING | 4d | **The actual deliverable** |
@@ -422,11 +427,51 @@ SIGTERM drains rather than drops.
 
 ### A4 — Direct signed Cloudinary uploads
 
-**STATUS:** IN PROGRESS (2026-08-21) — backend done for one flagship endpoint, scope
-narrowed below
+**STATUS:** IMPLEMENTED (2026-08-24)
 **Est:** 4–5 days (backend + frontend) · **Stage:** A
 
-**Scope decision (confirmed with project owner 2026-08-21).** This phase's own estimate
+**Completion note (2026-08-24).** Finished per the scope revision below. Backend: all
+four remaining call sites (`POST /templates`, community icon/banner on `POST
+/communities`, challenge submissions on `POST /challenges/{id}/submissions`, avatar on
+`PATCH /auth/me`) now accept either the legacy file **or** their own `*_public_id`,
+mutually exclusive — mechanical repeats of the `/memes` pattern. `stage_community_meme`
+(`services/memes.py`) gained the same optional `confirmed_image_public_id` param
+`stage_personal_meme` already had, so the challenge-submission community branch could use
+it too. `services/communities.py::_resolve_optional_image` is the one new shared helper
+(icon and banner each independently optional, mutually exclusive with their own file).
+Per-endpoint negative-path tests added in `test_templates.py`, `test_communities.py`,
+`test_challenge_compete.py`, `test_content_deletion.py` (direct-upload-creates +
+mutual-exclusivity-rejected); the full exhaustive negative-path matrix (ownership
+mismatch, expired TTL, oversized, wrong format, double-confirm) stays only in
+`test_media.py` against the shared `confirm_pending_upload` mechanism rather than being
+duplicated per call site. Full backend suite: 308 passed; one `test_memes.py` failure was
+an asyncpg connection-timeout at the pool layer after ~54 minutes of continuous
+real-Postgres load on this dev machine (unrelated file, unrelated to any A4 change) —
+confirmed non-reproducing by re-running `test_memes.py` alone.
+
+Frontend: new `services/media.ts::uploadImageDirect(image, context)` (request signature →
+upload straight to Cloudinary via `fetch` → return the confirmed `public_id`), wired into
+`createMemeRequest`, `createTemplateRequest`, `createCommunityRequest`,
+`createAndSubmitToChallengeRequest` — API-layer only, no UI/UX touched, same function
+signatures. `tsc --noEmit` clean. **Two things intentionally left as-is, both flagged
+rather than decided unilaterally:** `createCommunityMemeRequest`
+(`POST /communities/{id}/memes`, posting *into* a community) is out of this phase's scope
+per the 2026-08-24 revision and still proxies the file — backend's
+`stage_community_meme` supports the new flow now, so migrating that call site later is
+mechanical. Avatar has **no existing frontend upload UI** (`PATCH /auth/me` isn't called
+with a file anywhere in the client today) — backend accepts `avatar_public_id`, but
+there's nothing to rewire frontend-side until a profile-edit screen exists.
+
+**Scope revision (confirmed with project owner 2026-08-24) — finish this phase.** The
+narrowing below from 2026-08-21 is superseded: the remaining call sites (`POST
+/templates`, community icon/banner, challenge images, avatar upload) get migrated to the
+signed-upload pattern, mechanically repeating the `/memes` implementation. On the
+frontend, wire up API calls to the new `POST /media/upload-signature` +
+confirmed-`public_id` flow only — **do not redesign the upload UI/UX.** If closing out any
+endpoint seems to require a UI/UX change (not just swapping which endpoint a form calls),
+stop and ask the project owner before making it, rather than deciding unilaterally.
+
+**Original scope decision (2026-08-21, historical — see above for current scope).** This phase's own estimate
 (4-5 days, 5+ call sites, frontend included) doesn't fit inside one autonomous pass
 through the rest of Stage A. Implemented in full: the signing/verification mechanism
 (`POST /media/upload-signature`, `services/media.py::create_upload_signature` +
@@ -704,7 +749,7 @@ Also confirm: `pg_stat_activity` connection count stays bounded with all 6 app c
 
 ### B1 — Account guardrails
 
-**STATUS:** PENDING
+**STATUS:** IMPLEMENTED (2026-08-25)
 **Est:** 0.5 day · **Stage:** B · **Do this before creating any billable resource**
 
 **WHY.** The difference between a warning and a surprise charge. Also: two facts discovered here can
@@ -723,16 +768,86 @@ reshape the whole timeline, and it's better to know before Stage A finishes than
 **DONE WHEN.** Budget alerts active, and the expiry date + free-tier answer are written into this
 section.
 
-> **Findings (fill in during B1):**
-> - Credit expiry date: _not yet checked_
-> - RDS/ElastiCache free tier eligible: _not yet checked_
+> **Findings (confirmed by project owner 2026-08-24):**
+> - Credit expiry date: **~2027-02-26** (186 days from 2026-08-24). This is well short of
+>   the "~18 months at 8hrs/week" upper end in §1.1 — pace usage toward the middle rows of
+>   that table, not the bottom one.
+> - RDS/ElastiCache free tier eligible: **yes** — account created 2026-08-24, so RDS
+>   `db.t4g.micro` and ElastiCache `cache.t4g.micro` are free for 12 months (well past the
+>   credit expiry, not the binding constraint here).
+> - Budget alerts: confirmed set by project owner.
+> - IAM user for Terraform (step 4): **done 2026-08-25.** Project owner created
+>   `meme-platform-terraform` in the AWS Console (programmatic access only, no console
+>   login) with `AdministratorAccess` attached — a deliberate choice over a hand-rolled
+>   least-privilege policy, since this project's Terraform will eventually touch EC2/VPC,
+>   RDS, ElastiCache, ECR, EKS, IAM (role creation for IRSA), ELB, S3, and DynamoDB, and a
+>   solo/dev account with budget alerts already active as the real safety net doesn't
+>   justify the "AccessDenied, add one more permission" cycle a minimal policy would cost
+>   across every future phase. Confirmed working via `aws sts get-caller-identity` →
+>   account `258032683838`, `arn:aws:iam::258032683838:user/meme-platform-terraform`.
+>   AWS CLI (v2.36.29) and Terraform (v1.15.8) both installed via `winget` and confirmed
+>   working — AWS CLI was already present from an earlier attempt but not resolvable in
+>   this session's shell (stale inherited PATH from before install; the binary and its
+>   registry PATH entry were both fine — a fresh terminal picks it up, this session just
+>   needed the full path/a manual PATH append per command). Credentials live in
+>   `~/.aws/credentials` (never committed — see root `CLAUDE.md`).
 
 ---
 
 ### B2 — Terraform: persistent stack
 
-**STATUS:** PENDING
+**STATUS:** IMPLEMENTED (2026-08-25)
 **Est:** 1 week · **Stage:** B · **Blocks:** C1
+
+**Implementation note.** `infra/bootstrap/` (**new**, not in the original FILES list) —
+a one-time, local-state module that creates just the S3 state bucket
+(`meme-platform-tfstate-258032683838`, versioned, AES256-encrypted, all public access
+blocked) before `infra/persistent`/`infra/ephemeral` can point their own backends at it —
+the standard Terraform chicken-and-egg fix for remote state that can't hold its own
+bootstrap resources. Applied once by hand; never touched again.
+
+`infra/persistent/` — VPC (`10.0.0.0/16`, 2 public + 2 private subnets across 2 AZs, IGW,
+no NAT per §1.2), three security groups (`app_access` with no ingress rules of its own —
+attach it to the C1 EKS node group; `rds`/`redis` each allowing only from `app_access`),
+RDS `db.t4g.micro` (Postgres 16.14, single-AZ, `manage_master_user_password = true` so
+the master password is AWS-generated straight into Secrets Manager, never a
+Terraform-supplied plaintext value), ElastiCache `cache.t4g.micro` (Redis 7.1, single
+node), and one ECR repo (`meme-platform/api`, matching A6's one-image decision) with a
+14-day untagged-image expiry policy. `infra/ephemeral/` — backend + provider + a
+`terraform_remote_state` data source reading `infra/persistent`'s outputs, deliberately
+**no resources yet** (EKS/node pools/ALB are C1's job) — `terraform apply`/`destroy`
+against it right now is a 0-resource no-op, which is exactly what proves the state split
+itself is wired correctly ahead of C1 giving it something real to destroy nightly.
+
+**Three real bugs, found only by actually running `terraform apply` against live AWS —
+all fixed, all documented here so C1+ doesn't rediscover them:**
+1. **`dynamodb_table` locking is deprecated** in the Terraform version this project
+   uses (confirmed via an `terraform init` warning) — Terraform 1.10+'s S3 backend does
+   native state locking via a lockfile object in the same bucket instead. Switched both
+   stacks' `backend.tf` to `use_lockfile = true` and dropped the DynamoDB table
+   entirely from `infra/bootstrap` (one less resource to pay for/manage) rather than ship
+   something already flagged deprecated on day one.
+2. **AWS's `GroupDescription` field rejects non-ASCII characters** — the em-dashes used
+   throughout this file's own prose, copied into the security group `description`
+   fields, 400'd on `CreateSecurityGroup` (`InvalidParameterValue: Character sets beyond
+   ASCII are not supported`). Fixed by using a plain hyphen in every AWS-resource-facing
+   string; em-dashes are fine in `.tf` file *comments* and in Terraform-only metadata
+   like `output` block `description`s, which never reach an AWS API call.
+3. **Free-tier accounts cap RDS `backup_retention_period` below 7** — the spec's own
+   "single AZ + automated backups" plan 400'd with `FreeTierRestrictionError: The
+   specified backup retention period exceeds the maximum available to free tier
+   customers`. Dropped to `1` (backups still on, just minimal retention) — revisit once
+   this account ages out of its free-tier promotional restrictions.
+
+**TEST — both required, both run for real against live AWS, not simulated:**
+`terraform plan -detailed-exitcode` on `infra/persistent` after a full apply returned
+exit code `0` (no changes) — idempotent. Then `infra/ephemeral` was applied and destroyed
+(0 resources either way, since C1 hasn't added any yet) and `infra/persistent`'s plan was
+re-run immediately after: still exit code `0`, plus a direct
+`aws rds describe-db-instances`/`aws elasticache describe-cache-clusters` check confirmed
+both `available` — the persistent stack's real resources were provably untouched by the
+ephemeral stack's apply/destroy cycle, the exact property the whole credit strategy
+depends on.
 
 **WHY.** Terraform is not bureaucracy here — **it is the credit strategy.** Being able to destroy
 and rebuild the cluster identically in ~15 minutes is what makes "only pay while working" a
@@ -763,8 +878,42 @@ on it**, since the whole cost model depends on it.
 
 ### B3 — Migrate schema, push images
 
-**STATUS:** PENDING
+**STATUS:** IMPLEMENTED (2026-08-25)
 **Est:** 2 days · **Stage:** B · **Gate to Stage C**
+
+**Implementation note.** All four steps done against real AWS, using the C1 cluster
+(built the same session, once B3 turned out to structurally require it — see C1's own
+note). **Step 2 (image to ECR) without local Docker:** same root blocker as A6/A7 (this
+dev machine's Docker Desktop has no working Linux engine), but GitHub Actions wasn't used
+this time — it would mean putting this IAM user's `AdministratorAccess` key into GitHub
+Actions secrets, a new place for long-lived credentials to live, so **AWS CodeBuild** was
+used instead: backend source zipped locally (`.env` excluded, confirmed), uploaded to the
+private Terraform-state S3 bucket, built by a throwaway CodeBuild project
+(`meme-platform-api-build`, privileged mode for Docker-in-Docker) using a plain
+`docker build && docker push` buildspec, then the CodeBuild project + its IAM role were
+deleted again — a one-off tool, not a permanent pipeline. One real bug on the way:
+**PowerShell's `Compress-Archive` writes backslash path separators in zip entries**,
+which Linux's unzip reads as literal filename characters, not directory separators — the
+first build saw a 5KB "context" (just top-level files) because `app/`, `alembic/`,
+`requirements/` all silently vanished into mangled flat filenames. Fixed by rebuilding
+the zip via `System.IO.Compression.ZipFile` directly with entry paths forced to forward
+slashes. **Step 3 (K8s Secret from Terraform)**: `infra/ephemeral/secrets.tf` — RDS
+password read live from Secrets Manager (`manage_master_user_password` from B2, never
+handled as plaintext by this process); `JWT_SECRET`/Cloudinary/Groq/Google values (no
+AWS-native secret store for these yet) supplied via a gitignored
+`secrets.auto.tfvars` — confirmed `git check-ignore` before writing anything to it.
+**Steps 1 and 4** both needed a real pod in the cluster (a one-off `Job` running
+`alembic upgrade head`, then a `Pod` running the real image with a `/health/ready`
+readiness probe) — and both **first failed** on a genuine bug: the `app_access` security
+group (created in B2 specifically so RDS/ElastiCache would allow ingress from it) was
+never actually attached to any node — only referenced in an output comment. Fixed by
+adding it to the managed node group's `vpc_security_group_ids` and as a second
+`securityGroupSelectorTerms` entry on the Karpenter `EC2NodeClass` (C1's own files);
+re-ran both once the fix rolled out. Final proof: `alembic upgrade head` completed
+through every revision to head; `kubectl exec` into the health-check pod got
+`200 {"status":"ready"}` from `/health/ready` — both Postgres and Redis reachable through
+the VPC from a pod running the real A6 image. Both test resources deleted afterward
+(one-off proofs, not part of the ongoing deployment — that's C2's job).
 
 **WHY.** Proves the data layer works before a cluster exists to blame for problems.
 
@@ -785,8 +934,68 @@ of the suite against RDS.
 
 ### C1 — EKS + Karpenter on spot
 
-**STATUS:** PENDING
+**STATUS:** IMPLEMENTED (2026-08-25)
 **Est:** 1 week · **Stage:** C (metered, ~$0.15/hr) · **Blocks:** C2
+
+**Implementation note.** Built the same session as B3, out of sequence with the original
+stop-before-Stage-C instruction — B3 turned out to structurally need a running cluster
+for 3 of its 4 steps (nothing in this architecture can reach RDS/ElastiCache from outside
+the VPC — no NAT, no bastion, no VPN), so the project owner explicitly approved starting
+C1 to unblock it (confirmed 2026-08-25, superseding the original pause point). Used
+`terraform-aws-modules/eks/aws ~> 21.0` + its `//modules/karpenter` submodule rather than
+hand-rolled `aws_eks_cluster`/IAM — the standard, trusted way to stand up EKS+Karpenter,
+not a hand-rolled equivalent. Pod Identity (`create_pod_identity_association = true`),
+not IRSA, for the Karpenter controller's own AWS permissions — the module's current
+recommended mechanism, functionally the same purpose the roadmap's "IRSA" line calls for;
+real IRSA is still what workload pods would use if the app needed direct AWS API access
+(it doesn't yet). One small always-on managed node group (`t3.small`, desired 1) hosts
+only the Karpenter controller — Karpenter can't provision the node it runs on; every
+other node is Karpenter-provisioned via two `NodePool`s (`spot`, weight 100;
+`on-demand-fallback`, weight 1 — Karpenter tries higher-weight pools first, which is what
+makes "spot-first with on-demand fallback" real rather than aspirational) sharing one
+`EC2NodeClass` (Bottlerocket, `karpenter.sh/discovery` tag-selected subnets/SGs).
+
+**Four real bugs, found only by actually running this against live AWS/EKS — all fixed,
+all documented here so C2+ doesn't rediscover them:**
+1. **Karpenter's generated controller IAM policy exceeds AWS's 6144-byte managed-policy
+   limit** for this account/region combination (a known upstream issue —
+   terraform-aws-eks#3512/#3692). Fixed with the module's own escape hatch,
+   `enable_inline_policy = true` (inline policies get a 10,240-byte limit).
+2. **This AWS account is restricted to free-tier-eligible EC2 instance types only**
+   (`aws ec2 describe-instance-types --filters Name=free-tier-eligible,Values=true` —
+   confirmed live 2026-08-25: `t3.micro`, `t3.small`, `t4g.micro`, `t4g.small`, two
+   `*-flex.large` types, nothing larger). `CreateFleet` 400s with
+   `InvalidParameterCombination` for anything else — discovered when a family+cpu-count
+   NodePool requirement let Karpenter pick `t3.xlarge` for a test pod. Fixed by
+   restricting both NodePools' requirements to explicit `node.kubernetes.io/instance-type`
+   values (`t3.micro`, `t3.small`) instead of family/cpu ranges — also matches §1.1's own
+   "2× t3.small" plan. Revisit the instance-type restriction once this account ages out
+   of the free-tier program (unrelated to §1.1's own capacity-dial numbers, which assume
+   this same instance size anyway).
+3. **The Terraform Helm provider's OCI registry login fails on this machine** —
+   `OCI Registry Login Failed ... The stub received bad data`, a Windows-specific bug in
+   its credential-storage step (same family as docker/for-win#13591), unrelated to the
+   AWS/ECR-public credentials themselves. The `helm` CLI's own OCI client doesn't hit it,
+   so the Karpenter chart is pulled once (`helm pull oci://public.ecr.aws/karpenter/karpenter
+   --version 1.6.0`) into a committed `infra/ephemeral/charts/karpenter-1.6.0.tgz` and
+   referenced as a local chart — sidesteps the provider's OCI-login path entirely.
+4. **`app_access` (the security group B2 created specifically so RDS/ElastiCache would
+   accept ingress from it) was never actually attached to any node** — declared as a
+   persistent-stack output with a comment saying C1 should attach it, but C1's own
+   `eks_managed_node_groups` and `EC2NodeClass` never referenced it. Surfaced as a
+   connection **timeout** (not a clean rejection) when B3's Alembic Job tried to reach
+   RDS — the classic "security group problem" signature. Fixed by adding it to the
+   managed node group's `vpc_security_group_ids` and as a second
+   `securityGroupSelectorTerms` entry on the `EC2NodeClass`, so every node this cluster
+   ever runs — controller or Karpenter-provisioned — carries it.
+
+Also: Terraform's own EKS+Helm/kubectl chicken-and-egg (provider config for
+helm/kubernetes/kubectl depends on the cluster's endpoint/CA, which don't exist until
+`module.eks` applies) required a two-phase `apply` — `-target module.eks -target
+module.karpenter` first, then a full apply for the Helm release + `NodePool`/
+`EC2NodeClass` manifests. Standard, documented Terraform limitation for this exact
+shape, not a bug — noting it because a bare `terraform apply` alone will not work here on
+a from-scratch cluster.
 
 **WHY Karpenter over Cluster Autoscaler.** Provisions nodes in ~40s vs. several minutes; picks
 instance types to fit pending pods instead of scaling fixed groups; handles spot interruption
@@ -804,7 +1013,21 @@ on-demand fallback, consolidation enabled. IRSA for pod-level AWS permissions.
 under ~60s. Delete it; assert the node is consolidated away. **Then `terraform destroy` and confirm
 billing stops** — verify this on day one, not after a surprise invoice.
 
-**DONE WHEN.** Nodes appear on demand, disappear when idle, and destroy is verified to stop the meter.
+**TEST results (2026-08-25):** scale-up proof — a 1600m-cpu test pod went Pending, Karpenter
+provisioned a `t3.micro` node via the `on-demand-fallback` pool (spot wasn't available at that
+moment/AZ — the fallback itself firing is further proof the weight-based tie-break works) in
+**37s**, well under the 60s target. Scale-down proof — deleting the test workload, the node
+consolidated away in **72s** (30s `consolidateAfter` + reconcile). Both proofs used a throwaway
+test pod/deployment, cleaned up immediately after each. Destroy verification ran after B3 finished
+using the cluster (deferred rather than destroying+rebuilding twice in one session):
+`terraform destroy` on `infra/ephemeral` completed cleanly (68 resources destroyed, 0 errors), then
+confirmed independently via `aws eks list-clusters` (empty) and `aws ec2 describe-instances
+--filters Name=instance-state-name,Values=running,pending` (empty) — the meter is genuinely at $0,
+not just "terraform says so." `infra/persistent` (RDS, ElastiCache, VPC) confirmed still `available`
+and untouched by the same destroy.
+
+**DONE WHEN.** Nodes appear on demand (✓), disappear when idle (✓), and destroy is verified to stop
+the meter (✓ — independently confirmed via AWS CLI, not just Terraform's own exit code).
 
 ---
 

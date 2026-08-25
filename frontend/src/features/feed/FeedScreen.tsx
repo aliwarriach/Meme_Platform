@@ -13,6 +13,7 @@ import { DESKTOP_FRAME_MIN_WIDTH } from '@/constants/webLayout';
 import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import { MergedFeedList } from '@/features/feed/components/MemeFeedList';
 import { ShareInstagramLinkModal } from '@/features/instagram-companion/ShareInstagramLinkModal';
+import { NavDrawer } from '@/features/navigation/NavDrawer';
 import type { MergedFeedItem } from '@/services/memes';
 import { useFeed } from '@/services/useMemes';
 
@@ -20,6 +21,7 @@ export default function FeedScreen() {
   const router = useRouter();
   const feedQuery = useFeed();
   const [shareModalVisible, setShareModalVisible] = useState(false);
+  const [drawerVisible, setDrawerVisible] = useState(false);
   const { width } = useWindowDimensions();
   const showDesktopInbox = Platform.OS === 'web' && width >= DESKTOP_FRAME_MIN_WIDTH;
   const { mode } = useThemeMode();
@@ -31,6 +33,15 @@ export default function FeedScreen() {
     <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
       <TopBar
         title="MemeVerse"
+        leftActions={
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Open menu"
+            onPress={() => setDrawerVisible(true)}
+            className="h-11 w-11 items-center justify-center">
+            <MaterialIcons name="menu" size={24} color={c.heading} />
+          </Pressable>
+        }
         rightActions={
           <>
             <Pressable
@@ -75,6 +86,7 @@ export default function FeedScreen() {
         visible={shareModalVisible}
         onClose={() => setShareModalVisible(false)}
       />
+      <NavDrawer visible={drawerVisible} onClose={() => setDrawerVisible(false)} />
     </SafeAreaView>
   );
 

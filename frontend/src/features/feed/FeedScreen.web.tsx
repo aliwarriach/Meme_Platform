@@ -9,6 +9,7 @@ import { WebMergedFeedList } from '@/components/web/WebMergedFeedList';
 import { injectFeedWebFont } from '@/constants/webFeedThemeVapor';
 import { DESKTOP_FRAME_MIN_WIDTH } from '@/constants/webLayout';
 import { ShareInstagramLinkModal } from '@/features/instagram-companion/ShareInstagramLinkModal';
+import { NavDrawer } from '@/features/navigation/NavDrawer';
 import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 import type { MergedFeedItem } from '@/services/memes';
 import { useFeed } from '@/services/useMemes';
@@ -39,6 +40,7 @@ export default function FeedScreen() {
 function FeedScreenContent() {
   const feedQuery = useFeed();
   const [shareModalVisible, setShareModalVisible] = useState(false);
+  const [drawerVisible, setDrawerVisible] = useState(false);
   const { width } = useWindowDimensions();
   const showRail = width >= DESKTOP_FRAME_MIN_WIDTH;
   const { colors } = useVaporwaveTheme();
@@ -56,7 +58,10 @@ function FeedScreenContent() {
       <SafeAreaView style={styles.safe} edges={['top']}>
         <View style={styles.body}>
           <View style={styles.column}>
-            <WebFeedTopBar onShareInstagramLink={() => setShareModalVisible(true)} />
+            <WebFeedTopBar
+              onShareInstagramLink={() => setShareModalVisible(true)}
+              onOpenMenu={showRail ? undefined : () => setDrawerVisible(true)}
+            />
 
             <View style={styles.listWrap}>
               <WebMergedFeedList
@@ -81,6 +86,7 @@ function FeedScreenContent() {
       <FloatingBottomNav active="feed" />
 
       <ShareInstagramLinkModal visible={shareModalVisible} onClose={() => setShareModalVisible(false)} />
+      <NavDrawer visible={drawerVisible} onClose={() => setDrawerVisible(false)} />
     </View>
   );
 }

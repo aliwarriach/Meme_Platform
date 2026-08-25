@@ -209,7 +209,8 @@ async def stage_community_meme(
     community: Community,
     author_id: uuid.UUID,
     caption: str | None,
-    image: UploadFile,
+    image: UploadFile | None = None,
+    confirmed_image_public_id: str | None = None,
 ) -> Meme:
     """Uploads the image and stages the `Meme` + its derived `PostAudience` rows **without
     committing** — the caller owns the transaction. Split out of `create_community_meme` so
@@ -218,8 +219,21 @@ async def stage_community_meme(
     whenever the second call failed on a flaky mobile network.
 
     Membership must already be verified by the caller (it's what produces `community`).
+    Exactly one of `image` (legacy proxied upload) or `confirmed_image_public_id`
+    (Roadmap_Scaling.md A4's direct-upload path — already round-tripped through
+    `POST /media/upload-signature` and `confirm_pending_upload` by the time it gets here)
+    must be given.
     """
-    image_url, image_public_id = await validate_and_upload_image(image, folder="memes")
+    if confirmed_image_public_id is not None:
+        if image is not None:
+            raise InvalidImageSourceError(
+                "Provide either an image file or image_public_id, not both"
+            )
+        image_url, image_public_id = await confirm_pending_upload(author_id, confirmed_image_public_id)
+    elif image is not None:
+        image_url, image_public_id = await validate_and_upload_image(image, folder="memes")
+    else:
+        raise InvalidImageSourceError("An image file or image_public_id is required")
 
     meme = Meme(
         author_id=author_id,
@@ -458,6 +472,17 @@ async def get_community_feed(
     return await _paginated_feed(db, current_user, is_targeting_community, cursor, limit)
 
 
+async def get_author_posts(
+    db: AsyncSession, current_user: User, author_id: uuid.UUID, cursor: str | None, limit: int
+) -> FeedPage:
+    """Every non-deleted meme a user has authored (personal and community posts alike),
+    newest first — the Instagram-style profile grid. Access is gated by the caller
+    (`services/profiles.py`: self or an accepted friend only, before this ever runs) —
+    this query itself only filters down to that author's own memes."""
+    visibility = and_(Meme.author_id == author_id, Meme.deleted_at.is_(None))
+    return await _paginated_feed(db, current_user, visibility, cursor, limit)
+
+
 async def get_visible_meme(db: AsyncSession, current_user: User, meme_id: uuid.UUID) -> Meme:
     stmt = select(Meme).where(Meme.id == meme_id, meme_visibility_clause(current_user.id))
     result = await db.execute(stmt)
@@ -465,6 +490,20 @@ async def get_visible_meme(db: AsyncSession, current_user: User, meme_id: uuid.U
     if meme is None:
         raise MemeNotFoundError("Meme not found")
     return meme
+
+
+async def get_meme_detail(db: AsyncSession, current_user: User, meme_id: uuid.UUID) -> MemeOut:
+    """Single-post detail view — the profile grid's "tap to open" target. Goes through
+    `get_visible_meme`'s existing audience/block checks first (404 if not visible) before
+    building the response with `get_meme_out_for_viewer`, unlike that helper's other two
+    callers (feed merge, meme-sending) which only ever reach it with an id already known
+    to be visible — this is the one caller reachable with an arbitrary client-supplied id,
+    so the check can't be skipped here."""
+    await get_visible_meme(db, current_user, meme_id)
+    meme_out = await get_meme_out_for_viewer(db, meme_id, current_user.id)
+    if meme_out is None:
+        raise MemeNotFoundError("Meme not found")
+    return meme_out
 
 
 async def delete_meme(db: AsyncSession, current_user: User, meme_id: uuid.UUID) -> None:

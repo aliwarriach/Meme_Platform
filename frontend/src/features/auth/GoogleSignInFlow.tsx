@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useDispatch } from 'react-redux';
 
+import { DateField } from '@/components/DateField';
 import PillButton from '@/components/PillButton';
 import { TextField } from '@/components/TextField';
 import { isPendingRegistration } from '@/services/googleAuth';
@@ -95,13 +96,11 @@ export function GoogleSignInFlow() {
           onChangeText={setUsername}
           autoCapitalize="none"
         />
-        <TextField
-          label="Date of Birth (YYYY-MM-DD)"
-          placeholder="2000-01-31"
-          keyboardType="number-pad"
-          maxLength={10}
+        <DateField
+          label="Date of Birth"
+          placeholder="Select your date of birth"
           value={dateOfBirth}
-          onChangeText={setDateOfBirth}
+          onChange={setDateOfBirth}
         />
         {completeRegistration.isError ? (
           <Text className="mb-2 font-body text-xs text-error">

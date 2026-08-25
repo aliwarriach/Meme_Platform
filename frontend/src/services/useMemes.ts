@@ -24,6 +24,7 @@ import {
   createMemeRequest,
   getCommunityFeedRequest,
   getFeedRequest,
+  getMemeRequest,
   listCommentsRequest,
   recordMemeViewRequest,
   type AudienceType,
@@ -38,6 +39,7 @@ import {
 const memesRootKey = ['memes'] as const;
 const feedKey = ['memes', 'feed'] as const;
 const communityFeedKey = (communityId: string) => ['memes', 'community', communityId] as const;
+const memeKey = (memeId: string) => ['memes', memeId] as const;
 const commentsKey = (memeId: string) => ['memes', memeId, 'comments'] as const;
 
 const FEED_PAGE_SIZE = 20;
@@ -134,6 +136,18 @@ export function useCommunityFeed(communityId: string, enabled: boolean) {
     },
     getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
     enabled,
+  });
+}
+
+export function useMeme(memeId: string, enabled = true) {
+  return useQuery<MemeResponse, Error>({
+    queryKey: memeKey(memeId),
+    queryFn: async () => {
+      const response = await getMemeRequest(memeId);
+      if (!response.ok || !response.data) throwApiError(response, 'load post');
+      return response.data;
+    },
+    enabled: enabled && !!memeId,
   });
 }
 

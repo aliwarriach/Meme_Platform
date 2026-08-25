@@ -33,6 +33,7 @@ from app.routers import (
     memes,
     messaging,
     notifications,
+    profiles,
     templates,
 )
 from app.websockets.connection_manager import connection_manager
@@ -192,4 +193,5 @@ app.include_router(messaging.router)
 app.include_router(notifications.router)
 app.include_router(ai_caption.router)
 app.include_router(instagram.router)
+app.include_router(profiles.router)
 app.include_router(health.router)

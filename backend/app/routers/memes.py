@@ -60,6 +60,17 @@ async def get_feed(
     return await instagram_service.get_merged_feed(db, current_user, offset, limit)
 
 
+@router.get("/{meme_id}", response_model=MemeOut)
+async def get_meme(meme_id: uuid.UUID, current_user: CurrentUser, db: ReadDbSession) -> MemeOut:
+    """Single-post detail — the profile grid's "tap to open" target. 404s the same as
+    every other meme lookup for a nonexistent/deleted/not-visible-to-this-viewer id.
+    Registered after the literal `/feed` route above — FastAPI/Starlette matches routes
+    in registration order, so this catch-all `{meme_id}` path must come after every
+    literal GET path under `/memes` or it would shadow them (e.g. `GET /memes/feed`
+    would 422 trying to parse "feed" as a UUID instead of ever reaching `get_feed`)."""
+    return await memes_service.get_meme_detail(db, current_user, meme_id)
+
+
 @router.post("/{meme_id}/votes", response_model=VoteOut, status_code=201)
 @limiter.limit("60/minute")
 async def cast_vote(

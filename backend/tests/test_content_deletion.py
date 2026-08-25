@@ -1,6 +1,26 @@
+import app.services.media as media_service
 from httpx import AsyncClient
 
 from tests.conftest import auth_header, create_user
+
+
+def _fake_resource(bytes_: int = 1000, format_: str = "png"):
+    async def _get(public_id: str) -> dict:
+        return {
+            "bytes": bytes_,
+            "format": format_,
+            "secure_url": f"https://res.cloudinary.com/test/image/upload/{public_id}.{format_}",
+        }
+
+    return _get
+
+
+async def _issue_signature(client: AsyncClient, user: dict, context: str = "avatars") -> dict:
+    response = await client.post(
+        "/media/upload-signature", json={"context": context}, headers=auth_header(user)
+    )
+    assert response.status_code == 200
+    return response.json()
 
 
 def _meme_items(feed_body: dict) -> list[dict]:
@@ -144,3 +164,34 @@ async def test_update_profile_avatar(client: AsyncClient, mock_media_delete):
     assert second.status_code == 200
     # Replacing the avatar cleans up the old Cloudinary asset.
     assert len(mock_media_delete) == 1
+
+
+async def test_update_profile_avatar_via_direct_upload(
+    client: AsyncClient, mock_media_delete, monkeypatch
+):
+    """Roadmap_Scaling.md A4 — avatar upload migrated to the signed-upload pattern."""
+    alice = await create_user(client, "alice")
+    sig = await _issue_signature(client, alice)
+    monkeypatch.setattr(media_service, "get_image_resource", _fake_resource())
+
+    response = await client.patch(
+        "/auth/me", data={"avatar_public_id": sig["public_id"]}, headers=auth_header(alice)
+    )
+    assert response.status_code == 200
+    assert response.json()["avatar_url"] == (
+        f"https://res.cloudinary.com/test/image/upload/{sig['public_id']}.png"
+    )
+    assert len(mock_media_delete) == 0
+
+
+async def test_update_profile_avatar_rejects_both_file_and_public_id(client: AsyncClient):
+    alice = await create_user(client, "alice")
+
+    files = {"avatar": ("avatar.png", b"fake-bytes", "image/png")}
+    response = await client.patch(
+        "/auth/me",
+        files=files,
+        data={"avatar_public_id": "some-id"},
+        headers=auth_header(alice),
+    )
+    assert response.status_code == 400

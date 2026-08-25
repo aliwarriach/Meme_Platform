@@ -48,6 +48,7 @@ module.exports = {
         },
       ],
       'expo-sharing',
+      '@react-native-community/datetimepicker',
       ...(IS_PRODUCTION_BUILD
         ? []
         : [

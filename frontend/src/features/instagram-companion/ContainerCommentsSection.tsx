@@ -1,6 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useEffect, type RefObject } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Keyboard, Pressable, Text, View } from 'react-native';
 import { useThemeMode } from '@/constants/ThemeMode';
 
 import Avatar from '@/components/Avatar';
@@ -11,13 +12,26 @@ import { useAddContainerCommentMutation, useContainerComments } from '@/services
 
 interface ContainerCommentsSectionProps {
   containerId: string;
+  index?: number;
+  listRef?: RefObject<FlatList<any> | null>;
 }
 
-export function ContainerCommentsSection({ containerId }: ContainerCommentsSectionProps) {
+export function ContainerCommentsSection({ containerId, index, listRef }: ContainerCommentsSectionProps) {
   const { mode } = useThemeMode();
   const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const commentsQuery = useContainerComments(containerId, true);
   const addComment = useAddContainerCommentMutation(containerId);
+
+  // See CommentsSection.tsx (feed) for why this listens for keyboardDidShow rather than
+  // scrolling on tap: the scroll needs to happen after the KeyboardAvoidingView has actually
+  // shrunk the list, not before.
+  useEffect(() => {
+    if (!listRef) return;
+    const sub = Keyboard.addListener('keyboardDidShow', () => {
+      listRef.current?.scrollToIndex({ index: index ?? 0, animated: true, viewPosition: 1 });
+    });
+    return () => sub.remove();
+  }, [index, listRef]);
 
   const {
     control,

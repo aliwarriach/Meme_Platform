@@ -1,9 +1,29 @@
 import asyncio
 import datetime
 
+import app.services.media as media_service
 from httpx import AsyncClient
 
 from tests.conftest import auth_header, create_user
+
+
+def _fake_resource(bytes_: int = 1000, format_: str = "png"):
+    async def _get(public_id: str) -> dict:
+        return {
+            "bytes": bytes_,
+            "format": format_,
+            "secure_url": f"https://res.cloudinary.com/test/image/upload/{public_id}.{format_}",
+        }
+
+    return _get
+
+
+async def _issue_signature(client: AsyncClient, user: dict, context: str = "communities") -> dict:
+    response = await client.post(
+        "/media/upload-signature", json={"context": context}, headers=auth_header(user)
+    )
+    assert response.status_code == 200
+    return response.json()
 
 
 async def _create_community(
@@ -28,6 +48,47 @@ async def test_create_community_makes_owner_an_active_member(client: AsyncClient
     assert body["privacy"] == "open"
     assert body["member_count"] == 1
     assert body["viewer_membership_status"] == "active"
+
+
+async def test_create_community_icon_and_banner_via_direct_upload(
+    client: AsyncClient, monkeypatch
+):
+    """Roadmap_Scaling.md A4 — community icon/banner migrated to the signed-upload pattern."""
+    alice = await create_user(client, "alice")
+    icon_sig = await _issue_signature(client, alice)
+    banner_sig = await _issue_signature(client, alice)
+    monkeypatch.setattr(media_service, "get_image_resource", _fake_resource())
+
+    response = await client.post(
+        "/communities",
+        data={
+            "name": "Meme Lords",
+            "privacy": "open",
+            "icon_public_id": icon_sig["public_id"],
+            "banner_public_id": banner_sig["public_id"],
+        },
+        headers=auth_header(alice),
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["icon_url"] == (
+        f"https://res.cloudinary.com/test/image/upload/{icon_sig['public_id']}.png"
+    )
+    assert body["banner_url"] == (
+        f"https://res.cloudinary.com/test/image/upload/{banner_sig['public_id']}.png"
+    )
+
+
+async def test_create_community_icon_rejects_both_file_and_public_id(client: AsyncClient):
+    alice = await create_user(client, "alice")
+
+    response = await client.post(
+        "/communities",
+        files={"icon": ("icon.png", b"fake-bytes", "image/png")},
+        data={"name": "Meme Lords", "privacy": "open", "icon_public_id": "some-id"},
+        headers=auth_header(alice),
+    )
+    assert response.status_code == 400
 
 
 async def test_get_community_returns_detail_with_viewer_status(client: AsyncClient):

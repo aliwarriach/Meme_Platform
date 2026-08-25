@@ -1,6 +1,6 @@
 import { api } from '@/services/api';
 import type { PublicUserResponse } from '@/services/auth';
-import { appendImageToFormData } from '@/utils/multipartImage';
+import { uploadImageDirect } from '@/services/media';
 
 export interface TemplateResponse {
   id: string;
@@ -34,12 +34,15 @@ export async function createTemplateRequest(payload: {
   name: string;
   communityId?: string;
 }) {
+  // Roadmap_Scaling.md A4 — image bytes go straight to Cloudinary; only the confirmed
+  // public_id is sent to our own backend.
+  const imagePublicId = await uploadImageDirect(
+    { uri: payload.imageUri, name: payload.imageName, type: payload.imageType },
+    'templates'
+  );
+
   const form = new FormData();
-  await appendImageToFormData(form, 'image', {
-    uri: payload.imageUri,
-    name: payload.imageName,
-    type: payload.imageType,
-  });
+  form.append('image_public_id', imagePublicId);
   form.append('name', payload.name);
   if (payload.communityId) form.append('community_id', payload.communityId);
 

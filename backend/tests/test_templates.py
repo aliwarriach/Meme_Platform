@@ -1,6 +1,26 @@
+import app.services.media as media_service
 from httpx import AsyncClient
 
 from tests.conftest import auth_header, create_user
+
+
+def _fake_resource(bytes_: int = 1000, format_: str = "png"):
+    async def _get(public_id: str) -> dict:
+        return {
+            "bytes": bytes_,
+            "format": format_,
+            "secure_url": f"https://res.cloudinary.com/test/image/upload/{public_id}.{format_}",
+        }
+
+    return _get
+
+
+async def _issue_signature(client: AsyncClient, user: dict, context: str = "templates") -> dict:
+    response = await client.post(
+        "/media/upload-signature", json={"context": context}, headers=auth_header(user)
+    )
+    assert response.status_code == 200
+    return response.json()
 
 
 async def _post_template(
@@ -54,6 +74,42 @@ async def test_create_template_rejects_missing_name(client: AsyncClient):
     files = {"image": ("template.png", b"fake-bytes", "image/png")}
     response = await client.post("/templates", files=files, headers=auth_header(alice))
     assert response.status_code == 422
+
+
+async def test_create_template_via_direct_upload_confirms_and_creates(
+    client: AsyncClient, monkeypatch
+):
+    """Roadmap_Scaling.md A4 — `POST /templates` migrated to the signed-upload pattern."""
+    alice = await create_user(client, "alice")
+    sig = await _issue_signature(client, alice)
+    monkeypatch.setattr(media_service, "get_image_resource", _fake_resource())
+
+    response = await client.post(
+        "/templates",
+        data={"name": "drake", "image_public_id": sig["public_id"]},
+        headers=auth_header(alice),
+    )
+    assert response.status_code == 201
+    assert response.json()["image_url"] == (
+        f"https://res.cloudinary.com/test/image/upload/{sig['public_id']}.png"
+    )
+
+
+async def test_create_template_requires_exactly_one_image_source(client: AsyncClient):
+    alice = await create_user(client, "alice")
+
+    neither = await client.post(
+        "/templates", data={"name": "drake"}, headers=auth_header(alice)
+    )
+    assert neither.status_code == 400
+
+    both = await client.post(
+        "/templates",
+        files={"image": ("test.png", b"fake-bytes", "image/png")},
+        data={"name": "drake", "image_public_id": "some-id"},
+        headers=auth_header(alice),
+    )
+    assert both.status_code == 400
 
 
 async def test_list_templates_is_global_and_visible_to_any_authenticated_user(

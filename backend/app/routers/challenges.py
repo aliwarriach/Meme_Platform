@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, Form, UploadFile
 
 from app.core.deps import CurrentUser, DbSession
 from app.schemas.challenges import (
@@ -55,15 +55,18 @@ async def create_and_submit_to_challenge(
     challenge_id: uuid.UUID,
     current_user: CurrentUser,
     db: DbSession,
-    image: UploadFile = File(...),
+    image: UploadFile | None = None,
+    image_public_id: str | None = Form(None),
     caption: str | None = Form(None),
 ) -> ChallengeSubmissionOut:
     """Creates the meme and enters it into the challenge in one transaction. Distinct from
     the community-scoped `POST .../challenges/{id}/submissions?meme_id=`, which enters a
-    meme that already exists.
+    meme that already exists. `image` (legacy multipart upload) and `image_public_id`
+    (Roadmap_Scaling.md A4's direct-to-Cloudinary flow — confirm the `public_id` from
+    `POST /media/upload-signature`) are mutually exclusive; exactly one is required.
     """
     return await challenges_service.create_and_submit_to_challenge(
-        db, current_user, challenge_id, caption, image
+        db, current_user, challenge_id, caption, image, image_public_id=image_public_id
     )
 
 

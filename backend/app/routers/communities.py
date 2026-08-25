@@ -26,9 +26,16 @@ async def create_community(
     description: Annotated[str | None, Form(max_length=500)] = None,
     icon: UploadFile | None = None,
     banner: UploadFile | None = None,
+    icon_public_id: Annotated[str | None, Form()] = None,
+    banner_public_id: Annotated[str | None, Form()] = None,
 ) -> CommunityOut:
+    """`icon`/`banner` (legacy multipart upload) and `icon_public_id`/`banner_public_id`
+    (Roadmap_Scaling.md A4's direct-to-Cloudinary flow — confirm the `public_id` from
+    `POST /media/upload-signature`) are each independently optional, mutually exclusive
+    with their own file when given."""
     return await communities_service.create_community(
-        db, current_user, name, description, privacy, icon, banner
+        db, current_user, name, description, privacy, icon, banner,
+        icon_public_id=icon_public_id, banner_public_id=banner_public_id,
     )
 
 

@@ -1,6 +1,6 @@
 import { api } from '@/services/api';
 import type { PublicUserResponse } from '@/services/auth';
-import { appendImageToFormData } from '@/utils/multipartImage';
+import { uploadImageDirect } from '@/services/media';
 
 export type CommunityPrivacy = 'open' | 'invite_only';
 export type MembershipRole = 'owner' | 'member';
@@ -52,12 +52,19 @@ export async function createCommunityRequest(payload: {
   icon?: { uri: string; name: string; type: string };
   banner?: { uri: string; name: string; type: string };
 }) {
+  // Roadmap_Scaling.md A4 — image bytes go straight to Cloudinary; only the confirmed
+  // public_id is sent to our own backend. Icon/banner are each independently optional.
+  const [iconPublicId, bannerPublicId] = await Promise.all([
+    payload.icon ? uploadImageDirect(payload.icon, 'communities') : Promise.resolve(undefined),
+    payload.banner ? uploadImageDirect(payload.banner, 'communities') : Promise.resolve(undefined),
+  ]);
+
   const form = new FormData();
   form.append('name', payload.name);
   form.append('privacy', payload.privacy);
   if (payload.description) form.append('description', payload.description);
-  if (payload.icon) await appendImageToFormData(form, 'icon', payload.icon);
-  if (payload.banner) await appendImageToFormData(form, 'banner', payload.banner);
+  if (iconPublicId) form.append('icon_public_id', iconPublicId);
+  if (bannerPublicId) form.append('banner_public_id', bannerPublicId);
 
   return api.post<CommunityResponse>('/communities', form, {
     headers: { 'Content-Type': undefined },

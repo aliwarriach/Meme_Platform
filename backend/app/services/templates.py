@@ -5,25 +5,37 @@ from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import Select
 
+from app.core.exceptions import InvalidImageSourceError
 from app.core.pagination import decode_cursor, encode_cursor
 from app.models.template import Template
 from app.models.user import User
 from app.schemas.templates import TemplateOut, TemplatePage
 from app.services.communities import require_active_membership
-from app.services.media import validate_and_upload_image
+from app.services.media import confirm_pending_upload, validate_and_upload_image
 
 
 async def create_template(
     db: AsyncSession,
     current_user: User,
     name: str,
-    image: UploadFile,
+    image: UploadFile | None,
     community_id: uuid.UUID | None = None,
+    image_public_id: str | None = None,
 ) -> TemplateOut:
+    """`image` (legacy multipart upload) and `image_public_id` (Roadmap_Scaling.md A4's
+    direct-to-Cloudinary flow — confirm the `public_id` from
+    `POST /media/upload-signature`) are mutually exclusive; exactly one is required."""
     if community_id is not None:
         await require_active_membership(db, community_id, current_user.id)
 
-    image_url, image_public_id = await validate_and_upload_image(image, folder="templates")
+    if image_public_id is not None:
+        if image is not None:
+            raise InvalidImageSourceError("Provide either an image file or image_public_id, not both")
+        image_url, image_public_id = await confirm_pending_upload(current_user.id, image_public_id)
+    elif image is not None:
+        image_url, image_public_id = await validate_and_upload_image(image, folder="templates")
+    else:
+        raise InvalidImageSourceError("An image file or image_public_id is required")
 
     template = Template(
         uploader_id=current_user.id,

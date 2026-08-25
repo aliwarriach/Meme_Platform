@@ -1,4 +1,5 @@
 import { MaterialIcons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { useThemeMode } from '@/constants/ThemeMode';
 
@@ -14,14 +15,19 @@ interface FriendRowProps {
 }
 
 export function FriendRow({ friend, onRemove, isRemoving, onDuel }: FriendRowProps) {
+  const router = useRouter();
   const { mode } = useThemeMode();
   const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   return (
     <View className="flex-row items-center justify-between border-b border-outline-variant/20 px-4 py-3">
-      <View className="flex-row items-center gap-3">
-        <Avatar username={friend.user.username} size="md" />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Open ${friend.user.username}'s profile`}
+        onPress={() => router.push({ pathname: '/users/[id]', params: { id: friend.user.id } })}
+        className="flex-1 flex-row items-center gap-3">
+        <Avatar username={friend.user.username} avatarUrl={friend.user.avatar_url} size="md" />
         <Text className="font-title text-heading">{friend.user.username}</Text>
-      </View>
+      </Pressable>
       <View className="flex-row items-center gap-1">
         <Pressable
           accessibilityRole="button"
