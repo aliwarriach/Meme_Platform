@@ -4,7 +4,7 @@ import { uploadImageDirect } from '@/services/media';
 
 export type CommunityPrivacy = 'open' | 'invite_only';
 export type MembershipRole = 'owner' | 'member';
-export type MembershipStatus = 'pending' | 'active';
+export type MembershipStatus = 'pending' | 'active' | 'invited';
 
 export interface CommunityResponse {
   id: string;
@@ -34,12 +34,16 @@ export interface MembershipResponse {
   created_at: string;
 }
 
-export function getCommunitiesRequest(params: { cursor?: string; limit?: number }) {
+export function getCommunitiesRequest(params: { cursor?: string; limit?: number; q?: string }) {
   return api.get<CommunityPageResponse>('/communities', params);
 }
 
 export function getMyCommunitiesRequest() {
   return api.get<CommunityResponse[]>('/communities/mine');
+}
+
+export function getInvitedCommunitiesRequest() {
+  return api.get<CommunityResponse[]>('/communities/invited');
 }
 
 export function getCommunityRequest(communityId: string) {
@@ -97,6 +101,14 @@ export function updateCommunityBannerRequest(communityId: string, payload: Updat
   if (payload.kind === 'public_id') form.append('banner_public_id', payload.banner_public_id);
   else form.append('clear_banner', 'true');
   return api.patch<CommunityResponse>(`/communities/${communityId}`, form, {
+    headers: { 'Content-Type': undefined },
+  });
+}
+
+export function inviteToCommunityRequest(communityId: string, username: string) {
+  const form = new FormData();
+  form.append('username', username);
+  return api.post<MembershipResponse>(`/communities/${communityId}/invites`, form, {
     headers: { 'Content-Type': undefined },
   });
 }

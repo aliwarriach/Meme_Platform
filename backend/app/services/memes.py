@@ -25,7 +25,7 @@ from app.models.user import User
 from app.schemas.auth import PublicUserOut
 from app.schemas.memes import CommunityBadge, FeedPage, HotFeedPage, MemeOut, MemeViewOut
 from app.services.blocks import is_blocked_clause
-from app.services.communities import require_active_membership
+from app.services.communities import require_active_membership, require_membership_or_open_community
 from app.services.media import confirm_pending_upload, delete_uploaded_image, validate_and_upload_image
 from app.services.scoring import hot_score_expr
 
@@ -463,7 +463,10 @@ async def get_community_feed(
     cursor: str | None,
     limit: int,
 ) -> FeedPage:
-    await require_active_membership(db, community_id, current_user.id)
+    """Member-only for an invite-only community; an **open** community's feed is also
+    readable by a non-member browsing it (2026-08-27) — posting into it (`create_community_meme`
+    above) is deliberately unaffected and stays member-only regardless of privacy."""
+    await require_membership_or_open_community(db, community_id, current_user.id)
     is_targeting_community = exists().where(
         PostAudience.meme_id == Meme.id,
         PostAudience.audience_type == AudienceType.community,

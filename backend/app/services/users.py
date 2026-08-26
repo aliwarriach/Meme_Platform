@@ -85,3 +85,18 @@ async def get_user_by_email(db: AsyncSession, email: str) -> User | None:
 async def get_user_by_username(db: AsyncSession, username: str) -> User | None:
     result = await db.execute(select(User).where(User.username == username))
     return result.scalar_one_or_none()
+
+
+async def search_users(db: AsyncSession, current_user: User, query: str, limit: int) -> list[User]:
+    """Case-insensitive partial username match, e.g. for a community's "invite someone"
+    picker — never returns the caller themself. Deliberately simple (`ILIKE`, no ranking/
+    trigram index) at this scale; revisit if this ever needs to scale past a straightforward
+    prefix/substring search."""
+    stmt = (
+        select(User)
+        .where(User.username.ilike(f"%{query}%"), User.id != current_user.id, User.is_active.is_(True))
+        .order_by(User.username)
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    return list(result.scalars().all())

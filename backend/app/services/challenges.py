@@ -59,7 +59,7 @@ from app.models.challenge import Challenge, ChallengeStatus, ChallengeType
 from app.models.challenge_participant import ChallengeParticipant
 from app.models.challenge_side import ChallengeSide
 from app.models.challenge_submission import ChallengeSubmission
-from app.models.community import Community
+from app.models.community import Community, CommunityPrivacy
 from app.models.community_membership import CommunityMembership, MembershipStatus
 from app.models.hashtag import Hashtag, MemeHashtag
 from app.models.meme import Meme
@@ -80,7 +80,7 @@ from app.schemas.challenges import (
 )
 from app.services import friends as friends_service
 from app.services import notifications as notifications_service
-from app.services.communities import require_active_membership
+from app.services.communities import require_membership_or_open_community
 from app.services.hashtags import get_or_create_hashtag
 from app.services.memes import build_meme_out, stage_community_meme, stage_personal_meme
 from app.services.scoring import meme_score_expr
@@ -140,6 +140,18 @@ async def _require_involved_member(db: AsyncSession, challenge: Challenge, user_
     for community_id in community_ids:
         if await _is_active_member(db, community_id, user_id):
             return
+
+    # 2026-08-27 product decision: a non-member can still view (and, while active, submit
+    # an entry backing) a community_vs_community challenge if either participating
+    # community is open — browsing an open community you haven't joined shouldn't hide its
+    # inter-community challenges. Deliberately *not* extended to `intra_community`
+    # (team-vs-team) challenges, which stay member-only regardless of community privacy.
+    if challenge.challenge_type == ChallengeType.community_vs_community:
+        for community_id in community_ids:
+            community = await db.get(Community, community_id)
+            if community is not None and community.privacy == CommunityPrivacy.open:
+                return
+
     raise CommunityAccessDeniedError("Only members of a participating community can do this")
 
 
@@ -776,8 +788,16 @@ async def list_community_challenges(
     (`community_id`) or, for a community_vs_community proposal, as the challenged
     opponent (`opponent_community_id`) — including still-pending proposals awaiting this
     community owner's accept/decline.
+
+    A non-member of an **open** community sees a deliberately narrower slice: only
+    `community_vs_community` challenges (never `intra_community`/team ones — those stay
+    member-only) that are `active` (so they have something to submit into) or `evaluated`
+    (so they can browse results) — never a still-`setup` proposal, which is host-internal.
+    A non-member of an invite-only community is rejected entirely, same as before.
     """
-    await require_active_membership(db, community_id, current_user.id)
+    await require_membership_or_open_community(db, community_id, current_user.id)
+    is_member = await _is_active_member(db, community_id, current_user.id)
+
     result = await db.execute(
         select(Challenge)
         .where(
@@ -788,7 +808,17 @@ async def list_community_challenges(
         )
         .order_by(Challenge.created_at.desc())
     )
-    return [await _build_challenge_out(db, challenge) for challenge in result.scalars().all()]
+    challenges = list(result.scalars().all())
+
+    if not is_member:
+        challenges = [
+            c
+            for c in challenges
+            if c.challenge_type == ChallengeType.community_vs_community
+            and c.status in (ChallengeStatus.active, ChallengeStatus.evaluated)
+        ]
+
+    return [await _build_challenge_out(db, challenge) for challenge in challenges]
 
 
 async def _get_caller_side_intra_community(
@@ -812,6 +842,12 @@ async def _get_caller_side_vs_community(
     is whichever of the two participating communities they're an active member of. A
     member of *both* communities is rejected rather than silently picking one, since which
     side they're submitting for would be ambiguous.
+
+    2026-08-27: a caller who's a member of *neither* community isn't rejected outright
+    anymore — if exactly one of the two participating communities is **open**, they submit
+    for that one (backing an open community without having joined it). Still rejected if
+    neither community is open, or (kept genuinely ambiguous, same as the both-member case)
+    if both are open and they're a member of neither.
     """
     is_home_member = await _is_active_member(db, challenge.community_id, user_id)
     is_opponent_member = (
@@ -829,6 +865,22 @@ async def _get_caller_side_vs_community(
         if is_opponent_member
         else None
     )
+    if side_community_id is None:
+        home_community = await db.get(Community, challenge.community_id)
+        opponent_community = (
+            await db.get(Community, challenge.opponent_community_id)
+            if challenge.opponent_community_id is not None
+            else None
+        )
+        home_open = home_community is not None and home_community.privacy == CommunityPrivacy.open
+        opponent_open = (
+            opponent_community is not None and opponent_community.privacy == CommunityPrivacy.open
+        )
+        if home_open and not opponent_open:
+            side_community_id = challenge.community_id
+        elif opponent_open and not home_open:
+            side_community_id = challenge.opponent_community_id
+
     if side_community_id is None:
         raise NotChallengeParticipantError(
             "You aren't an active member of either community in this challenge"
@@ -997,8 +1049,12 @@ async def create_and_submit_to_challenge(
     else:
         # Membership (and the community's privacy, which decides whether the post also goes
         # public) is resolved *before* the Cloudinary upload, so a rejected submission never
-        # wastes an upload — same ordering as `create_community_meme`.
-        community = await require_active_membership(db, target_community_id, current_user.id)
+        # wastes an upload — same ordering as `create_community_meme`. Uses the relaxed
+        # open-community-accepts-non-members helper (not `require_active_membership`) since
+        # `_resolve_caller_side` above may have already let a non-member through for an
+        # open community's side of a community_vs_community challenge — this call must
+        # accept the same caller it just approved, not re-reject them here.
+        community = await require_membership_or_open_community(db, target_community_id, current_user.id)
         meme = await stage_community_meme(
             db, community, current_user.id, caption, image,
             confirmed_image_public_id=image_public_id,

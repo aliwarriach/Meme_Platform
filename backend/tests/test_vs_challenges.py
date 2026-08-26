@@ -172,6 +172,43 @@ async def test_both_communities_see_challenge_in_their_list(client: AsyncClient)
     assert home_list.json()[0]["id"] == opponent_list.json()[0]["id"]
 
 
+async def test_non_member_sees_only_active_or_evaluated_vs_challenges_for_an_open_community(
+    client: AsyncClient,
+):
+    alice = await create_user(client, "alice")
+    bob = await create_user(client, "bob")
+    outsider = await create_user(client, "outsider")
+    home = await _create_community(client, alice, "Home", privacy="open")
+    opponent = await _create_community(client, bob, "Opponent")
+    # Still in `setup` — proposed but not yet accepted.
+    setup_challenge = (await _propose(client, alice, home["id"], opponent["id"])).json()
+
+    response = await client.get(f"/communities/{home['id']}/challenges", headers=auth_header(outsider))
+    assert response.status_code == 200
+    # The still-`setup` proposal is host-internal — hidden from a non-member.
+    assert response.json() == []
+
+    await client.post(
+        f"/communities/{opponent['id']}/challenges/{setup_challenge['id']}/accept",
+        headers=auth_header(bob),
+    )
+    response = await client.get(f"/communities/{home['id']}/challenges", headers=auth_header(outsider))
+    assert len(response.json()) == 1
+    assert response.json()[0]["status"] == "active"
+
+
+async def test_non_member_of_invite_only_community_cannot_list_its_challenges(client: AsyncClient):
+    alice = await create_user(client, "alice")
+    bob = await create_user(client, "bob")
+    outsider = await create_user(client, "outsider")
+    home = await _create_community(client, alice, "Home", privacy="invite_only")
+    opponent = await _create_community(client, bob, "Opponent")
+    await _propose(client, alice, home["id"], opponent["id"])
+
+    response = await client.get(f"/communities/{home['id']}/challenges", headers=auth_header(outsider))
+    assert response.status_code == 403
+
+
 async def test_submission_requires_membership_in_one_participating_community(client: AsyncClient):
     alice = await create_user(client, "alice")
     bob = await create_user(client, "bob")
@@ -218,6 +255,53 @@ async def test_submission_requires_meme_posted_to_the_submitters_side_community(
         headers=auth_header(alice),
     )
     assert response.status_code == 400
+
+
+async def test_non_member_can_back_the_open_side_via_create_and_submit(client: AsyncClient):
+    """2026-08-27: browsing an open community you haven't joined still lets you submit an
+    entry backing it in a community_vs_community challenge, via the one-transaction
+    create-and-submit endpoint specifically (the two-step `submit_to_challenge` stays
+    practically unreachable for a genuine non-member, since it requires a meme that's
+    already a community post, and plain community-post creation is still member-only)."""
+    alice = await create_user(client, "alice")
+    bob = await create_user(client, "bob")
+    outsider = await create_user(client, "outsider")
+    home = await _create_community(client, alice, "Home", privacy="open")
+    opponent = await _create_community(client, bob, "Opponent", privacy="invite_only")
+    challenge = (await _propose(client, alice, home["id"], opponent["id"])).json()
+    await client.post(
+        f"/communities/{opponent['id']}/challenges/{challenge['id']}/accept",
+        headers=auth_header(bob),
+    )
+
+    response = await client.post(
+        f"/challenges/{challenge['id']}/submissions",
+        files={"image": ("test.png", b"fake-bytes", "image/png")},
+        data={"caption": "go team open!"},
+        headers=auth_header(outsider),
+    )
+    assert response.status_code == 201
+    assert response.json()["submitter"]["username"] == "outsider"
+
+
+async def test_non_member_cannot_back_a_side_when_neither_community_is_open(client: AsyncClient):
+    alice = await create_user(client, "alice")
+    bob = await create_user(client, "bob")
+    outsider = await create_user(client, "outsider")
+    home = await _create_community(client, alice, "Home", privacy="invite_only")
+    opponent = await _create_community(client, bob, "Opponent", privacy="invite_only")
+    challenge = (await _propose(client, alice, home["id"], opponent["id"])).json()
+    await client.post(
+        f"/communities/{opponent['id']}/challenges/{challenge['id']}/accept",
+        headers=auth_header(bob),
+    )
+
+    response = await client.post(
+        f"/challenges/{challenge['id']}/submissions",
+        files={"image": ("test.png", b"fake-bytes", "image/png")},
+        headers=auth_header(outsider),
+    )
+    assert response.status_code == 403
 
 
 async def test_full_vs_lifecycle_evaluates_and_awards_both_communities_members(client: AsyncClient):

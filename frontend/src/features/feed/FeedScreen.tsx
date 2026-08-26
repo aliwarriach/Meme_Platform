@@ -1,7 +1,7 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useThemeMode } from '@/constants/ThemeMode';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Platform, Pressable, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -24,8 +24,17 @@ export default function FeedScreen() {
   const [drawerVisible, setDrawerVisible] = useState(false);
   const { width } = useWindowDimensions();
   const showDesktopInbox = Platform.OS === 'web' && width >= DESKTOP_FRAME_MIN_WIDTH;
-  const { mode } = useThemeMode();
+  const { mode, refreshSystemScheme } = useThemeMode();
   const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+
+  // The "System" theme preference deliberately doesn't live-track OS appearance changes (see
+  // constants/ThemeMode.tsx) — it only re-reads the OS setting here, on the main feed's mount
+  // and pull-to-refresh, so an OS-level sunset/sunrise auto-switch mid-session doesn't flip the
+  // whole app's theme out from under the user while they're using it.
+  useEffect(() => {
+    refreshSystemScheme();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const items: MergedFeedItem[] = feedQuery.data?.pages.flatMap((page) => page.items) ?? [];
 
@@ -75,7 +84,10 @@ export default function FeedScreen() {
           isFetchingNextPage={feedQuery.isFetchingNextPage}
           onEndReached={() => feedQuery.fetchNextPage()}
           isRefetching={feedQuery.isRefetching}
-          onRefresh={() => feedQuery.refetch()}
+          onRefresh={() => {
+            refreshSystemScheme();
+            feedQuery.refetch();
+          }}
           emptyMessage="No memes yet — be the first to post"
         />
       </View>

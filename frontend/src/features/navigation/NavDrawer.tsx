@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import { Animated, Dimensions, Modal, Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
-import { useThemeMode } from '@/constants/ThemeMode';
+import { useThemeMode, type ThemePreference } from '@/constants/ThemeMode';
 
 import Avatar from '@/components/Avatar';
 import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
@@ -23,6 +23,12 @@ const LINKS: { label: string; href: string; icon: keyof typeof MaterialIcons.gly
   { label: 'Friends', href: '/friends', icon: 'people-outline' },
   { label: 'Communities', href: '/communities', icon: 'groups' },
   { label: 'Competitions', href: '/voting', icon: 'military-tech' },
+];
+
+const APPEARANCE_OPTIONS: { value: ThemePreference; label: string; icon: keyof typeof MaterialIcons.glyphMap }[] = [
+  { value: 'light', label: 'Light', icon: 'light-mode' },
+  { value: 'dark', label: 'Dark', icon: 'dark-mode' },
+  { value: 'system', label: 'System', icon: 'brightness-auto' },
 ];
 
 const DRAWER_WIDTH = Math.min(300, Dimensions.get('window').width * 0.8);
@@ -46,7 +52,7 @@ export function NavDrawer({ visible, onClose }: NavDrawerProps) {
   const router = useRouter();
   const dispatch = useDispatch<AppDispatch>();
   const insets = useSafeAreaInsets();
-  const { mode, toggleMode } = useThemeMode();
+  const { mode, preference, setPreference } = useThemeMode();
   const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const user = useSelector((state: RootState) => state.auth.user);
   const translateX = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
@@ -98,14 +104,30 @@ export function NavDrawer({ visible, onClose }: NavDrawerProps) {
             <Divider />
 
             <View className="gap-1 px-2">
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-                onPress={toggleMode}
-                className="min-h-[48px] flex-row items-center gap-3 rounded-card px-3">
-                <MaterialIcons name={mode === 'dark' ? 'light-mode' : 'dark-mode'} size={22} color={c.inkMuted} />
-                <Text className="font-title text-heading">{mode === 'dark' ? 'Light Mode' : 'Dark Mode'}</Text>
-              </Pressable>
+              <Text className="px-2 pb-1 pt-1 font-label text-xs uppercase tracking-wide text-ink-muted">
+                Appearance
+              </Text>
+              <View className="mb-1 flex-row items-center gap-1 rounded-full border border-outline-variant bg-surface-high/60 p-1">
+                {APPEARANCE_OPTIONS.map((option) => {
+                  const selected = preference === option.value;
+                  return (
+                    <Pressable
+                      key={option.value}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${option.label} mode`}
+                      accessibilityState={{ selected }}
+                      onPress={() => setPreference(option.value)}
+                      className={`min-h-[40px] flex-1 flex-row items-center justify-center gap-1 rounded-full ${
+                        selected ? 'bg-primary-container' : ''
+                      }`}>
+                      <MaterialIcons name={option.icon} size={16} color={selected ? c.white : c.inkMuted} />
+                      <Text className={`font-title text-xs ${selected ? 'text-white' : 'text-ink-muted'}`}>
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
 
               {LINKS.map((link) => (
                 <Pressable

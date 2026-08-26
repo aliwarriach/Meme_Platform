@@ -11,6 +11,7 @@ import {
   RefreshControl,
   ScrollView,
   Text,
+  TextInput,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -24,22 +25,21 @@ import { getAvatarPreset } from '@/constants/avatarPresets';
 import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import { ChallengeRow } from '@/features/challenges/components/ChallengeRow';
 import { AddCommunityTemplateModal } from '@/features/communities/components/AddCommunityTemplateModal';
+import { AddMembersModal } from '@/features/communities/components/AddMembersModal';
+import { CommunityRequestsModal } from '@/features/communities/components/CommunityRequestsModal';
 import { EditCommunityBannerModal } from '@/features/communities/components/EditCommunityBannerModal';
 import { EditCommunityIconModal } from '@/features/communities/components/EditCommunityIconModal';
-import { JoinRequestRow } from '@/features/communities/components/JoinRequestRow';
 import { MemberRow } from '@/features/communities/components/MemberRow';
 import { MemeFeedList } from '@/features/feed/components/MemeFeedList';
 import { IndividualLeaderboardRow } from '@/features/leaderboards/components/IndividualLeaderboardRow';
 import type { RootState } from '@/store/store';
 import { timeAgo } from '@/utils/timeAgo';
 import {
-  useApproveJoinRequestMutation,
   useCommunity,
   useJoinCommunityMutation,
   useJoinRequests,
   useLeaveCommunityMutation,
   useMembers,
-  useRejectJoinRequestMutation,
 } from '@/services/useCommunities';
 import { useCommunityFeed } from '@/services/useMemes';
 import { useInternalCommunityLeaderboard } from '@/services/useLeaderboards';
@@ -58,8 +58,12 @@ type Tab = 'feed' | 'members' | 'leaderboard' | 'challenges' | 'templates';
 // bump `ICON_SIZE`/`ICON_OVERLAP_FRACTION` to see the overlap amount change, or temporarily
 // set `DEBUG_HEADER_OUTLINES` (search below) to confirm each block is actually taking up the
 // space it's supposed to.
-const COVER_ASPECT_RATIO = 16 / 9; // Facebook mobile's cover-photo aspect ratio
-const ICON_SIZE = 88; // Instagram-mobile-style profile picture, 1:1 crop
+// Wider (shorter) than Facebook mobile's literal 16:9 — the cover was still taking up too
+// much of the screen at 2.2:1 by the user's own follow-up report; 3:1 keeps the same
+// full-bleed width but shortens it further still.
+const COVER_ASPECT_RATIO = 3;
+const ICON_SIZE = 108; // Instagram-mobile-style profile picture, 1:1 crop — bumped up from 88,
+// it read as small next to the rest of the header at that size.
 const ICON_OVERLAP_FRACTION = 0.5; // how far the icon overlaps up into the cover photo
 
 export default function CommunityDetailScreen({ communityId }: CommunityDetailScreenProps) {
@@ -69,6 +73,10 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
   const [addTemplateOpen, setAddTemplateOpen] = useState(false);
   const [editIconOpen, setEditIconOpen] = useState(false);
   const [editBannerOpen, setEditBannerOpen] = useState(false);
+  const [addMembersOpen, setAddMembersOpen] = useState(false);
+  const [requestsOpen, setRequestsOpen] = useState(false);
+  const [memberSearchInput, setMemberSearchInput] = useState('');
+  const [appliedMemberSearch, setAppliedMemberSearch] = useState('');
   const { mode } = useThemeMode();
   const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   // Explicit pixel height computed from the actual screen width, not a bare `aspectRatio`
@@ -88,18 +96,24 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
   const community = communityQuery.data;
   const isOwner = !!community && !!currentUser && community.owner.id === currentUser.id;
   const isMember = community?.viewer_membership_status === 'active';
+  // A non-member can still browse an **open** community's tabs read-only — Feed (no
+  // posting), Members (list only, no Add/Requests/search), Leaderboard (unrestricted),
+  // Challenges (community-vs-community only, never team challenges, no creating a new one).
+  // Templates stay hidden from a non-member no matter what (never included in `showTabs`'s
+  // options list below). An invite-only community shows nothing beyond the header/join
+  // button to a non-member, unchanged from before.
+  const canPreview = !!community && community.privacy === 'open' && !isMember;
+  const showTabs = isMember || canPreview;
 
   const joinRequestsQuery = useJoinRequests(communityId, isOwner);
-  const approveRequest = useApproveJoinRequestMutation(communityId);
-  const rejectRequest = useRejectJoinRequestMutation(communityId);
   const pendingRequestCount = joinRequestsQuery.data?.length ?? 0;
 
-  const feedQuery = useCommunityFeed(communityId, isMember && activeTab === 'feed');
+  const feedQuery = useCommunityFeed(communityId, showTabs && activeTab === 'feed');
   const memes: MemeResponse[] = feedQuery.data?.pages.flatMap((page) => page.items) ?? [];
 
   const leaderboardQuery = useInternalCommunityLeaderboard(
     communityId,
-    isMember && activeTab === 'leaderboard'
+    showTabs && activeTab === 'leaderboard'
   );
   const leaderboardEntries = leaderboardQuery.data?.pages.flatMap((page) => page.items) ?? [];
 
@@ -109,7 +123,7 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
   // exactly why challenges were going unnoticed. Falls back to tab-gated fetching otherwise.
   const challengesQuery = useCommunityChallenges(
     communityId,
-    isMember && (activeTab === 'challenges' || community?.has_active_challenge === true)
+    showTabs && (activeTab === 'challenges' || community?.has_active_challenge === true)
   );
   const activeChallenge = challengesQuery.data?.find((c) => c.status === 'active');
 
@@ -130,18 +144,19 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
     );
   }
 
-  // Owner-only: pending join requests live inside `header` below (visible on every tab once
-  // scrolled to top), but an owner deep in a long feed/leaderboard list has no way to know a
-  // request is waiting without scrolling back up. This badge stays pinned in the TopBar across
-  // every tab so moderation stays visible without competing with the feed/challenges content for
-  // top-of-screen space. Tapping it jumps to the Members tab, whose header remount lands the
-  // owner back at the join-requests block.
+  // Owner-only: pending join requests live in `CommunityRequestsModal` now (off the Members
+  // tab's "Requests" button), but an owner deep in a long feed/leaderboard list has no
+  // persistent signal a request is waiting. This badge stays pinned in the TopBar across every
+  // tab — tapping it jumps to the Members tab and opens the requests sheet directly.
   const pendingRequestsBadge =
     isOwner && pendingRequestCount > 0 ? (
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${pendingRequestCount} pending join request${pendingRequestCount === 1 ? '' : 's'}`}
-        onPress={() => setActiveTab('members')}
+        onPress={() => {
+          setActiveTab('members');
+          setRequestsOpen(true);
+        }}
         className="h-11 min-w-[44px] flex-row items-center justify-center gap-1 rounded-full bg-primary/20 px-3">
         <MaterialIcons name="person-add-alt" size={16} color={c.primaryDim} />
         <Text className="font-label text-xs text-primary-dim">{pendingRequestCount}</Text>
@@ -149,13 +164,10 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
     ) : null;
 
   const renderActionButton = () => {
-    if (isOwner) {
-      return (
-        <View className="items-center rounded-full border border-outline py-3">
-          <Text className="font-title text-heading">You own this community</Text>
-        </View>
-      );
-    }
+    // Owner sees no action button here at all — "You own this community" was a large,
+    // purely-informational block taking up prime header space for a fact the owner already
+    // knows; removed outright rather than replaced with anything.
+    if (isOwner) return null;
 
     if (community.viewer_membership_status === 'active') {
       return (
@@ -172,6 +184,26 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
       return (
         <View className="items-center rounded-full bg-surface-high py-3">
           <Text className="font-title text-ink-muted">Request Pending</Text>
+        </View>
+      );
+    }
+
+    if (community.viewer_membership_status === 'invited') {
+      return (
+        <View className="flex-row gap-3">
+          <PillButton
+            label={joinCommunity.isPending ? 'Joining…' : 'Accept Invite'}
+            className="flex-1"
+            onPress={() => joinCommunity.mutate()}
+            loading={joinCommunity.isPending}
+          />
+          <PillButton
+            label="Decline"
+            variant="outline"
+            className="flex-1"
+            onPress={() => leaveCommunity.mutate()}
+            loading={leaveCommunity.isPending}
+          />
         </View>
       );
     }
@@ -256,7 +288,7 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
         <View style={{ height: iconOverlap }} />
 
         <View className="mb-4 mt-3">
-          <Text className="font-heading text-xl text-heading">{community.name}</Text>
+          <Text className="font-heading text-2xl text-heading">{community.name}</Text>
           <View className="mt-1 flex-row items-center gap-2">
             <View className="rounded-full bg-surface-high px-3 py-1">
               <Text className="font-label text-xs text-ink-muted">
@@ -272,12 +304,12 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
           ) : null}
         </View>
 
-        <View className="mb-6">{renderActionButton()}</View>
+        {isOwner ? null : <View className="mb-6">{renderActionButton()}</View>}
 
       {/* Surfaces a live challenge on the Feed tab (the default landing tab) instead of
           requiring a tap into the Challenges chip to discover one exists — that tap-first
           requirement was the actual reason challenges were going unnoticed by members. */}
-      {isMember && activeTab === 'feed' && activeChallenge ? (
+      {showTabs && activeTab === 'feed' && activeChallenge ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Active challenge: ${activeChallenge.title}, ${activeChallenge.sides
@@ -306,49 +338,26 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
         </Pressable>
       ) : null}
 
-      {isOwner ? (
-        <View className="mb-6">
-          <View className="mb-2 flex-row items-center gap-2">
-            <Text className="font-label text-xs uppercase tracking-wide text-ink-muted">
-              Join requests
-            </Text>
-            {(joinRequestsQuery.data ?? []).length > 0 ? (
-              <View className="rounded-full bg-primary/20 px-2 py-0.5">
-                <Text className="font-label text-xs text-primary-dim">
-                  {joinRequestsQuery.data?.length} Pending
-                </Text>
-              </View>
-            ) : null}
-          </View>
-          {joinRequestsQuery.isLoading ? (
-            <ActivityIndicator color={c.inkMuted} />
-          ) : joinRequestsQuery.isError ? (
-            <Text className="font-body text-sm text-error">{joinRequestsQuery.error?.message}</Text>
-          ) : (joinRequestsQuery.data ?? []).length === 0 ? (
-            <Text className="font-body text-sm text-ink-muted">No pending requests</Text>
-          ) : (
-            joinRequestsQuery.data?.map((request) => (
-              <JoinRequestRow
-                key={request.id}
-                request={request}
-                isPending={approveRequest.isPending || rejectRequest.isPending}
-                onApprove={() => approveRequest.mutate(request.id)}
-                onReject={() => rejectRequest.mutate(request.id)}
-              />
-            ))
-          )}
-        </View>
-      ) : null}
-
-      {isMember ? (
+      {showTabs ? (
         <SegmentedControl
-          options={[
-            { key: 'feed', label: 'Feed' },
-            { key: 'members', label: 'Members' },
-            { key: 'leaderboard', label: 'Leaderboard' },
-            { key: 'challenges', label: 'Challenges' },
-            { key: 'templates', label: 'Templates' },
-          ]}
+          options={
+            isMember
+              ? [
+                  { key: 'feed', label: 'Feed' },
+                  { key: 'members', label: 'Members' },
+                  { key: 'leaderboard', label: 'Leaderboard' },
+                  { key: 'challenges', label: 'Challenges' },
+                  { key: 'templates', label: 'Templates' },
+                ]
+              : // Non-member preview of an open community — Templates never shows here,
+                // regardless of anything else.
+                [
+                  { key: 'feed', label: 'Feed' },
+                  { key: 'members', label: 'Members' },
+                  { key: 'leaderboard', label: 'Leaderboard' },
+                  { key: 'challenges', label: 'Challenges' },
+                ]
+          }
           value={activeTab}
           onChange={setActiveTab}
         />
@@ -416,10 +425,22 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
         communityId={community.id}
         hasBanner={!!community.banner_url}
       />
+      <AddMembersModal
+        visible={addMembersOpen}
+        onClose={() => setAddMembersOpen(false)}
+        communityId={community.id}
+      />
+      {isOwner ? (
+        <CommunityRequestsModal
+          visible={requestsOpen}
+          onClose={() => setRequestsOpen(false)}
+          communityId={community.id}
+        />
+      ) : null}
     </View>
   );
 
-  if (isMember && activeTab === 'feed') {
+  if (showTabs && activeTab === 'feed') {
     return (
       <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
         <TopBar title={community.name} showBack rightActions={pendingRequestsBadge} />
@@ -440,7 +461,7 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
     );
   }
 
-  if (isMember && activeTab === 'leaderboard') {
+  if (showTabs && activeTab === 'leaderboard') {
     return (
       <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
         <TopBar title={community.name} showBack rightActions={pendingRequestsBadge} />
@@ -483,7 +504,7 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
     );
   }
 
-  if (isMember && activeTab === 'challenges') {
+  if (showTabs && activeTab === 'challenges') {
     return (
       <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
         <TopBar title={community.name} showBack rightActions={pendingRequestsBadge} />
@@ -582,19 +603,72 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
     );
   }
 
+  const visibleMembers = (membersQuery.data ?? []).filter((member) =>
+    member.user.username.toLowerCase().includes(appliedMemberSearch.trim().toLowerCase())
+  );
+
   return (
     <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
       <TopBar title={community.name} showBack rightActions={pendingRequestsBadge} />
       <ScrollView className="flex-1">
         {header}
         <View className="px-6 pb-6">
+          {isMember ? (
+            <>
+              <View className="mb-3 flex-row gap-3">
+                <PillButton
+                  label="Add"
+                  accessibilityLabel="Add members"
+                  className="flex-1"
+                  onPress={() => setAddMembersOpen(true)}
+                />
+                {isOwner ? (
+                  <PillButton
+                    label={pendingRequestCount > 0 ? `Requests (${pendingRequestCount})` : 'Requests'}
+                    accessibilityLabel="View join requests"
+                    className="flex-1"
+                    onPress={() => setRequestsOpen(true)}
+                  />
+                ) : null}
+              </View>
+
+              <View className="mb-4 flex-row items-center gap-2">
+                <View className="flex-1 flex-row items-center gap-2 rounded-full border border-outline-variant bg-surface-high/60 px-4 py-2">
+                  <MaterialIcons name="search" size={18} color={c.inkMuted} />
+                  <TextInput
+                    value={memberSearchInput}
+                    onChangeText={setMemberSearchInput}
+                    onSubmitEditing={() => setAppliedMemberSearch(memberSearchInput)}
+                    placeholder="Search members"
+                    placeholderTextColor={c.outline}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    returnKeyType="search"
+                    className="flex-1 py-1 font-body text-base text-heading"
+                  />
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Search members"
+                  onPress={() => setAppliedMemberSearch(memberSearchInput)}
+                  className="h-11 w-11 items-center justify-center rounded-full bg-primary-container">
+                  <MaterialIcons name="search" size={18} color={c.white} />
+                </Pressable>
+              </View>
+            </>
+          ) : null}
+
           <Text className="mb-2 font-label text-xs uppercase tracking-wide text-ink-muted">Members</Text>
           {membersQuery.isLoading ? (
             <ActivityIndicator color={c.inkMuted} />
           ) : membersQuery.isError ? (
             <Text className="font-body text-sm text-ink-muted">{membersQuery.error?.message}</Text>
+          ) : visibleMembers.length === 0 ? (
+            <Text className="font-body text-sm text-ink-muted">
+              {appliedMemberSearch ? `No members match "${appliedMemberSearch}".` : 'No members yet'}
+            </Text>
           ) : (
-            membersQuery.data?.map((member) => <MemberRow key={member.id} membership={member} />)
+            visibleMembers.map((member) => <MemberRow key={member.id} membership={member} />)
           )}
         </View>
       </ScrollView>

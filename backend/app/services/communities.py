@@ -14,6 +14,7 @@ from app.core.exceptions import (
     InvalidAvatarPresetError,
     InvalidImageSourceError,
     NotCommunityOwnerError,
+    UserNotFoundError,
 )
 from app.core.pagination import decode_cursor, encode_cursor
 from app.models.challenge import Challenge, ChallengeStatus
@@ -23,7 +24,7 @@ from app.models.user import User
 from app.schemas.auth import PublicUserOut
 from app.schemas.communities import CommunityOut, CommunityPage, MembershipOut
 from app.services.media import confirm_pending_upload, delete_uploaded_image, validate_and_upload_image
-from app.services.users import ALLOWED_AVATAR_PRESETS
+from app.services.users import ALLOWED_AVATAR_PRESETS, get_user_by_username
 
 
 async def _resolve_optional_image(
@@ -67,6 +68,24 @@ async def _get_membership(
 def _require_owner(community: Community, current_user: User) -> None:
     if community.owner_id != current_user.id:
         raise NotCommunityOwnerError("Only the community owner can do this")
+
+
+async def require_membership_or_open_community(
+    db: AsyncSession, community_id: uuid.UUID, user_id: uuid.UUID
+) -> Community:
+    """Same as `require_active_membership` below, except an **open** community also accepts
+    a non-member. Used specifically for a non-member submitting a challenge entry to back an
+    open community's side in a community_vs_community challenge (2026-08-27 product
+    decision — see `services/challenges.py::create_and_submit_to_challenge`). Every other
+    community-post path (the generic `POST /communities/{id}/memes`, templates, etc.) stays
+    on `require_active_membership` alone, unchanged — this carve-out is deliberately narrow."""
+    community = await _get_community_or_404(db, community_id)
+    if community.privacy == CommunityPrivacy.open:
+        return community
+    membership = await _get_membership(db, community_id, user_id)
+    if membership is None or membership.status != MembershipStatus.active:
+        raise CommunityAccessDeniedError("Only members of this community can do this")
+    return community
 
 
 async def require_active_membership(
@@ -176,7 +195,7 @@ async def create_community(
 
 
 async def list_communities(
-    db: AsyncSession, current_user: User, cursor: str | None, limit: int
+    db: AsyncSession, current_user: User, cursor: str | None, limit: int, query: str | None = None
 ) -> CommunityPage:
     member_count_subq = (
         select(func.count(CommunityMembership.id))
@@ -203,6 +222,9 @@ async def list_communities(
         .order_by(Community.created_at.desc(), Community.id.desc())
         .limit(limit + 1)
     )
+
+    if query and query.strip():
+        stmt = stmt.where(Community.name.ilike(f"%{query.strip()}%"))
 
     if cursor:
         cursor_created_at, cursor_id = decode_cursor(cursor)
@@ -256,6 +278,42 @@ async def list_my_communities(db: AsyncSession, current_user: User) -> list[Comm
 
     return [
         _build_community_out(community, member_count, MembershipStatus.active, has_active_challenge)
+        for community, member_count, has_active_challenge in rows
+    ]
+
+
+async def list_invited_communities(db: AsyncSession, current_user: User) -> list[CommunityOut]:
+    """Communities that invited the caller (`services/communities.py::invite_to_community`)
+    who hasn't yet accepted (`join_community`) or declined (`leave_community`) — the
+    "Pending" tab on the communities list screen. Mirrors `list_my_communities`'s shape
+    exactly, just filtered to `invited` instead of `active`."""
+    member_count_subq = (
+        select(func.count(CommunityMembership.id))
+        .where(
+            CommunityMembership.community_id == Community.id,
+            CommunityMembership.status == MembershipStatus.active,
+        )
+        .correlate(Community)
+        .scalar_subquery()
+    )
+
+    active_challenge_subq = _active_challenge_exists_subq()
+
+    stmt = (
+        select(Community, member_count_subq, active_challenge_subq)
+        .join(CommunityMembership, CommunityMembership.community_id == Community.id)
+        .where(
+            CommunityMembership.user_id == current_user.id,
+            CommunityMembership.status == MembershipStatus.invited,
+        )
+        .order_by(Community.created_at.desc())
+    )
+
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    return [
+        _build_community_out(community, member_count, MembershipStatus.invited, has_active_challenge)
         for community, member_count, has_active_challenge in rows
     ]
 
@@ -361,6 +419,40 @@ async def update_community_media(
     return await get_community(db, current_user, community_id)
 
 
+async def invite_to_community(
+    db: AsyncSession, current_user: User, community_id: uuid.UUID, username: str
+) -> MembershipOut:
+    """Any active member (not owner-only — "Add Members" is a member-tab action, not an
+    owner-moderation one) can invite any other user, friend or not, by username. Creates an
+    `invited` row the target accepts via `join_community` or declines via `leave_community`.
+    `404` if the target username doesn't exist, `409` if they already have a membership row
+    of any status (already a member, already invited, or already have a pending request in)."""
+    await require_active_membership(db, community_id, current_user.id)
+
+    target = await get_user_by_username(db, username)
+    if target is None:
+        raise UserNotFoundError("No user with that username")
+
+    existing = await _get_membership(db, community_id, target.id)
+    if existing is not None:
+        raise AlreadyMemberOrRequestedError("This user already has a membership or request pending")
+
+    membership = CommunityMembership(
+        community_id=community_id,
+        user_id=target.id,
+        role=MembershipRole.member,
+        status=MembershipStatus.invited,
+    )
+    db.add(membership)
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise AlreadyMemberOrRequestedError("This user already has a membership or request pending") from None
+    await db.refresh(membership)
+    return MembershipOut.model_validate(membership)
+
+
 async def join_community(
     db: AsyncSession, current_user: User, community_id: uuid.UUID
 ) -> MembershipOut:
@@ -368,6 +460,13 @@ async def join_community(
 
     existing = await _get_membership(db, community_id, current_user.id)
     if existing is not None:
+        if existing.status == MembershipStatus.invited:
+            # Accepting an invite someone else sent — the same call a self-initiated joiner
+            # would make, just flipping the existing row instead of creating a new one.
+            existing.status = MembershipStatus.active
+            await db.commit()
+            await db.refresh(existing)
+            return MembershipOut.model_validate(existing)
         raise AlreadyMemberOrRequestedError("Already a member or a pending request exists")
 
     status_ = (
@@ -393,12 +492,16 @@ async def join_community(
 
 
 async def leave_community(db: AsyncSession, current_user: User, community_id: uuid.UUID) -> None:
+    """Also doubles as "cancel my own pending join request" and "decline an invite I
+    received" — all three are the same action from the data's point of view (delete my own
+    membership row, whatever its status), and reusing one endpoint for all three avoids a
+    separate decline/cancel endpoint per status."""
     community = await _get_community_or_404(db, community_id)
     if community.owner_id == current_user.id:
         raise CannotLeaveAsOwnerError("The owner cannot leave their own community")
 
     membership = await _get_membership(db, community_id, current_user.id)
-    if membership is None or membership.status != MembershipStatus.active:
+    if membership is None:
         raise CommunityMembershipNotFoundError("You are not a member of this community")
 
     await db.delete(membership)

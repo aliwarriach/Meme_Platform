@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { useThemeMode } from '@/constants/ThemeMode';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
@@ -15,13 +16,25 @@ interface JoinRequestRowProps {
 export function JoinRequestRow({ request, onApprove, onReject, isPending }: JoinRequestRowProps) {
   const { mode } = useThemeMode();
   const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  const router = useRouter();
 
   return (
     <View className="flex-row items-center border-b border-outline-variant/30 py-3">
-      <View className="mr-3">
-        <Avatar username={request.user.username} size="sm" />
-      </View>
-      <Text className="flex-1 font-body text-heading">{request.user.username}</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Open ${request.user.username}'s profile`}
+        onPress={() => router.push({ pathname: '/users/[id]', params: { id: request.user.id } })}
+        className="flex-1 flex-row items-center">
+        <View className="mr-3">
+          <Avatar
+            username={request.user.username}
+            avatarUrl={request.user.avatar_url}
+            avatarPreset={request.user.avatar_preset}
+            size="sm"
+          />
+        </View>
+        <Text className="flex-1 font-body text-heading">{request.user.username}</Text>
+      </Pressable>
       {isPending ? (
         <ActivityIndicator size="small" color={c.inkMuted} />
       ) : (

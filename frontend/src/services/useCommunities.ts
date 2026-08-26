@@ -6,9 +6,11 @@ import {
   createCommunityRequest,
   getCommunitiesRequest,
   getCommunityRequest,
+  getInvitedCommunitiesRequest,
   getJoinRequestsRequest,
   getMembersRequest,
   getMyCommunitiesRequest,
+  inviteToCommunityRequest,
   joinCommunityRequest,
   leaveCommunityRequest,
   rejectJoinRequestRequest,
@@ -22,30 +24,33 @@ import {
   type UpdateCommunityIconPayload,
 } from '@/services/communities';
 
-const discoverKey = ['communities', 'discover'] as const;
+const discoverKey = (query: string) => ['communities', 'discover', query] as const;
 const mineKey = ['communities', 'mine'] as const;
+const invitedKey = ['communities', 'invited'] as const;
 const communityKey = (communityId: string) => ['communities', communityId] as const;
 const membersKey = (communityId: string) => ['communities', communityId, 'members'] as const;
 const joinRequestsKey = (communityId: string) =>
   ['communities', communityId, 'join-requests'] as const;
 
 function invalidateCommunityLists(queryClient: ReturnType<typeof useQueryClient>) {
-  queryClient.invalidateQueries({ queryKey: discoverKey });
+  queryClient.invalidateQueries({ queryKey: ['communities', 'discover'] });
   queryClient.invalidateQueries({ queryKey: mineKey });
+  queryClient.invalidateQueries({ queryKey: invitedKey });
 }
 
-export function useDiscoverCommunities() {
+export function useDiscoverCommunities(query = '') {
+  const key = discoverKey(query);
   return useInfiniteQuery<
     CommunityPageResponse,
     Error,
     InfiniteData<CommunityPageResponse>,
-    typeof discoverKey,
+    typeof key,
     string | undefined
   >({
-    queryKey: discoverKey,
+    queryKey: key,
     initialPageParam: undefined,
     queryFn: async ({ pageParam }) => {
-      const response = await getCommunitiesRequest({ cursor: pageParam, limit: 20 });
+      const response = await getCommunitiesRequest({ cursor: pageParam, limit: 20, q: query || undefined });
       if (!response.ok || !response.data) throwApiError(response, 'load communities');
       return response.data;
     },
@@ -59,6 +64,19 @@ export function useMyCommunities() {
     queryFn: async () => {
       const response = await getMyCommunitiesRequest();
       if (!response.ok || !response.data) throwApiError(response, 'load your communities');
+      return response.data;
+    },
+  });
+}
+
+/** Communities that invited the viewer and haven't been accepted/declined yet — the
+ * "Pending" tab on the communities list screen. */
+export function useInvitedCommunities() {
+  return useQuery<CommunityResponse[], Error>({
+    queryKey: invitedKey,
+    queryFn: async () => {
+      const response = await getInvitedCommunitiesRequest();
+      if (!response.ok || !response.data) throwApiError(response, 'load invited communities');
       return response.data;
     },
   });
@@ -123,6 +141,20 @@ export function useUpdateCommunityBannerMutation(communityId: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: communityKey(communityId) });
       invalidateCommunityLists(queryClient);
+    },
+  });
+}
+
+export function useInviteToCommunityMutation(communityId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<MembershipResponse, Error, string>({
+    mutationFn: async (username) => {
+      const response = await inviteToCommunityRequest(communityId, username);
+      if (!response.ok || !response.data) throwApiError(response, 'invite to community');
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: membersKey(communityId) });
     },
   });
 }

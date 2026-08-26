@@ -22,6 +22,10 @@ interface ThemeModeContextValue {
   /** Flips the resolved mode to its explicit opposite — for the simple binary toggle buttons in
    * web's top bars. Never lands on `'system'`; use `setPreference('system')` for that. */
   toggleMode: () => void;
+  /** Re-reads the OS's current appearance. Only call this from a genuine "reload" moment (the
+   * main feed's mount, its pull-to-refresh) — see the no-live-tracking note below for why this
+   * isn't automatic. */
+  refreshSystemScheme: () => void;
   isHydrated: boolean;
 }
 
@@ -87,18 +91,22 @@ export function ThemeModeProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Live system-appearance tracking — always subscribed (not just while `preference === 'system'`)
-  // so switching *to* "Same as Device" never shows a stale scheme from before the switch.
-  useEffect(() => {
-    const subscription = Appearance.addChangeListener(({ colorScheme }) => {
-      setSystemScheme(colorScheme === 'light' ? 'light' : 'dark');
-    });
-    return () => subscription.remove();
-  }, []);
+  // Deliberately *not* a live `Appearance.addChangeListener` subscription — explicit product
+  // decision: if the OS flips light/dark while the app is already open (a sunset/sunrise
+  // automation firing mid-session), the app should keep rendering whatever it already resolved
+  // until the next genuine "reload" moment, not flicker the whole UI live. `refreshSystemScheme`
+  // below is that reload hook — wired to the main feed's mount + pull-to-refresh.
+  const refreshSystemScheme = () => {
+    setSystemScheme(Appearance.getColorScheme() === 'light' ? 'light' : 'dark');
+  };
 
   const mode = resolveMode(preference, systemScheme);
 
   const setPreference = (next: ThemePreference) => {
+    // Freshen immediately when the user explicitly picks "System" — otherwise switching to it
+    // could show a stale scheme from whenever the app last refreshed, which would look like the
+    // toggle itself did nothing.
+    if (next === 'system') refreshSystemScheme();
     setPreferenceState(next);
     setStoredThemePreference(next);
   };
@@ -106,7 +114,7 @@ export function ThemeModeProvider({ children }: { children: ReactNode }) {
   const toggleMode = () => setPreference(mode === 'dark' ? 'light' : 'dark');
 
   const value = useMemo<ThemeModeContextValue>(
-    () => ({ mode, preference, setPreference, toggleMode, isHydrated }),
+    () => ({ mode, preference, setPreference, toggleMode, refreshSystemScheme, isHydrated }),
     [mode, preference, isHydrated]
   );
 
