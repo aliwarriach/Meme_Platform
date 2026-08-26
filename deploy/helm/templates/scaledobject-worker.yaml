@@ -1,0 +1,39 @@
+{{- if .Values.worker.autoscaling.enabled }}
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: worker-metrics-auth
+spec:
+  secretTargetRef:
+    - parameter: apiKey
+      name: {{ .Values.secretName }}
+      key: INTERNAL_METRICS_TOKEN
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: worker
+  labels:
+    {{- include "meme-platform.labels" . | nindent 4 }}
+    app: worker
+spec:
+  scaleTargetRef:
+    name: worker
+  minReplicaCount: {{ .Values.worker.autoscaling.minReplicaCount }}
+  maxReplicaCount: {{ .Values.worker.autoscaling.maxReplicaCount }}
+  triggers:
+    - type: metrics-api
+      metadata:
+        # In-cluster Service DNS - a pod-to-pod poll, never internet-routed. No
+        # `worker` Service exists (arq has no HTTP surface of its own, see
+        # service-api.yaml's comment), so this polls the `api` Service instead - any
+        # api pod can answer it, since GET /internal/metrics/arq-queue-depth just
+        # reads Redis, it isn't api-pod-local state.
+        url: "http://api.default.svc.cluster.local/internal/metrics/arq-queue-depth"
+        valueLocation: "depth"
+        targetValue: {{ .Values.worker.autoscaling.queueDepthPerReplica | quote }}
+        authMode: "apiKey"
+        keyParamName: "X-Internal-Token"
+      authenticationRef:
+        name: worker-metrics-auth
+{{- end }}

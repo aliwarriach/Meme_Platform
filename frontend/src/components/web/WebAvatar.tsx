@@ -1,13 +1,16 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
 import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { getAvatarPreset } from '@/constants/avatarPresets';
 import type { VaporwaveTheme } from '@/constants/webFeedThemeVapor';
 import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 
 interface WebAvatarProps {
   username: string;
   avatarUrl?: string | null;
+  avatarPreset?: string | null;
   size?: number;
 }
 
@@ -26,7 +29,7 @@ function hashUsername(username: string, paletteSize: number): number {
  * hash of the username (one flat brand-pink fill previously), light/dark aware. Not a reskin of
  * the shared `components/Avatar.tsx` (that file is native-resolved); this is a standalone
  * equivalent scoped to the web feed tree. */
-export default function WebAvatar({ username, avatarUrl, size = 36 }: WebAvatarProps) {
+export default function WebAvatar({ username, avatarUrl, avatarPreset, size = 36 }: WebAvatarProps) {
   const { colors: FEED_WEB_COLORS, fontStack } = useVaporwaveTheme();
   const fallbackColor = FEED_WEB_COLORS.avatarPalette[hashUsername(username, FEED_WEB_COLORS.avatarPalette.length)];
   const styles = useMemo(
@@ -37,6 +40,19 @@ export default function WebAvatar({ username, avatarUrl, size = 36 }: WebAvatarP
 
   if (avatarUrl) {
     return <Image source={{ uri: avatarUrl }} style={[styles.image, dimension]} />;
+  }
+
+  const preset = getAvatarPreset(avatarPreset);
+  if (preset) {
+    return (
+      <LinearGradient
+        colors={preset.gradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.fallback, dimension, { backgroundColor: undefined }]}>
+        <Text style={{ fontSize: size * 0.5 }}>{preset.emoji}</Text>
+      </LinearGradient>
+    );
   }
 
   return (

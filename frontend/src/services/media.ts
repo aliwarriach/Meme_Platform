@@ -19,6 +19,14 @@ function requestUploadSignatureRequest(context: UploadContext) {
   return api.post<UploadSignatureResponse>('/media/upload-signature', { context });
 }
 
+async function issueUploadSignature(context: UploadContext): Promise<UploadSignatureResponse> {
+  const sigResponse = await requestUploadSignatureRequest(context);
+  if (!sigResponse.ok || !sigResponse.data) {
+    throwApiError(sigResponse, 'request upload signature');
+  }
+  return sigResponse.data;
+}
+
 export interface ImageFile {
   uri: string;
   name: string;
@@ -33,11 +41,7 @@ export interface ImageFile {
  * `image_public_id`/`icon_public_id`/`avatar_public_id` field.
  */
 export async function uploadImageDirect(image: ImageFile, context: UploadContext): Promise<string> {
-  const sigResponse = await requestUploadSignatureRequest(context);
-  if (!sigResponse.ok || !sigResponse.data) {
-    throwApiError(sigResponse, 'request upload signature');
-  }
-  const sig = sigResponse.data;
+  const sig = await issueUploadSignature(context);
 
   const form = new FormData();
   await appendImageToFormData(form, 'file', image);

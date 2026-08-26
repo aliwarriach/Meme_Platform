@@ -31,6 +31,7 @@ Thumbs.db
 *.tfvars
 *.tfvars.json
 !*.tfvars.example
+*.tfplan
 crash.log
 crash.*.log
 

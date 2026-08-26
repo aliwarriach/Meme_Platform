@@ -12,10 +12,14 @@ import {
   joinCommunityRequest,
   leaveCommunityRequest,
   rejectJoinRequestRequest,
+  updateCommunityBannerRequest,
+  updateCommunityIconRequest,
   type CommunityPageResponse,
   type CommunityPrivacy,
   type CommunityResponse,
   type MembershipResponse,
+  type UpdateCommunityBannerPayload,
+  type UpdateCommunityIconPayload,
 } from '@/services/communities';
 
 const discoverKey = ['communities', 'discover'] as const;
@@ -90,6 +94,36 @@ export function useCreateCommunityMutation() {
       return response.data;
     },
     onSuccess: () => invalidateCommunityLists(queryClient),
+  });
+}
+
+export function useUpdateCommunityIconMutation(communityId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<CommunityResponse, Error, UpdateCommunityIconPayload>({
+    mutationFn: async (payload) => {
+      const response = await updateCommunityIconRequest(communityId, payload);
+      if (!response.ok || !response.data) throwApiError(response, 'update community icon');
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: communityKey(communityId) });
+      invalidateCommunityLists(queryClient);
+    },
+  });
+}
+
+export function useUpdateCommunityBannerMutation(communityId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<CommunityResponse, Error, UpdateCommunityBannerPayload>({
+    mutationFn: async (payload) => {
+      const response = await updateCommunityBannerRequest(communityId, payload);
+      if (!response.ok || !response.data) throwApiError(response, 'update community banner');
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: communityKey(communityId) });
+      invalidateCommunityLists(queryClient);
+    },
   });
 }
 

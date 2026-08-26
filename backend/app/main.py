@@ -27,6 +27,7 @@ from app.routers import (
     hashtags,
     health,
     instagram,
+    internal_metrics,
     leaderboards,
     media,
     meme_sending,
@@ -195,3 +196,4 @@ app.include_router(ai_caption.router)
 app.include_router(instagram.router)
 app.include_router(profiles.router)
 app.include_router(health.router)
+app.include_router(internal_metrics.router)

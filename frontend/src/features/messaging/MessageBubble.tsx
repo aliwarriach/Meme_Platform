@@ -1,6 +1,7 @@
 import { Image } from 'expo-image';
 import { format } from 'date-fns';
-import { Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Pressable, Text, View } from 'react-native';
 
 import type { MessageResponse } from '@/services/messaging';
 
@@ -12,6 +13,8 @@ interface MessageBubbleProps {
 }
 
 export default function MessageBubble({ message, isOwn, isPending }: MessageBubbleProps) {
+  const router = useRouter();
+
   return (
     <View className={`px-4 py-1 ${isOwn ? 'items-end' : 'items-start'}`}>
       <View
@@ -20,7 +23,11 @@ export default function MessageBubble({ message, isOwn, isPending }: MessageBubb
         } ${isPending ? 'opacity-50' : ''}`}>
         {message.kind === 'meme' ? (
           message.meme ? (
-            <View accessibilityLabel={`Meme from ${message.sender.username}`}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Open meme from ${message.sender.username}`}
+              disabled={isPending}
+              onPress={() => router.push({ pathname: '/memes/[id]', params: { id: message.meme!.id } })}>
               <Image
                 source={{ uri: message.meme.image_url }}
                 style={{ width: 220, aspectRatio: 4 / 5 }}
@@ -29,7 +36,7 @@ export default function MessageBubble({ message, isOwn, isPending }: MessageBubb
               {message.meme.caption ? (
                 <Text className="px-3 py-2 font-body text-sm text-ink">{message.meme.caption}</Text>
               ) : null}
-            </View>
+            </Pressable>
           ) : (
             <Text className="px-3 py-2 font-body text-sm italic text-ink-muted">
               {isPending ? 'Sending meme…' : 'This meme is no longer available'}

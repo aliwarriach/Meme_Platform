@@ -1,0 +1,15 @@
+# Roadmap_Scaling.md C4 step 5 — same reasoning as pdb-api.yaml, doubly important
+# here: a realtime pod taken down by consolidation/spot reclaim with nothing left to
+# absorb its connections means severed live sockets, not just a slower response.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: realtime
+  labels:
+    {{- include "meme-platform.labels" . | nindent 4 }}
+    app: realtime
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: realtime

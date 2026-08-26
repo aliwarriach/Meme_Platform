@@ -64,7 +64,12 @@ export function MemeCard({ meme, index = 0, listRef }: MemeCardProps) {
           onPress={() => router.push({ pathname: '/users/[id]', params: { id: meme.author.id } })}
           className="flex-1 flex-row items-center">
           <View className="mr-3">
-            <Avatar username={meme.author.username} avatarUrl={meme.author.avatar_url} size="sm" />
+            <Avatar
+              username={meme.author.username}
+              avatarUrl={meme.author.avatar_url}
+              avatarPreset={meme.author.avatar_preset}
+              size="sm"
+            />
           </View>
           <View className="flex-1">
             <Text className="font-title text-sm text-heading">{meme.author.username}</Text>

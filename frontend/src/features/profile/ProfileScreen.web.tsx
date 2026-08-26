@@ -114,7 +114,12 @@ export default function ProfileScreen({ userId, isOwnProfile }: ProfileScreenPro
           ListHeaderComponent={
             <View style={styles.header}>
               <View style={styles.identityRow}>
-                <WebAvatar username={profile.user.username} avatarUrl={profile.user.avatar_url} size={88} />
+                <WebAvatar
+                  username={profile.user.username}
+                  avatarUrl={profile.user.avatar_url}
+                  avatarPreset={profile.user.avatar_preset}
+                  size={88}
+                />
                 <View style={styles.statsRow}>
                   <WebScoreCard label="Meme Score" value={profile.score} isLoading={false} icon="military-tech" />
                   <WebScoreCard
@@ -293,8 +298,10 @@ const createStyles = (colors: VaporwaveTheme['colors'], spacing: VaporwaveTheme[
     badgesRow: {
       flexDirection: 'row',
       flexWrap: 'wrap',
+      justifyContent: 'flex-start',
       gap: spacing.sm,
       marginTop: spacing.md,
+      marginBottom: spacing.lg,
     },
     badgeChip: {
       flexDirection: 'row',

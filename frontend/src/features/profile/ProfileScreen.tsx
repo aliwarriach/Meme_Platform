@@ -12,6 +12,7 @@ import PillButton from '@/components/PillButton';
 import TopBar from '@/components/TopBar';
 import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import { EmailVerificationBanner } from '@/features/auth/EmailVerificationBanner';
+import { EditAvatarModal } from '@/features/profile/components/EditAvatarModal';
 import type { BadgeResponse } from '@/services/badges';
 import type { MemeResponse } from '@/services/memes';
 import { useSendFriendRequestMutation } from '@/services/useFriends';
@@ -43,7 +44,7 @@ function BadgesRow({ badges }: { badges: BadgeResponse[] }) {
   const overflow = badges.length - visible.length;
 
   return (
-    <View className="mt-4 w-full flex-row flex-wrap items-center gap-2">
+    <View className="mt-4 mb-3 w-full flex-row flex-wrap justify-start items-center gap-2">
       {visible.map((badge) => (
         <View key={badge.id} className="flex-row items-center gap-1.5 rounded-full bg-accent-gold px-3 py-1.5">
           <MaterialIcons name="emoji-events" size={14} color={c.onAccentInk} />
@@ -77,6 +78,7 @@ export default function ProfileScreen({ userId, isOwnProfile }: ProfileScreenPro
   const postsQuery = useUserPosts(userId, postsUnlocked);
   const sendFriendRequest = useSendFriendRequestMutation();
   const [requestSent, setRequestSent] = useState(false);
+  const [editAvatarVisible, setEditAvatarVisible] = useState(false);
 
   const posts: MemeResponse[] = postsQuery.data?.pages.flatMap((page) => page.items) ?? [];
 
@@ -126,8 +128,31 @@ export default function ProfileScreen({ userId, isOwnProfile }: ProfileScreenPro
         ListHeaderComponent={
           <View className="px-6 pb-4 pt-4">
             <View className="flex-row items-center">
-              <Avatar username={profile.user.username} avatarUrl={profile.user.avatar_url} size="xl" />
-              <View className="ml-5 flex-1 flex-row items-center justify-around rounded-card border border-outline-variant/30 bg-surface py-3">
+              {isOwnProfile ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Change profile photo"
+                  onPress={() => setEditAvatarVisible(true)}>
+                  <Avatar
+                    username={profile.user.username}
+                    avatarUrl={profile.user.avatar_url}
+                    avatarPreset={profile.user.avatar_preset}
+                    size="xl"
+                  />
+                  <View
+                    className="absolute -bottom-1 -right-1 h-6 w-6 items-center justify-center rounded-full border-2 border-bg bg-primary-container">
+                    <MaterialIcons name="photo-camera" size={12} color={c.white} />
+                  </View>
+                </Pressable>
+              ) : (
+                <Avatar
+                  username={profile.user.username}
+                  avatarUrl={profile.user.avatar_url}
+                  avatarPreset={profile.user.avatar_preset}
+                  size="xl"
+                />
+              )}
+              <View className="ml-5 flex-1 flex-row items-center justify-around py-3">
                 <StatCell label="Meme Score" value={profile.score} />
                 <StatCell label="Badges" value={profile.badge_count} />
                 <StatCell label="Friends" value={profile.friend_count} />
@@ -209,6 +234,14 @@ export default function ProfileScreen({ userId, isOwnProfile }: ProfileScreenPro
       />
 
       {isOwnProfile ? <FloatingBottomNav active="profile" /> : null}
+
+      {isOwnProfile ? (
+        <EditAvatarModal
+          visible={editAvatarVisible}
+          onClose={() => setEditAvatarVisible(false)}
+          hasAvatar={!!profile.user.avatar_url || !!profile.user.avatar_preset}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }

@@ -2,9 +2,9 @@ import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/d
 import { format, parse } from 'date-fns';
 import { useState } from 'react';
 import { useThemeMode } from '@/constants/ThemeMode';
-import { BlurView } from 'expo-blur';
-import { Modal, Platform, Pressable, Text, View } from 'react-native';
+import { Platform, Pressable, Text, View } from 'react-native';
 
+import { BottomSheet } from '@/components/BottomSheet';
 import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 
 interface DateFieldProps {
@@ -70,35 +70,33 @@ export function DateField({ label, value, onChange, error, placeholder, maximumD
       {error ? <Text className="mt-1 font-body text-xs text-error">{error}</Text> : null}
 
       {Platform.OS === 'ios' ? (
-        <Modal visible={iosPickerOpen} animationType="slide" transparent onRequestClose={() => setIosPickerOpen(false)}>
-          <View className="flex-1 justify-end bg-black/60">
-            <BlurView intensity={60} tint="dark" className="overflow-hidden rounded-t-card border-t border-outline-variant/40 bg-surface/85 p-4">
-              <View className="mb-2 flex-row items-center justify-between">
-                <Pressable accessibilityRole="button" accessibilityLabel="Cancel" onPress={() => setIosPickerOpen(false)}>
-                  <Text className="font-body text-ink-muted">Cancel</Text>
-                </Pressable>
-                <Text className="font-title text-heading">{label}</Text>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Confirm date"
-                  onPress={() => {
-                    onChange(format(iosDraft, DATE_FORMAT));
-                    setIosPickerOpen(false);
-                  }}>
-                  <Text className="font-title text-primary-dim">Done</Text>
-                </Pressable>
-              </View>
-              <DateTimePicker
-                value={iosDraft}
-                mode="date"
-                display="spinner"
-                maximumDate={maxDate}
-                onChange={(_, selected) => selected && setIosDraft(selected)}
-                textColor={c.heading}
-              />
-            </BlurView>
+        <BottomSheet visible={iosPickerOpen} onClose={() => setIosPickerOpen(false)} maxHeightPercent={60}>
+          <View className="border-t border-outline-variant/30 bg-bg p-4">
+            <View className="mb-2 flex-row items-center justify-between">
+              <Pressable accessibilityRole="button" accessibilityLabel="Cancel" onPress={() => setIosPickerOpen(false)}>
+                <Text className="font-body text-ink-muted">Cancel</Text>
+              </Pressable>
+              <Text className="font-title text-heading">{label}</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Confirm date"
+                onPress={() => {
+                  onChange(format(iosDraft, DATE_FORMAT));
+                  setIosPickerOpen(false);
+                }}>
+                <Text className="font-title text-primary-dim">Done</Text>
+              </Pressable>
+            </View>
+            <DateTimePicker
+              value={iosDraft}
+              mode="date"
+              display="spinner"
+              maximumDate={maxDate}
+              onChange={(_, selected) => selected && setIosDraft(selected)}
+              textColor={c.heading}
+            />
           </View>
-        </Modal>
+        </BottomSheet>
       ) : null}
     </View>
   );

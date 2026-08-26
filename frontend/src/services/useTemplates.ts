@@ -31,7 +31,7 @@ export function useTemplates() {
   });
 }
 
-export function useCommunityTemplates(communityId: string) {
+export function useCommunityTemplates(communityId: string, enabled = true) {
   const queryKey = communityTemplatesKey(communityId);
   return useInfiniteQuery<
     TemplatePageResponse,
@@ -51,6 +51,7 @@ export function useCommunityTemplates(communityId: string) {
       return response.data;
     },
     getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
+    enabled: enabled && !!communityId,
   });
 }
 

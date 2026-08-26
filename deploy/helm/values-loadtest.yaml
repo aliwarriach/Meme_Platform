@@ -1,0 +1,22 @@
+# Load-test scale profile. Swapping to this file with one `-f` flag is what makes
+# repeated load testing (D1/D2) cheap enough to actually do.
+#
+# Since C4, api/worker autoscale by default (HPA/KEDA), so their `replicaCount` below
+# is inert — the Deployment omits a fixed `replicas:` field entirely once autoscaling
+# is enabled (see values.yaml's comment on why: a Helm upgrade reasserting a fixed
+# count would fight the autoscaler on every deploy). This profile now raises the
+# *ceiling* instead, so a D1/D2 load test genuinely exercises live HPA/KEDA/Karpenter
+# behavior under real ramping load — matching what production will actually do —
+# rather than a static pod count that tests something the real deployment never does.
+api:
+  replicaCount: 70
+  autoscaling:
+    maxReplicas: 70
+realtime:
+  # Still the static profile until C4's image rebuild lands and
+  # realtime.autoscaling.enabled flips to true (values.yaml) — see that file's comment.
+  replicaCount: 10
+worker:
+  replicaCount: 5
+  autoscaling:
+    maxReplicaCount: 10

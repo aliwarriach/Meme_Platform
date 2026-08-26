@@ -58,7 +58,12 @@ export function WebMemeCard({ meme }: WebMemeCardProps) {
           accessibilityLabel={`Open ${meme.author.username}'s profile`}
           onPress={() => router.push({ pathname: '/users/[id]', params: { id: meme.author.id } })}
           style={styles.headerIdentity}>
-          <WebAvatar username={meme.author.username} avatarUrl={meme.author.avatar_url} size={36} />
+          <WebAvatar
+            username={meme.author.username}
+            avatarUrl={meme.author.avatar_url}
+            avatarPreset={meme.author.avatar_preset}
+            size={36}
+          />
           <View style={styles.headerText}>
             <Text style={[FEED_WEB_TYPE.title, styles.heading]}>{meme.author.username}</Text>
             {meme.community ? (

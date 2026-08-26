@@ -1,0 +1,115 @@
+# Shared defaults for all three roles. Scale profiles (replica counts) live in
+# values-dev.yaml / values-loadtest.yaml — swap with `-f`, not by editing this file.
+image:
+  # infra/persistent/ecr.tf's aws_ecr_repository.api — same image A6 builds, C1's
+  # CodeBuild workaround pushes here.
+  repository: 258032683838.dkr.ecr.us-east-1.amazonaws.com/meme-platform/api
+  tag: latest
+  # Always, not IfNotPresent: :latest is this project's one mutable rolling build tag
+  # (no versioned tags anywhere in the B3/C1/C4 image workflow), so a node that already
+  # cached an older :latest must still re-pull after a fresh push. IfNotPresent here
+  # would silently keep serving stale code on any node that already had the tag
+  # cached — this is exactly what Kubernetes' own unset-pullPolicy default (Always for
+  # a :latest tag) exists to prevent; setting it explicitly would have overridden that
+  # protection.
+  pullPolicy: Always
+
+# infra/ephemeral/secrets.tf's kubernetes_secret.app_secrets — DATABASE_URL/REDIS_URL
+# derived from the persistent stack's live endpoints, JWT/Cloudinary/Groq/Google from
+# the gitignored tfvars. All three roles read the same secret via envFrom.
+secretName: app-secrets
+
+# A3 IMPLEMENT step 6: the LB needs time to deregister the pod *before* the process
+# stops accepting connections.
+terminationGracePeriodSeconds: 30
+preStopSleepSeconds: 15
+
+api:
+  replicaCount: 2
+  # Roadmap_Scaling.md C4 — the actual 10k -> 100k dial is maxReplicas alone. A native
+  # HorizontalPodAutoscaler, not KEDA - CPU is a first-class HPA metric, no custom
+  # metrics adapter needed. When enabled, deployment-api.yaml omits `replicas:` from
+  # the Deployment spec entirely (not just "sets it once") - a Helm upgrade that kept
+  # reasserting a fixed replica count would fight the HPA on every deploy, snapping
+  # the live pod count back down/up each time regardless of actual load.
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 70
+    targetCPUUtilizationPercentage: 65
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+realtime:
+  replicaCount: 2
+  # A6 IMPLEMENT step 4: "same app, tuned worker count and raised file-descriptor
+  # limit" — matches docker-compose.scale.yml's realtime-1/2 (--workers 4, nofile
+  # 65536). No native Pod-spec ulimits field, so the Deployment shells out
+  # (`ulimit -n ... && exec gunicorn ...`) the same way a real host would.
+  gunicornWorkers: 4
+  nofileLimit: 65536
+  # Longer than the 30s baseline — open WebSockets take longer to drain than a
+  # plain HTTP request in flight (A3 IMPLEMENT step 5/6).
+  terminationGracePeriodSeconds: 60
+  # Roadmap_Scaling.md C4 — KEDA on active connection count, never CPU (idle sockets
+  # sit at near-zero CPU regardless of how many are open — see backend/CLAUDE.md's
+  # real-time section and Roadmap_Scaling.md §2.3). Disabled by default: the metric
+  # source (GET /internal/metrics/ws-connections) exists in code
+  # (backend/app/routers/internal_metrics.py) but isn't in the deployed image yet -
+  # C4's image rebuild was blocked mid-session by an AWS CodeBuild account-level quota
+  # hold, unrelated to this chart. Flip to true once a rebuilt image with that
+  # endpoint is live; scaledobject-realtime.yaml is otherwise ready to go.
+  autoscaling:
+    enabled: false
+    minReplicaCount: 2
+    maxReplicaCount: 10
+    # Target connections per replica for KEDA's metrics-api trigger to scale against.
+    connectionsPerReplica: "50"
+    # Generous scale-down stabilization (C4 IMPLEMENT step 2) - a brief connection dip
+    # must never look like "safe to remove a pod" and sever thousands of live sockets.
+    scaleDownStabilizationSeconds: 300
+  resources:
+    requests:
+      cpu: 150m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+worker:
+  replicaCount: 1
+  # Roadmap_Scaling.md C4 — KEDA on arq queue depth. minReplicaCount is 1, not the
+  # roadmap's literal 0: WorkerSettings.cron_jobs (challenge window-close every 5s,
+  # score recompute every 30s, backend/app/workers/arq_worker.py) only fire while an
+  # arq worker process is actually running, so scaling to zero would silently stop
+  # them firing whenever the queue is empty - a correctness gap flagged and confirmed
+  # with the project owner (2026-08-26) before implementing. This still delivers
+  # "scale on queue depth" (the thing C4's TEST actually asserts), just without the
+  # scale-to-zero cost saving.
+  #
+  # Disabled by default, same reason as realtime below: arq's queue is a Redis
+  # *sorted set* (ZADD), not a list - KEDA ships no sorted-set scaler at all (only
+  # redis-lists/redis-streams variants), so a native `redis` trigger's LLEN-based
+  # listLength silently reads zero forever against it (found by testing, 2026-08-26).
+  # The real fix is the same metrics-api pattern as realtime
+  # (GET /internal/metrics/arq-queue-depth, backend/app/routers/internal_metrics.py) -
+  # written and tested, but not in the deployed image until C4's image rebuild
+  # (blocked mid-session by the same AWS CodeBuild quota hold) lands.
+  autoscaling:
+    enabled: false
+    minReplicaCount: 1
+    maxReplicaCount: 10
+    # Jobs per replica beyond the min before KEDA adds another worker.
+    queueDepthPerReplica: "5"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi

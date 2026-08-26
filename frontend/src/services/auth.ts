@@ -7,6 +7,7 @@ export interface PublicUserResponse {
   username: string;
   bio: string | null;
   avatar_url: string | null;
+  avatar_preset: string | null;
 }
 
 /** The signed-in user's own account — carries email. Only ever appears as
@@ -34,4 +35,24 @@ export function registerRequest(payload: {
 
 export function loginRequest(payload: { email: string; password: string }) {
   return api.post<TokenResponse>('/auth/login', payload);
+}
+
+/** Avatar state is a closed set of mutually exclusive moves — pass exactly one. `PATCH
+ * /auth/me` is a `Form()` endpoint (shared with the legacy multipart-file upload path), so
+ * even these non-file fields go over as `multipart/form-data`, not JSON. */
+export type UpdateAvatarPayload =
+  | { kind: 'public_id'; avatar_public_id: string }
+  | { kind: 'preset'; avatar_preset: string }
+  | { kind: 'clear' };
+
+export function updateAvatarRequest(payload: UpdateAvatarPayload) {
+  const form = new FormData();
+  if (payload.kind === 'public_id') form.append('avatar_public_id', payload.avatar_public_id);
+  else if (payload.kind === 'preset') form.append('avatar_preset', payload.avatar_preset);
+  else form.append('clear_avatar', 'true');
+  // apisauce defaults every request to `Content-Type: application/json` — left as-is here,
+  // axios would JSON.stringify this FormData instead of sending real multipart, and the
+  // `Form()`-based `/auth/me` endpoint would silently see none of these fields. Same override
+  // every other multipart call in this codebase already uses (e.g. services/communities.ts).
+  return api.patch<AuthUserResponse>('/auth/me', form, { headers: { 'Content-Type': undefined } });
 }

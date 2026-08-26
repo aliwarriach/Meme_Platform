@@ -72,6 +72,13 @@ class InvalidImageSourceError(DomainError):
     status_code = status.HTTP_400_BAD_REQUEST
 
 
+class InvalidAvatarPresetError(DomainError):
+    """`avatar_preset` must be one of the server's fixed preset ids — never trust a
+    client-supplied id used as-is, even though it's just a display token today."""
+
+    status_code = status.HTTP_400_BAD_REQUEST
+
+
 class UploadSignatureNotFoundError(DomainError):
     """The `public_id` was never issued by `POST /media/upload-signature`, or its
     15-minute pending window already expired (Roadmap_Scaling.md A4)."""

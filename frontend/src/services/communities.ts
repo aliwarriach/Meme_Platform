@@ -12,6 +12,7 @@ export interface CommunityResponse {
   name: string;
   description: string | null;
   icon_url: string | null;
+  icon_preset: string | null;
   banner_url: string | null;
   privacy: CommunityPrivacy;
   member_count: number;
@@ -67,6 +68,35 @@ export async function createCommunityRequest(payload: {
   if (bannerPublicId) form.append('banner_public_id', bannerPublicId);
 
   return api.post<CommunityResponse>('/communities', form, {
+    headers: { 'Content-Type': undefined },
+  });
+}
+
+/** Icon has four mutually exclusive moves (upload, direct-upload public_id, a built-in preset,
+ * or clear); banner has two (upload/public_id, or clear) — no preset system, see
+ * `services/communities.py::update_community_media`. Owner-only server-side. */
+export type UpdateCommunityIconPayload =
+  | { kind: 'public_id'; icon_public_id: string }
+  | { kind: 'preset'; icon_preset: string }
+  | { kind: 'clear' };
+
+export type UpdateCommunityBannerPayload = { kind: 'public_id'; banner_public_id: string } | { kind: 'clear' };
+
+export function updateCommunityIconRequest(communityId: string, payload: UpdateCommunityIconPayload) {
+  const form = new FormData();
+  if (payload.kind === 'public_id') form.append('icon_public_id', payload.icon_public_id);
+  else if (payload.kind === 'preset') form.append('icon_preset', payload.icon_preset);
+  else form.append('clear_icon', 'true');
+  return api.patch<CommunityResponse>(`/communities/${communityId}`, form, {
+    headers: { 'Content-Type': undefined },
+  });
+}
+
+export function updateCommunityBannerRequest(communityId: string, payload: UpdateCommunityBannerPayload) {
+  const form = new FormData();
+  if (payload.kind === 'public_id') form.append('banner_public_id', payload.banner_public_id);
+  else form.append('clear_banner', 'true');
+  return api.patch<CommunityResponse>(`/communities/${communityId}`, form, {
     headers: { 'Content-Type': undefined },
   });
 }

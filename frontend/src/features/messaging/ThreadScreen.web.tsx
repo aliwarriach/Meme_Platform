@@ -73,6 +73,7 @@ function ThreadScreenContent({ conversationId }: { conversationId: string }) {
         <WebThreadTopBar
           username={conversation?.other_user.username ?? 'Conversation'}
           avatarUrl={conversation?.other_user.avatar_url}
+          avatarPreset={conversation?.other_user.avatar_preset}
         />
 
         <View style={styles.body}>

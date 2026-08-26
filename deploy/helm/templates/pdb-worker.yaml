@@ -1,0 +1,17 @@
+# Roadmap_Scaling.md C4 step 5 — worker's floor is minReplicaCount: 1 (see values.yaml
+# for why it isn't 0), so this is meaningful the same way api/realtime's PDBs are: at
+# least one worker survives a voluntary disruption, which matters here specifically
+# because cron_jobs (challenge close, score recompute) need a live worker process
+# continuously, not just "eventually caught back up".
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: worker
+  labels:
+    {{- include "meme-platform.labels" . | nindent 4 }}
+    app: worker
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: worker

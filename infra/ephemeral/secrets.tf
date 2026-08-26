@@ -12,6 +12,16 @@ locals {
   redis_host   = data.terraform_remote_state.persistent.outputs.redis_endpoint
 }
 
+# Roadmap_Scaling.md C4 — shared secret between the app's own
+# GET /internal/metrics/ws-connections (backend/app/routers/internal_metrics.py) and
+# KEDA's realtime TriggerAuthentication (deploy/helm/templates/scaledobject-realtime.yaml)
+# so that endpoint isn't a bare unauthenticated internal signal reachable through the
+# ALB's api catch-all route like anything else.
+resource "random_password" "internal_metrics_token" {
+  length  = 43
+  special = false
+}
+
 resource "kubernetes_secret" "app_secrets" {
   metadata {
     name      = "app-secrets"
@@ -19,7 +29,11 @@ resource "kubernetes_secret" "app_secrets" {
   }
 
   data = {
-    DATABASE_URL             = "postgresql+asyncpg://memeplatform_admin:${local.rds_password}@${local.rds_host}:5432/memeplatform"
+    # Roadmap_Scaling.md C3 — through PgBouncer (pgbouncer.tf), not straight at RDS
+    # anymore. DB_USE_PGBOUNCER gates A2's asyncpg statement_cache_size=0 workaround
+    # (app/db/session.py) transaction-pooling mode requires, same as A7 locally.
+    DATABASE_URL             = "postgresql+asyncpg://memeplatform_admin:${local.rds_password}@pgbouncer:6432/memeplatform"
+    DB_USE_PGBOUNCER         = "true"
     REDIS_URL                = "redis://${local.redis_host}:6379/0"
     JWT_SECRET               = var.jwt_secret
     CLOUDINARY_CLOUD_NAME    = var.cloudinary_cloud_name
@@ -28,6 +42,7 @@ resource "kubernetes_secret" "app_secrets" {
     GROQ_API_KEY             = var.groq_api_key
     GROQ_MODEL               = var.groq_model
     GOOGLE_SIGNIN_CLIENT_IDS = var.google_signin_client_ids
+    INTERNAL_METRICS_TOKEN   = random_password.internal_metrics_token.result
   }
 
   type = "Opaque"

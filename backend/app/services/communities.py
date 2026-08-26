@@ -11,6 +11,7 @@ from app.core.exceptions import (
     CommunityAccessDeniedError,
     CommunityMembershipNotFoundError,
     CommunityNotFoundError,
+    InvalidAvatarPresetError,
     InvalidImageSourceError,
     NotCommunityOwnerError,
 )
@@ -21,7 +22,8 @@ from app.models.community_membership import CommunityMembership, MembershipRole,
 from app.models.user import User
 from app.schemas.auth import PublicUserOut
 from app.schemas.communities import CommunityOut, CommunityPage, MembershipOut
-from app.services.media import confirm_pending_upload, validate_and_upload_image
+from app.services.media import confirm_pending_upload, delete_uploaded_image, validate_and_upload_image
+from app.services.users import ALLOWED_AVATAR_PRESETS
 
 
 async def _resolve_optional_image(
@@ -113,6 +115,7 @@ def _build_community_out(
         name=community.name,
         description=community.description,
         icon_url=community.icon_url,
+        icon_preset=community.icon_preset,
         banner_url=community.banner_url,
         privacy=community.privacy,
         member_count=member_count,
@@ -287,6 +290,75 @@ async def get_community(
     has_active_challenge = active_challenge_result.scalar_one()
 
     return _build_community_out(community, member_count, viewer_status, has_active_challenge)
+
+
+async def update_community_media(
+    db: AsyncSession,
+    current_user: User,
+    community_id: uuid.UUID,
+    icon: UploadFile | None = None,
+    icon_public_id: str | None = None,
+    icon_preset: str | None = None,
+    clear_icon: bool = False,
+    banner: UploadFile | None = None,
+    banner_public_id: str | None = None,
+    clear_banner: bool = False,
+) -> CommunityOut:
+    """Owner-only. Icon and banner are each updated independently — a call can touch one,
+    both, or neither. Icon has four mutually exclusive inputs (`icon`/`icon_public_id`/
+    `icon_preset`/`clear_icon`), mirroring `services/users.py::update_profile`'s avatar
+    handling exactly (same `ALLOWED_AVATAR_PRESETS`). Banner has no preset system — just
+    upload or `clear_banner`, per product scope (a cover photo isn't a "pick one of five
+    built-ins" surface the way a small profile picture is)."""
+    community = await _get_community_or_404(db, community_id)
+    _require_owner(community, current_user)
+
+    if icon_preset is not None and icon_preset not in ALLOWED_AVATAR_PRESETS:
+        raise InvalidAvatarPresetError(f"Unknown avatar preset: {icon_preset}")
+
+    icon_given = icon is not None or icon_public_id is not None
+    old_icon_public_id = community.icon_public_id
+    icon_changed = icon_given or icon_preset is not None or clear_icon
+
+    if clear_icon:
+        community.icon_url = None
+        community.icon_public_id = None
+        community.icon_preset = None
+    elif icon_preset is not None:
+        community.icon_url = None
+        community.icon_public_id = None
+        community.icon_preset = icon_preset
+    elif icon_given:
+        icon_url, icon_public_id = await _resolve_optional_image(
+            current_user.id, icon, icon_public_id, "icon"
+        )
+        community.icon_url = icon_url
+        community.icon_public_id = icon_public_id
+        community.icon_preset = None
+
+    banner_given = banner is not None or banner_public_id is not None
+    old_banner_public_id = community.banner_public_id
+    banner_changed = banner_given or clear_banner
+
+    if clear_banner:
+        community.banner_url = None
+        community.banner_public_id = None
+    elif banner_given:
+        banner_url, banner_public_id = await _resolve_optional_image(
+            current_user.id, banner, banner_public_id, "banner"
+        )
+        community.banner_url = banner_url
+        community.banner_public_id = banner_public_id
+
+    await db.commit()
+    await db.refresh(community)
+
+    if icon_changed and old_icon_public_id:
+        await delete_uploaded_image(old_icon_public_id)
+    if banner_changed and old_banner_public_id:
+        await delete_uploaded_image(old_banner_public_id)
+
+    return await get_community(db, current_user, community_id)
 
 
 async def join_community(

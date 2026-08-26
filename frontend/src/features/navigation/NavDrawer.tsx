@@ -88,7 +88,7 @@ export function NavDrawer({ visible, onClose }: NavDrawerProps) {
                 accessibilityLabel="Open your profile"
                 onPress={() => navigate('/profile')}
                 className="flex-row items-center gap-3 px-4 py-4">
-                <Avatar username={user.username} avatarUrl={user.avatarUrl} size="md" />
+                <Avatar username={user.username} avatarUrl={user.avatarUrl} avatarPreset={user.avatarPreset} size="md" />
                 <Text className="flex-1 font-title text-heading" numberOfLines={1}>
                   {user.username}
                 </Text>

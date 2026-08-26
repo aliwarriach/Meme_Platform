@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  labels:
+    {{- include "meme-platform.labels" . | nindent 4 }}
+    app: api
+spec:
+  {{- if not .Values.api.autoscaling.enabled }}
+  replicas: {{ .Values.api.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        {{- include "meme-platform.labels" . | nindent 8 }}
+        app: api
+    spec:
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      containers:
+        - name: api
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # Matches backend/Dockerfile's own CMD (A6) — spelled out here rather than
+          # relying on the image default so a Helm `diff` shows the real command.
+          command:
+            - gunicorn
+            - app.main:app
+            - -k
+            - uvicorn.workers.UvicornWorker
+            - --bind
+            - 0.0.0.0:8000
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: {{ .Values.secretName }}
+          resources:
+            {{- toYaml .Values.api.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sh", "-c", "sleep {{ .Values.preStopSleepSeconds }}"]

@@ -25,7 +25,12 @@ export function FriendRow({ friend, onRemove, isRemoving, onDuel }: FriendRowPro
         accessibilityLabel={`Open ${friend.user.username}'s profile`}
         onPress={() => router.push({ pathname: '/users/[id]', params: { id: friend.user.id } })}
         className="flex-1 flex-row items-center gap-3">
-        <Avatar username={friend.user.username} avatarUrl={friend.user.avatar_url} size="md" />
+        <Avatar
+          username={friend.user.username}
+          avatarUrl={friend.user.avatar_url}
+          avatarPreset={friend.user.avatar_preset}
+          size="md"
+        />
         <Text className="font-title text-heading">{friend.user.username}</Text>
       </Pressable>
       <View className="flex-row items-center gap-1">

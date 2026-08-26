@@ -19,6 +19,7 @@ const author: PublicUserResponse = {
   username: 'alice',
   bio: null,
   avatar_url: null,
+  avatar_preset: null,
 };
 
 function makeMeme(id: string, overrides: Partial<MemeResponse> = {}): MemeResponse {

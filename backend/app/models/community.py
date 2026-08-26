@@ -24,6 +24,9 @@ class Community(UUIDPKMixin, TimestampMixin, Base):
     description: Mapped[str | None] = mapped_column(String(500), default=None)
     icon_url: Mapped[str | None] = mapped_column(String(1024), default=None)
     icon_public_id: Mapped[str | None] = mapped_column(String(255), default=None)
+    # One of `services/users.py::ALLOWED_AVATAR_PRESETS` — same built-in-avatar system as
+    # `User.avatar_preset`, mutually exclusive with `icon_url`/`icon_public_id`.
+    icon_preset: Mapped[str | None] = mapped_column(String(32), default=None)
     banner_url: Mapped[str | None] = mapped_column(String(1024), default=None)
     banner_public_id: Mapped[str | None] = mapped_column(String(255), default=None)
     privacy: Mapped[CommunityPrivacy] = mapped_column(

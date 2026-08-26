@@ -8,23 +8,47 @@ pick up any phase and implement it without re-exploring the codebase or re-litig
 the one phase you're implementing in §3. Then `backend/CLAUDE.md`, then
 `/.claude/memory/<feature>.md` for whichever domain the phase touches.
 
-**Global status: Stage A and B done; C1 done and torn back down; rest of Stage C not
-started.** All of Stage A (A1–A7) and Stage B (B1–B3) are implemented — see each phase's
-own implementation note, especially B3's (real bugs found integrating B2's persistent
+**Global status: Stage A and B done; C1 and C2 done; C3's AWS half done (Cloudflare
+outstanding); C4's API-HPA half done and live-verified, KEDA half coded but blocked on
+an image rebuild. The ephemeral stack was rebuilt, used through C2/C3/C4, then
+destroyed again on 2026-08-26** — billing independently confirmed stopped (see C1's
+"Destroy runbook" note for what that destroy actually took: two real failures,
+neither cosmetic, both now understood and one fixed for next time). All of
+Stage A (A1–A7) and Stage B (B1–B3) are implemented — see each phase's own
+implementation note, especially B3's (real bugs found integrating B2's persistent
 stack with C1's cluster). Docker still doesn't work locally on this dev machine (A6/A7
 used GitHub Actions CI; B3's image push used AWS CodeBuild instead — see B3's note for
-why). **C1 (EKS + Karpenter) is implemented and verified** — built out of sequence with
-the original "pause before Stage C" instruction because B3 structurally required a
-running cluster (no NAT/bastion/VPN exists in this architecture, so nothing outside the
-VPC can reach RDS/ElastiCache); the project owner explicitly approved starting C1 early
-to unblock B3 (2026-08-25). The ephemeral stack (EKS, Karpenter, everything C1 built) was
-**destroyed at the end of that same session** and billing independently confirmed
-stopped (0 EKS clusters, 0 running EC2 instances via direct AWS CLI query) — see C1's
-TEST results. `infra/persistent` (RDS, ElastiCache, VPC, ECR) is untouched and still
-live, as designed. **Next up is C2** (Helm chart, three Deployments) — starting it means
-re-running `infra/ephemeral` from scratch (~15-20 min: `terraform apply -target
-module.eks -target module.karpenter` per C1's implementation note, then a full apply),
-since nothing from C1 persists across the destroy by design.
+why). **C1 (EKS + Karpenter) is implemented and verified** — built out of sequence
+with the original "pause before Stage C" instruction because B3 structurally required
+a running cluster (no NAT/bastion/VPN exists in this architecture, so nothing outside
+the VPC can reach RDS/ElastiCache); the project owner explicitly approved starting C1
+early to unblock B3 (2026-08-25). The ephemeral stack built for C1 was destroyed at
+the end of that session and billing independently confirmed stopped; it was **rebuilt
+from scratch on 2026-08-26** (`terraform apply -target module.eks -target
+module.karpenter`, then a full apply — same two-phase sequence C1's note describes) to
+run **C2 (Helm chart, three Deployments)**, implemented and verified against the live
+cluster — see C2's TEST results. The project owner then approved starting **C3**'s
+AWS-only pieces (ALB Load Balancer Controller + Ingress + PgBouncer) on the same
+running cluster; Cloudflare (free TLS, DDoS protection, edge caching) is explicitly
+deferred — it needs the project owner's own account and domain, which only they can
+provide. The project owner then approved **C4** (autoscaling) on the same cluster:
+api's CPU-based HPA is implemented and live-verified (scale-up, scale-down, node
+add/consolidate all observed — plus a real HPA-gets-stuck bug found and fixed along
+the way, see C4's implementation note); realtime's and worker's KEDA custom-metric
+scaling are coded and unit-tested but gated off pending the same CodeBuild image
+rebuild blocking C3's realtime metric — an AWS account-level concurrent-build quota
+hold, external to this session's own config, discovered mid-session (2026-08-26).
+`infra/persistent` (RDS, ElastiCache, VPC, ECR) has been untouched and live
+throughout — confirmed `available` immediately after the destroy too. **The ephemeral
+stack is destroyed; nothing is running or billing right now.** A quota-increase
+request for CodeBuild's Linux/Small concurrent-build limit (stuck at 0 account-wide —
+likely a new-account review hold, not a normal quota default) is pending with AWS as
+of 2026-08-26; resuming C3/C4's remaining pieces once that clears means: rebuild
+`infra/ephemeral` from scratch (`terraform apply -target module.eks -target
+module.karpenter`, then a full apply), rezip `backend/` and push a fresh image
+(`aws codebuild start-build --project-name meme-platform-api-build` — project/IAM role
+already exist, left in place for reuse), then flip `realtime.autoscaling.enabled` and
+`worker.autoscaling.enabled` to `true` in `deploy/helm/values.yaml` and `helm upgrade`.
 
 **Statuses are greppable.** `grep "^\*\*STATUS:" Roadmap_Scaling.md` prints the whole board.
 Allowed values, exactly: `PENDING` · `IN PROGRESS` · `IMPLEMENTED` · `BLOCKED`.
@@ -51,9 +75,9 @@ is worse than no roadmap, because the next session will trust it.
 | B3 | Migrate schema + push images | IMPLEMENTED | 2d | **Gate to Stage C** |
 | **Stage C — cluster + autoscaling, ~$0.15/hr** | | | **3–4 wks** | |
 | C1 | EKS + Karpenter on spot | IMPLEMENTED | 1wk | C2 |
-| C2 | Helm chart, three deployments | PENDING | 1wk | C3 |
-| C3 | Ingress + PgBouncer + Cloudflare | PENDING | 4d | C4 |
-| C4 | Autoscaling (HPA / KEDA / Karpenter) | PENDING | 4d | **The actual deliverable** |
+| C2 | Helm chart, three deployments | IMPLEMENTED | 1wk | C3 |
+| C3 | Ingress + PgBouncer + Cloudflare | IN PROGRESS | 4d | C4 |
+| C4 | Autoscaling (HPA / KEDA / Karpenter) | IN PROGRESS | 4d | **The actual deliverable** |
 | C5 | Grafana Cloud observability | PENDING | 1d | D2 |
 | **Stage D — prove it, ~$15–25 total** | | | **1.5–2 wks** | |
 | D1 | k6 scenarios | PENDING | 4d | D2 |
@@ -1026,15 +1050,89 @@ confirmed independently via `aws eks list-clusters` (empty) and `aws ec2 describ
 not just "terraform says so." `infra/persistent` (RDS, ElastiCache, VPC) confirmed still `available`
 and untouched by the same destroy.
 
+**Destroy runbook / known issues (found 2026-08-26, second destroy — the first, above,
+got lucky on ordering).** This time `terraform destroy` genuinely failed, twice, in two
+different ways, before finishing clean. Both are real properties of this stack, not
+one-off flukes — read this before running destroy again:
+
+1. **`kubernetes_ingress_v1.api`/`realtime` got stuck for 20+ minutes** with
+   `Ingress (default/api) still exists` errors. Root cause: `ingress.tf`'s Ingress
+   resources only `depends_on` the ALB controller's `helm_release`, not its IAM
+   permissions (`aws_iam_role_policy.alb_controller`) — nothing told Terraform the
+   controller needs those permissions for as long as anything depending on it is being
+   torn down. Destroy order isn't guaranteed between independent branches of the
+   graph, so the inline policy got destroyed concurrently with the Ingress objects;
+   the controller lost `ec2:DescribeSecurityGroups` mid-reconcile and could never
+   finish removing the finalizer. **Fixed for future runs**: `alb-controller.tf`'s
+   `helm_release.aws_load_balancer_controller` now explicitly `depends_on
+   aws_iam_role_policy.alb_controller` too, not just the pod identity association.
+   Unstuck this run by confirming the real AWS-side ALB/target groups were already
+   gone (`aws elbv2 describe-load-balancers` empty) and `kubectl patch ingress api
+   realtime --type=merge -p '{"metadata":{"finalizers":[]}}'`.
+
+2. **Karpenter-provisioned EC2 instances are not Terraform-tracked at all** —
+   Karpenter creates them directly via its own AWS API calls (`NodeClaim` →
+   `CreateFleet`), never as `aws_instance` resources in state. If the EKS cluster's
+   API server gets destroyed before Karpenter's own controller can process its
+   NodeClaims' deletion (which is exactly what happens once `module.eks.aws_eks_cluster`
+   itself is destroyed), those instances are orphaned for good — nothing is left
+   that knows to terminate them, Terraform included, since it never tracked them in
+   the first place. Found by checking `aws ec2 describe-instances` independently
+   after `aws eks list-clusters` already showed empty: **2 instances were still
+   running** and billing. Fixed by `aws ec2 terminate-instances` directly. **This is
+   why `aws eks list-clusters` returning empty is not sufficient proof billing has
+   stopped** — always also check `aws ec2 describe-instances --filters
+   Name=instance-state-name,Values=running,pending` region-wide, every time.
+
+3. **Once the EKS cluster is destroyed, the `kubectl`/`kubernetes`/`helm` provider
+   blocks can no longer configure themselves** (`provider.tf`'s `host =
+   module.eks.cluster_endpoint` has nothing to resolve to) — this blocks `terraform
+   destroy` from progressing **at all**, even for unrelated pure-AWS resources with
+   zero Kubernetes dependency (hit this on the last remaining resource, a plain
+   `aws_security_group`, which also got stuck on a `DependencyViolation` from the
+   still-orphaned instances above). If destroy fails after the cluster itself is
+   already gone, don't keep re-running `terraform destroy` expecting it to progress —
+   it structurally can't. Delete whatever's left directly via AWS CLI, then
+   `terraform state rm` each one to reconcile Terraform's bookkeeping.
+
 **DONE WHEN.** Nodes appear on demand (✓), disappear when idle (✓), and destroy is verified to stop
-the meter (✓ — independently confirmed via AWS CLI, not just Terraform's own exit code).
+the meter (✓ — independently confirmed via AWS CLI, not just Terraform's own exit code;
+see the destroy runbook above for what "verified" actually had to mean the second time).
 
 ---
 
 ### C2 — Helm chart, three deployments
 
-**STATUS:** PENDING
+**STATUS:** IMPLEMENTED (2026-08-26)
 **Est:** 1 week · **Stage:** C · **Blocks:** C3
+
+**Implementation note.** Three separate Deployment templates (`deployment-api.yaml`,
+`deployment-realtime.yaml`, `deployment-worker.yaml`) rather than one templated-by-role
+file — matches the roadmap's own "api / realtime / worker" framing and makes each
+role's real command/probe/lifecycle differences (below) visible without a value lookup.
+Two Services (`api`, `realtime`) give C3's future Ingress something stable to route to;
+worker has none (arq has no HTTP surface). Values split exactly as specified:
+`values.yaml` holds shared defaults (image, probes, resource shapes, `secretName:
+app-secrets` from B3), `values-dev.yaml` / `values-loadtest.yaml` override only replica
+counts (2/2/1 vs. 70/10/5 — the 70 matches C4's planned HPA `maxReplicas` ceiling).
+
+Three roadmap-specified details, translated into what Kubernetes actually offers:
+1. **Realtime's raised fd limit** has no native Pod-spec field — no `ulimits:` key
+   exists for a Deployment the way docker-compose has one. Implemented the same way a
+   bare host would: the container's own command is `sh -c "ulimit -n 65536 && exec
+   gunicorn ..."` (shell builtin, applies to the `exec`'d process). Functionally
+   identical to A7's `docker-compose.scale.yml` `realtime-1/2.ulimits.nofile: 65536`.
+2. **Realtime's longer termination grace period** ("open sockets take longer to
+   drain") is a separate `realtime.terminationGracePeriodSeconds` (60s) distinct from
+   the shared 30s baseline api/worker use — the roadmap's A3 IMPLEMENT step 6 only
+   specifies one number, but step 5 (WS close frame on shutdown) implies realtime
+   needs more room than a plain HTTP request in flight.
+3. **Worker has no liveness/readiness probes** — arq has no HTTP server to probe
+   against, and a Deployment's own `restartPolicy: Always` already restarts on crash,
+   which is the only failure mode a liveness probe would add here.
+
+`helm lint` and `helm template` both verified clean before ever touching the live
+cluster (see TEST for why that mattered).
 
 **WHY Helm.** One chart, different values files. `values-dev.yaml` runs 2 pods; `values-loadtest.yaml`
 runs 70. Swapping scale profiles with a flag is what makes repeated load testing cheap enough to
@@ -1052,14 +1150,79 @@ every container — Karpenter can't size nodes without requests.
 changed image performs a rolling update with **zero dropped requests** under light load — this is
 where A3 pays off.
 
+**TEST results (2026-08-26).** Ran against a from-scratch rebuild of `infra/ephemeral`
+(C1's stack had been destroyed at the end of the prior session) — two-phase apply
+(`-target module.eks -target module.karpenter`, then full apply) completed clean, 68
+resources. `helm install meme-platform deploy/helm -f values-dev.yaml`: all 5 pods
+(2× api, 2× realtime, 1× worker) reached `1/1 Running`. One transient
+`FailedCreatePodSandBox` ("failed to assign an IP address") hit both realtime pods on
+the single fresh node immediately after install — VPC CNI warming up its ENI pool on a
+brand-new node, not a real bug; both recovered within 30s with no intervention.
+
+Rolling-update proof needed a genuinely different image reference, so a second ECR tag
+(`c2-rollout-test`) was created pointing at the same image digest via
+`aws ecr batch-get-image` + `put-image` (no new build needed — this test exercises the
+rollout choreography, not new application code). First attempt at measuring dropped
+requests used `kubectl port-forward svc/api` as the load target and showed 6/62
+failures — investigation traced every failure to the test harness, not the app:
+`kubectl port-forward` resolves a Service to **one** backing pod for the life of the
+forward and never re-resolves, so it doesn't exercise the Service's actual
+iptables/ipvs load-balancing at all; the fatal one ("network namespace for sandbox ...
+is closed") fired exactly when that pinned pod was deleted mid-rollout. Re-ran with an
+in-cluster `curl` Pod hitting `http://api/health/live` (real Service DNS, real
+kube-proxy routing — the same mechanism C3's ALB will depend on) spanning a fresh
+`helm upgrade --set image.tag=latest` rollout: **426 requests, 0 failures.** Both
+Deployments' `kubectl rollout status` confirmed complete (1 new pod up, old pod's
+`preStop sleep 15` drains it, repeat) before the load pod's 90s window ended. Test
+artifacts (`loadgen` pod, `c2-rollout-test` ECR tag) cleaned up after.
+
 **DONE WHEN.** All three deployments run and a rolling upgrade drops nothing.
 
 ---
 
 ### C3 — Ingress + PgBouncer + Cloudflare
 
-**STATUS:** PENDING
+**STATUS:** IN PROGRESS (2026-08-26) — AWS half (ALB + PgBouncer) implemented and
+verified; Cloudflare half outstanding, needs the project owner's own account/domain.
 **Est:** 4 days · **Stage:** C · **Blocks:** C4
+
+**Implementation note.** AWS Load Balancer Controller installed via its official Helm
+repo (`https://aws.github.io/eks-charts`, chart/app v3.5.0 — a plain https index, not
+OCI, so C1's Windows OCI-login bug doesn't apply here). IAM via a hand-rolled role +
+Pod Identity association (`alb-controller.tf`), matching the pattern C1 already
+established for the Karpenter controller, rather than pulling in an extra registry
+module whose IRSA-vs-Pod-Identity interface would need separately verifying — one
+less external dependency to trust sight-unseen. The IAM policy itself
+(`alb-controller-iam-policy.json`) is the official AWS-published document, fetched
+live from `kubernetes-sigs/aws-load-balancer-controller`'s own repo rather than
+hand-typed, since a single wrong `Resource`/`Condition` in a 200-line policy is easy
+to get subtly wrong.
+
+Two `Ingress` resources sharing one ALB via `alb.ingress.kubernetes.io/group.name`
+(`ingress.tf`) — an ALB target-group attribute like stickiness applies per target
+group, not per path, so giving realtime its own sticky-session config without
+affecting api's target group needs two Ingress objects even though they render to one
+load balancer. Public subnets were already tagged `kubernetes.io/role/elb=1` back in
+B2, so the controller auto-discovered them with no explicit `subnets` annotation.
+
+**Real bug caught before it shipped:** the roadmap's "route `/ws` to the realtime
+service" is shorthand — the actual route is `/meme-sending/ws`
+(`backend/app/routers/meme_sending.py:32`), not a bare `/ws`. api and realtime run the
+exact same image (A6), so a literal `/ws` Ingress rule wouldn't 404 or error - it
+would just never match, and all real WS traffic would silently fall through to api's
+catch-all `/` rule instead, quietly defeating the entire reason C4 plans to scale
+realtime on connection count separately from api's CPU-based HPA. Caught by testing
+the actual app route rather than trusting the roadmap's paraphrase; fixed to route
+exactly `/meme-sending/ws` (not the whole `/meme-sending` prefix, which would have
+also misrouted the sibling REST endpoints `/meme-sending/send` and
+`/meme-sending/ws-ticket` onto realtime).
+
+PgBouncer (`pgbouncer.tf`) is the same transaction-pool config A7 already proved
+locally, with real RDS credentials/endpoint substituted in via Terraform
+interpolation (same pattern `secrets.tf` uses for `DATABASE_URL`) instead of
+docker-compose env vars. `secrets.tf`'s `DATABASE_URL` now points at
+`pgbouncer:6432` instead of straight at RDS, plus `DB_USE_PGBOUNCER=true` (gates A2's
+asyncpg `statement_cache_size=0` workaround, same as A7).
 
 **WHY.** The front door plus the database's shock absorber. PgBouncer as a pod does what RDS Proxy
 does for ~$11–15/mo less.
@@ -1072,15 +1235,103 @@ of public GET responses — confirm it proxies WebSockets correctly, it does by 
 **TEST.** HTTP and WebSocket both work through the ALB. Connection count on RDS stays bounded while
 pods scale — the same `pg_stat_activity` check from A2, now against real infrastructure.
 
+**TEST results (2026-08-26).** HTTP: `curl` against the ALB's real DNS name →
+`/health/live` returns `200 {"status":"ok"}`. WebSocket: `/meme-sending/send` (POST,
+no WS headers) → `401`, **no** `AWSALB` sticky cookie — correctly landed on api's
+target group. `/meme-sending/ws` with genuine `Upgrade: websocket` handshake headers →
+`403` **with** the `AWSALB`/`AWSALBCORS` sticky cookies set — correctly landed on
+realtime's target group, and the `403` itself is the app's own Starlette WS route
+correctly rejecting the connection for a missing `ticket` query param (a full
+successful WS session needs a real signed ticket from a logged-in user - appropriately
+out of scope for infra-level verification, same call B3 made for its own
+connectivity proof). DB connection bounding: a throwaway `psql` pod queried
+`pg_stat_activity` directly against RDS (bypassing PgBouncer, to see real backend
+connections) — **5 connections at 4 app pods (2 api + 2 realtime), 6 connections at
+12 app pods (8 api + 4 realtime)**, all via PgBouncer's own IP per
+`client_addr` — confirms transaction pooling is genuinely bounding RDS regardless of
+pod count, not just configured to. Cluster scaled back to the Helm chart's declared
+2/2/1 afterward; no drift left behind.
+
 **DONE WHEN.** Both protocols work end-to-end through Cloudflare, and DB connections stay flat as
-pod count rises.
+pod count rises. **DB-connection-bounding (✓) and ALB-level HTTP/WS routing (✓) are
+verified; the "through Cloudflare" half is not done** — Cloudflare needs the project
+owner's own account and domain. To finish: create a Cloudflare account, add the
+domain, point a DNS record at the ALB hostname (`kubectl get ingress` ADDRESS
+column, or `terraform output` if added), and confirm HTTP/WS still work end-to-end
+through it.
 
 ---
 
 ### C4 — Autoscaling (the actual deliverable)
 
-**STATUS:** PENDING
+**STATUS:** IN PROGRESS (2026-08-26) — API's CPU-based HPA implemented and verified
+live (scale-up, scale-down, node add/consolidate all observed). Realtime and worker's
+custom-metric KEDA scaling are coded, tested at the unit level, and wired into the
+Helm chart, but gated off (`autoscaling.enabled: false`) pending the same
+CodeBuild-blocked image rebuild noted in C3 — see implementation note.
 **Est:** 4 days · **Stage:** C
+
+**Implementation note.** Four real, load-bearing findings from actually running this,
+each fixed:
+
+1. **EKS does not bundle metrics-server** (unlike GKE) — without it the resource
+   metrics API has no source at all, and api's HPA would sit at `cpu: <unknown>/65%`
+   forever, never scaling anything. Installed via its official Helm chart
+   (`infra/ephemeral/metrics-server.tf`, plain https repo).
+
+2. **arq's queue is a Redis *sorted set*** (`ZADD`, scored by due-timestamp —
+   `arq.connections.ArqRedis.enqueue_job`), **not a list.** KEDA ships no sorted-set
+   scaler at all (only `redis-lists` and `redis-streams` variants, confirmed against
+   its docs) — a `redis` trigger's `listLength` metadata calls `LLEN`, which errors
+   (`WRONGTYPE`) against a ZSET key and silently reads as zero forever. Caught by
+   actually enqueueing 40 test jobs and watching KEDA never register any depth at all,
+   then inspecting arq's own source rather than assuming the config was right. Same
+   root problem hits **realtime's connection count**, which has no Kubernetes-native
+   metric at all. Both fixed the same way: a new token-gated internal endpoint
+   (`backend/app/routers/internal_metrics.py` —
+   `GET /internal/metrics/ws-connections`, `GET /internal/metrics/arq-queue-depth`,
+   backed by a Redis `INCR`/`DECR` presence counter and `ZCARD` respectively) polled
+   via KEDA's `metrics-api` trigger instead. Both are coded, unit-tested
+   (`backend/tests/test_internal_metrics.py`,
+   `backend/tests/test_connection_manager.py`), and wired into
+   `scaledobject-realtime.yaml`/`scaledobject-worker.yaml` — but **not yet in the
+   deployed image**, since pushing it needs the CodeBuild rebuild that hit an AWS
+   account-level concurrent-build quota hold mid-session (0 for every environment
+   type, despite a build succeeding on this same account during B3/C1 — looks like an
+   automated new-account review, not anything this session's config changed). Both
+   `autoscaling.enabled` flags stay `false` in `values.yaml` until that clears and a
+   rebuilt image ships; flip them once it does, no other changes needed.
+
+3. **Worker's `minReplicaCount` is 1, not the roadmap's literal 0.**
+   `WorkerSettings.cron_jobs` (challenge window-close every 5s, score recompute every
+   30s — `backend/app/workers/arq_worker.py`) only fire while an arq worker process is
+   actually running; scale-to-zero would silently stop them firing whenever the queue
+   is empty (most of the time). Flagged and confirmed with the project owner
+   (2026-08-26) before implementing — this still delivers "scale on queue depth" (what
+   the TEST section actually asserts), just without the scale-to-zero cost saving. A
+   real fix (splitting cron scheduling into its own always-on process, distinct from
+   the queue-worker pool) is out of scope for this phase.
+
+4. **An HPA with no scale-up rate limit can get permanently stuck**, discovered by
+   deliberately over-driving a load test: a burst pushed api's desired replica count
+   to 16, but this AWS account's own EC2 on-demand vCPU quota (8, a hard external
+   ceiling — confirmed via Karpenter's own logs: `VcpuLimitExceeded ... your current
+   vCPU limit of 8`, unrelated to the NodePool's own `limits.cpu` from C1) only let
+   Karpenter actually schedule 10 of them; the other 6 sat permanently `Pending` with
+   no metrics. Kubernetes' HPA algorithm is documented to compute scale-down
+   recommendations conservatively whenever any desired replica has no metrics at all
+   — so the desired count stayed frozen at 16 for 20+ minutes even after real CPU
+   usage dropped to ~4%, until the HPA object was reapplied (which reset its
+   recommendation history and let it drop straight to the floor). Fixed for real, not
+   just unstuck once: added an explicit `behavior.scaleUp` policy (max +4 pods/60s) to
+   `hpa-api.yaml` so desired replica count can never again race that far ahead of what
+   the cluster can actually schedule — in production this ceiling would be the
+   NodePool's own `limits.cpu`, not an AWS account quota, but the same failure shape.
+   **Also worth flagging for D2 (10k run):** this account's 8-vCPU on-demand ceiling
+   (with spot unavailable in this AZ during testing, same as C1's own finding) caps
+   real schedulable capacity well below what a genuine 10k-concurrent load test would
+   need — an AWS Service Quota increase is a likely prerequisite for D2, not just a
+   C4 curiosity.
 
 **WHY.** Everything before this was preparation. This phase is the thing the roadmap exists for, and
 **this is the 10k → 100k dial** referenced throughout §2.4.
@@ -1104,7 +1355,28 @@ pod count rises.
 - Hold 100 WebSocket connections, drop load elsewhere; assert realtime pods do **not** scale down
   and sever them.
 
-**DONE WHEN.** All four behaviours are observed live. That's the roadmap's core claim demonstrated.
+**TEST results (2026-08-26).** **Scale-up (✓):** an in-cluster load pod (25 parallel
+loops hitting `/health/ready`) pushed api CPU to 271-421% of the 65% target; the HPA
+scaled 2 → 16 within ~90s (`kubectl describe hpa` events: `SuccessfulRescale` to 4, 8,
+13, 16 in sequence) and Karpenter grew nodes 3 → 4 in response. **Scale-down (✓, after
+the behavior-policy fix above):** once load stopped and the HPA was reapplied with its
+new `behavior` block, desired replicas dropped straight to the `minReplicas: 2` floor
+and nodes consolidated back 4 → 3. **PodDisruptionBudgets (✓):** all three applied
+(`kubectl get pdb` shows `minAvailable: 1` / `ALLOWED DISRUPTIONS: 1` for api and
+realtime, `0` for worker at its current single-replica floor - correct, nothing to
+spare below the minimum). **KEDA queue-depth scale-from-idle and
+WebSocket-connections-survive-a-scale-down (deferred):** both require the
+`autoscaling.enabled: true` flip that's blocked on the image rebuild (see
+implementation note point 2) - not yet observable, not yet claimed done.
+
+**DONE WHEN.** All four behaviours are observed live. That's the roadmap's core claim
+demonstrated. **Two of four are live-verified (API HPA scale-up/down with node
+add/consolidate; PodDisruptionBudgets protecting all three).** The other two (KEDA
+queue-depth scale-from-idle; realtime connections surviving a scale-down) are coded,
+unit-tested, and chart-wired but not yet cluster-verified — blocked on the same image
+rebuild as C3's realtime metric. Flip `realtime.autoscaling.enabled` and
+`worker.autoscaling.enabled` to `true` in `values.yaml` once a rebuilt image is live,
+re-run `helm upgrade`, and re-test those two scenarios to close this phase out.
 
 ---
 

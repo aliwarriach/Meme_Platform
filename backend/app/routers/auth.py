@@ -62,17 +62,28 @@ async def update_me(
     clear_bio: Annotated[bool, Form()] = False,
     avatar: UploadFile | None = None,
     avatar_public_id: Annotated[str | None, Form()] = None,
+    avatar_preset: Annotated[str | None, Form()] = None,
+    clear_avatar: Annotated[bool, Form()] = False,
 ) -> UserOut:
     """`bio` omitted = leave it alone; `clear_bio=true` clears it. A separate flag
     rather than an empty-string sentinel: Starlette's form parsing collapses an empty
     submitted string to `None`, indistinguishable from an omitted field, so `bio=""`
-    alone can't signal "clear" (confirmed empirically). `avatar` (legacy multipart
-    upload) and `avatar_public_id` (Roadmap_Scaling.md A4's direct-to-Cloudinary flow —
-    confirm the `public_id` from `POST /media/upload-signature`) are mutually exclusive;
-    either, if given, always replaces the current one and cleans up the old Cloudinary
-    asset (SecurityFeatures.md F-4)."""
+    alone can't signal "clear" (confirmed empirically). Avatar state has four mutually
+    exclusive inputs — `avatar` (legacy multipart upload), `avatar_public_id`
+    (Roadmap_Scaling.md A4's direct-to-Cloudinary flow — confirm the `public_id` from
+    `POST /media/upload-signature`), `avatar_preset` (a built-in avatar id) or
+    `clear_avatar` (remove the avatar entirely) — whichever is given always replaces the
+    current avatar and cleans up the old Cloudinary asset if there was one
+    (SecurityFeatures.md F-4)."""
     user = await users_service.update_profile(
-        db, current_user, bio, clear_bio=clear_bio, avatar=avatar, avatar_public_id=avatar_public_id
+        db,
+        current_user,
+        bio,
+        clear_bio=clear_bio,
+        avatar=avatar,
+        avatar_public_id=avatar_public_id,
+        avatar_preset=avatar_preset,
+        clear_avatar=clear_avatar,
     )
     return UserOut.model_validate(user)
 

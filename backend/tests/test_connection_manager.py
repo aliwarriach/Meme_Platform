@@ -134,3 +134,39 @@ async def test_send_json_falls_back_to_publish_when_no_pod_holds_the_socket():
         assert delivered is False
     finally:
         await manager.bus.stop()
+
+
+async def test_connection_count_reflects_connects_and_disconnects_across_pods():
+    """Roadmap_Scaling.md C4 — the aggregate counter KEDA's realtime ScaledObject polls.
+    Asserted as a delta rather than an absolute value: the counter is a single shared
+    Redis key, so other tests/suites touching the same real Redis instance concurrently
+    must not make this test flaky."""
+    manager_a = await _make_manager()
+    manager_b = await _make_manager()
+    try:
+        baseline = await manager_a.bus.connection_count()
+
+        user_1, user_2 = uuid.uuid4(), uuid.uuid4()
+        await manager_a.connect(user_1, FakeWebSocket())
+        await manager_b.connect(user_2, FakeWebSocket())
+        assert await manager_a.bus.connection_count() == baseline + 2
+
+        await manager_a.disconnect(user_1)
+        assert await manager_b.bus.connection_count() == baseline + 1
+
+        await manager_b.disconnect(user_2)
+        assert await manager_a.bus.connection_count() == baseline
+    finally:
+        await manager_a.bus.stop()
+        await manager_b.bus.stop()
+
+
+async def test_connection_count_never_reports_negative():
+    """An unclean-death decr racing ahead of its increment (or any drift) must floor at
+    0 - a negative count would be a nonsense signal for the scaler."""
+    manager = await _make_manager()
+    try:
+        await manager.bus.mark_offline(uuid.uuid4())
+        assert await manager.bus.connection_count() >= 0
+    finally:
+        await manager.bus.stop()

@@ -1,0 +1,43 @@
+{{- if .Values.realtime.autoscaling.enabled }}
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: realtime-metrics-auth
+spec:
+  secretTargetRef:
+    - parameter: apiKey
+      name: {{ .Values.secretName }}
+      key: INTERNAL_METRICS_TOKEN
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: realtime
+  labels:
+    {{- include "meme-platform.labels" . | nindent 4 }}
+    app: realtime
+spec:
+  scaleTargetRef:
+    name: realtime
+  minReplicaCount: {{ .Values.realtime.autoscaling.minReplicaCount }}
+  maxReplicaCount: {{ .Values.realtime.autoscaling.maxReplicaCount }}
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: {{ .Values.realtime.autoscaling.scaleDownStabilizationSeconds }}
+  triggers:
+    - type: metrics-api
+      metadata:
+        # In-cluster Service DNS, not the ALB - this is a pod-to-pod poll, never
+        # internet-routed. FQDN required: the KEDA operator itself runs in the `keda`
+        # namespace, not `default`, so the short form (`http://realtime/...`) would
+        # only resolve for a caller already in `default`.
+        url: "http://realtime.default.svc.cluster.local/internal/metrics/ws-connections"
+        valueLocation: "connections"
+        targetValue: {{ .Values.realtime.autoscaling.connectionsPerReplica | quote }}
+        authMode: "apiKey"
+        keyParamName: "X-Internal-Token"
+      authenticationRef:
+        name: realtime-metrics-auth
+{{- end }}

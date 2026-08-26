@@ -39,7 +39,7 @@ export default function InboxScreen() {
               accessibilityLabel="New chat"
               onPress={() => setNewChatOpen(true)}
               className="h-11 w-11 items-center justify-center">
-              <MaterialIcons name="edit" size={22} color={c.white} />
+              <MaterialIcons name="edit" size={22} color={c.heading} />
             </Pressable>
           </View>
         }

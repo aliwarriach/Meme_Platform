@@ -50,6 +50,11 @@ class Settings(BaseSettings):
     db_use_pgbouncer: bool = False
 
     redis_url: str
+    # Roadmap_Scaling.md C4 — gates GET /internal/metrics/ws-connections, the aggregate
+    # WS connection count KEDA's realtime ScaledObject polls. None locally/in tests
+    # (endpoint fails closed, see app/routers/internal_metrics.py); set in the ephemeral
+    # cluster via a Terraform-generated random_password (infra/ephemeral/secrets.tf).
+    internal_metrics_token: str | None = None
     jwt_secret: str
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 24

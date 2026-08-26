@@ -54,10 +54,11 @@ const AUDIENCE_OPTIONS: { value: AudienceType; label: string }[] = [
 export default function CreatorScreen() {
   const router = useRouter();
   const dispatch = useDispatch<AppDispatch>();
-  const { communityId, communityName, challengeId } = useLocalSearchParams<{
+  const { communityId, communityName, challengeId, templateUrl } = useLocalSearchParams<{
     communityId?: string;
     communityName?: string;
     challengeId?: string;
+    templateUrl?: string;
   }>();
   // Posting from inside a community has no manual audience picker — visibility is
   // fully derived server-side from the community's privacy setting.
@@ -96,9 +97,13 @@ export default function CreatorScreen() {
   const [captureError, setCaptureError] = useState<string | null>(null);
 
   // Start every creator session from a clean draft so a previous, unpublished draft
-  // (or another community's image) never leaks into this one.
+  // (or another community's image) never leaks into this one. Arriving with a `templateUrl`
+  // (tapped from a community's Templates tab) preloads it as the base image, same as picking
+  // it from the in-editor `TemplatePickerModal` would.
   useEffect(() => {
     dispatch(resetDraft());
+    if (templateUrl) dispatch(setBaseImage(templateUrl));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dispatch]);
 
   const schema = useMemo(

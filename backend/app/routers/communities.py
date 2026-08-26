@@ -61,6 +61,35 @@ async def get_community(
     return await communities_service.get_community(db, current_user, community_id)
 
 
+@router.patch("/{community_id}", response_model=CommunityOut)
+async def update_community(
+    community_id: uuid.UUID,
+    current_user: CurrentUser,
+    db: DbSession,
+    icon: UploadFile | None = None,
+    icon_public_id: Annotated[str | None, Form()] = None,
+    icon_preset: Annotated[str | None, Form()] = None,
+    clear_icon: Annotated[bool, Form()] = False,
+    banner: UploadFile | None = None,
+    banner_public_id: Annotated[str | None, Form()] = None,
+    clear_banner: Annotated[bool, Form()] = False,
+) -> CommunityOut:
+    """Owner-only. See `services/communities.py::update_community_media` for the mutually
+    exclusive icon/banner input rules."""
+    return await communities_service.update_community_media(
+        db,
+        current_user,
+        community_id,
+        icon=icon,
+        icon_public_id=icon_public_id,
+        icon_preset=icon_preset,
+        clear_icon=clear_icon,
+        banner=banner,
+        banner_public_id=banner_public_id,
+        clear_banner=clear_banner,
+    )
+
+
 @router.post("/{community_id}/join", response_model=MembershipOut, status_code=201)
 async def join_community(
     community_id: uuid.UUID, current_user: CurrentUser, db: DbSession

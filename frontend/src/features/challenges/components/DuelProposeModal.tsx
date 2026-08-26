@@ -1,10 +1,9 @@
-import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Modal, Platform, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
+import { BottomSheet } from '@/components/BottomSheet';
 import PillButton from '@/components/PillButton';
-import { DESKTOP_MODAL_MAX_WIDTH } from '@/constants/webLayout';
 import { useProposeDuelMutation } from '@/services/useChallenges';
 
 interface DuelProposeModalProps {
@@ -49,56 +48,43 @@ export default function DuelProposeModal({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose} transparent>
-      <View
-        className="flex-1 justify-end bg-black/60"
-        style={Platform.OS === 'web' ? { alignItems: 'center' } : undefined}>
-        <View
-          className="overflow-hidden rounded-t-card"
-          style={
-            Platform.OS === 'web' ? { width: '100%', maxWidth: DESKTOP_MODAL_MAX_WIDTH } : undefined
-          }>
-          <BlurView
-            intensity={60}
-            tint="dark"
-            className="border-t border-outline-variant/40 bg-surface/85 p-4">
-            <View className="mb-3 flex-row items-center justify-between">
-              <Text className="font-heading text-lg text-heading">Challenge {opponentUsername}</Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Close"
-                onPress={onClose}
-                className="h-11 w-11 items-center justify-center">
-                <Text className="font-body text-ink-muted">Close</Text>
-              </Pressable>
-            </View>
-
-            <Text className="mb-2 font-label text-xs uppercase tracking-wide text-ink-muted">
-              Duration
-            </Text>
-            <View className="mb-4 flex-row gap-2">
-              {DURATION_PRESETS.map((preset) => (
-                <PillButton
-                  key={preset.hours}
-                  label={preset.label}
-                  variant={durationHours === preset.hours ? 'primary' : 'outline'}
-                  onPress={() => setDurationHours(preset.hours)}
-                  className="flex-1"
-                />
-              ))}
-            </View>
-
-            <PillButton
-              label={proposeDuel.isPending ? 'Sending challenge…' : 'Send duel invite'}
-              onPress={onConfirm}
-              loading={proposeDuel.isPending}
-            />
-            {proposeDuel.isError ? (
-              <Text className="mt-2 font-body text-xs text-error">{proposeDuel.error.message}</Text>
-            ) : null}
-          </BlurView>
+    <BottomSheet visible={visible} onClose={onClose}>
+      <View className="border-t border-outline-variant/30 bg-bg p-4">
+        <View className="mb-3 flex-row items-center justify-between">
+          <Text className="font-heading text-lg text-heading">Challenge {opponentUsername}</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+            onPress={onClose}
+            className="h-11 w-11 items-center justify-center">
+            <Text className="font-body text-ink-muted">Close</Text>
+          </Pressable>
         </View>
+
+        <Text className="mb-2 font-label text-xs uppercase tracking-wide text-ink-muted">
+          Duration
+        </Text>
+        <View className="mb-4 flex-row gap-2">
+          {DURATION_PRESETS.map((preset) => (
+            <PillButton
+              key={preset.hours}
+              label={preset.label}
+              variant={durationHours === preset.hours ? 'primary' : 'outline'}
+              onPress={() => setDurationHours(preset.hours)}
+              className="flex-1"
+            />
+          ))}
+        </View>
+
+        <PillButton
+          label={proposeDuel.isPending ? 'Sending challenge…' : 'Send duel invite'}
+          onPress={onConfirm}
+          loading={proposeDuel.isPending}
+        />
+        {proposeDuel.isError ? (
+          <Text className="mt-2 font-body text-xs text-error">{proposeDuel.error.message}</Text>
+        ) : null}
       </View>
-    </Modal>
+    </BottomSheet>
   );
 }

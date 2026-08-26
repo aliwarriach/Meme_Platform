@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -97,13 +98,33 @@ export default function ThreadScreen({ conversationId }: { conversationId: strin
 
   const messages: MessageResponse[] = data?.pages.flatMap((page) => page.items) ?? [];
 
+  // Android-only: `KeyboardAvoidingView`'s automatic `'height'` mode is unreliable in this
+  // exact tree (composer stays hidden behind the keyboard even with `windowSoftInputMode:
+  // 'resize'` set — see app.config.js), so on Android this screen measures the keyboard
+  // itself via `Keyboard.addListener` (the same event source `CommentsSection` already
+  // uses successfully) and applies it as explicit bottom padding instead of trusting the
+  // built-in heuristic. iOS's `'padding'` behavior isn't affected and is left untouched.
+  const [androidKeyboardHeight, setAndroidKeyboardHeight] = useState(0);
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const showSub = Keyboard.addListener('keyboardDidShow', (e) =>
+      setAndroidKeyboardHeight(e.endCoordinates.height)
+    );
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => setAndroidKeyboardHeight(0));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
   return (
     <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
       <TopBar title={conversation?.other_user.username ?? 'Conversation'} showBack />
 
       <KeyboardAvoidingView
         className="flex-1"
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={Platform.OS === 'android' ? { paddingBottom: androidKeyboardHeight } : undefined}>
         {isLoading ? (
           <ActivityIndicator className="mt-8" color={c.inkMuted} />
         ) : isError ? (
