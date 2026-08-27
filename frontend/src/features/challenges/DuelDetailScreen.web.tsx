@@ -32,17 +32,15 @@ interface DuelDetailScreenProps {
  * community-less challenge detail for duels and `open` challenges, reached via the flat
  * `/challenges/[challengeId]` route. Migrated off the retired independent Neubrutalism theme onto
  * the project-standard Vaporwave/Luminous glass system — see
- * `design-system/meme-platform/pages/compete-web.md`. Same business logic/data as native (local
- * join-state tracking for `open` challenges, since `member_ids` is always `[]` for that shape —
- * see the detailed rationale in the native component and `.claude/memory/challenges.md`), only
- * chrome changed.
+ * `design-system/meme-platform/pages/compete-web.md`. Same business logic/data as native
+ * (`ChallengeOut.viewer_side_id`, Roadmap_Search.md S4, for "which side is the viewer already
+ * on" — see the detailed rationale in the native component), only chrome changed.
  */
 function DuelDetailScreenContent({ challengeId }: DuelDetailScreenProps) {
   const router = useRouter();
   const { colors, type, spacing } = useVaporwaveTheme();
   const styles = useMemo(() => createStyles(colors, spacing), [colors, spacing]);
   const currentUser = useSelector((state: RootState) => state.auth.user);
-  const [locallyJoinedSideId, setLocallyJoinedSideId] = useState<string | null>(null);
   const [joinNotice, setJoinNotice] = useState<string | null>(null);
 
   useEffect(() => {
@@ -77,10 +75,7 @@ function DuelDetailScreenContent({ challengeId }: DuelDetailScreenProps) {
 
   const isOpenChallenge = challenge.challenge_type === 'open';
   const isInvitee = challenge.invitee_id === currentUser?.id;
-  const mySideId =
-    challenge.sides.find((side) => side.member_ids.includes(currentUser?.id ?? ''))?.id ??
-    locallyJoinedSideId ??
-    undefined;
+  const mySideId = challenge.viewer_side_id ?? undefined;
   const winningSide = challenge.sides.find((side) => side.id === challenge.winning_side_id);
   const submissions = resultsQuery.data?.submissions ?? [];
 
@@ -88,10 +83,7 @@ function DuelDetailScreenContent({ challengeId }: DuelDetailScreenProps) {
     setJoinNotice(null);
     joinChallenge.mutate(
       { challengeId, sideId },
-      {
-        onSuccess: () => setLocallyJoinedSideId(sideId),
-        onError: () => setJoinNotice("You've already picked a side in this challenge."),
-      }
+      { onError: () => setJoinNotice("You've already picked a side in this challenge.") }
     );
   };
 

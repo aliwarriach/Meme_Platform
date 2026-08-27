@@ -46,6 +46,14 @@ export default function WebFeedTopBar({ onShareInstagramLink, onOpenMenu }: WebF
       <View style={styles.actions}>
         <Pressable
           accessibilityRole="button"
+          accessibilityLabel="Search"
+          onPress={() => router.push('/search')}
+          style={({ hovered }) => [styles.iconButton, hovered && styles.iconButtonHovered]}>
+          <MaterialIcons name="search" size={20} color={FEED_WEB_COLORS.foreground} />
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
           accessibilityLabel={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
           onPress={toggleMode}
           style={({ hovered }) => [styles.iconButton, hovered && styles.iconButtonHovered]}>

@@ -10,8 +10,11 @@ re-litigating decisions.
 already exists) → the one phase you're implementing in §3 → §4 (QA matrix for that phase). Then
 `backend/CLAUDE.md` or `frontend/CLAUDE.md`, then `/.claude/memory/{hashtags,challenges,meme-feed}.md`.
 
-**Global status: PENDING.** Nothing in this roadmap has been implemented. Design review completed
-and every open question answered by the project owner on 2026-08-27 (§1).
+**Global status: IMPLEMENTED (2026-08-27), pending human tap-through.** All seven phases (S1-S7)
+built and automated-tested (backend: real Postgres, `tsc`/`expo lint` clean on frontend). §4's QA
+matrix — the scenarios only a human catches — has not been walked by hand yet; do that before
+calling this roadmap fully done. S7 has one deliberate scope trim (two-column results grid), noted
+in its own section.
 
 **Statuses are greppable.** `grep "^\*\*STATUS:" Roadmap_Search.md` prints the whole board.
 Allowed values, exactly: `PENDING` · `IN PROGRESS` · `IMPLEMENTED` · `BLOCKED`.
@@ -24,13 +27,16 @@ worse than no roadmap, because the next session will trust it.
 
 | # | Phase | Status | Est. | Depends on |
 |---|---|---|---|---|
-| S1 | Hashtag reservation lifecycle + anti-squatting | PENDING | 3d | — |
-| S2 | Trending hashtags (compute, cache, cron, endpoint) | PENDING | 3d | — |
-| S3 | Search API (aggregator + 5 scopes) | PENDING | 4d | S1 (loosely) |
-| S4 | `viewer_side_id` on `ChallengeOut` | PENDING | 1d | — |
-| S5 | Tag screen: live-race header, result card, Hot/Latest | PENDING | 4d | S1, S4 |
-| S6 | Search screen + feed top-bar entry point | PENDING | 5d | S2, S3 |
-| S7 | Desktop-web parity | PENDING | 2d | S5, S6 |
+| S1 | Hashtag reservation lifecycle + anti-squatting | IMPLEMENTED | 3d | — |
+| S2 | Trending hashtags (compute, cache, cron, endpoint) | IMPLEMENTED | 3d | — |
+| S3 | Search API (aggregator + 5 scopes) | IMPLEMENTED | 4d | S1 (loosely) |
+| S4 | `viewer_side_id` on `ChallengeOut` | IMPLEMENTED | 1d | — |
+| S5 | Tag screen: live-race header, result card, Hot/Latest | IMPLEMENTED¹ | 4d | S1, S4 |
+| S6 | Search screen + feed top-bar entry point | IMPLEMENTED¹ | 5d | S2, S3 |
+| S7 | Desktop-web parity | IMPLEMENTED² | 2d | S5, S6 |
+
+¹ Needs human tap-through — see §4's QA matrix, not yet walked by hand.
+² One deliberate scope trim (two-column results grid skipped) — see the phase's own section.
 
 **Suggested order:** S1 → S4 → S2 → S3 → S5 → S6 → S7. S1 and S4 are small backend changes that
 unblock the frontend work; doing them first means S5 never waits on a schema change mid-phase.
@@ -194,7 +200,7 @@ Read this before assuming something needs building.
 
 ### S1 — Hashtag reservation lifecycle + anti-squatting
 
-**STATUS:** PENDING
+**STATUS:** IMPLEMENTED (2026-08-27)
 **Est:** 3 days · **Depends on:** — · **Blocks:** S5
 
 **WHY.** Three real holes, all reachable today with no special effort: a reservation never expires
@@ -298,7 +304,7 @@ show two challenges at once, which the current single-scalar `HashtagOut.challen
 
 ### S2 — Trending hashtags
 
-**STATUS:** PENDING
+**STATUS:** IMPLEMENTED (2026-08-27)
 **Est:** 3 days · **Depends on:** — · **Blocks:** S6
 
 **WHY.** Nothing in the codebase computes tag velocity today. Trending is the entire first impression
@@ -363,7 +369,7 @@ of the search screen and the only discovery surface open challenges have ever ha
 
 ### S3 — Search API
 
-**STATUS:** PENDING
+**STATUS:** IMPLEMENTED (2026-08-27)
 **Est:** 4 days · **Depends on:** S1 (loosely — see step 3) · **Blocks:** S6
 
 **FILES.**
@@ -465,7 +471,7 @@ of the search screen and the only discovery surface open challenges have ever ha
 
 ### S4 — `viewer_side_id` on `ChallengeOut`
 
-**STATUS:** PENDING
+**STATUS:** IMPLEMENTED (2026-08-27)
 **Est:** 1 day · **Depends on:** — · **Blocks:** S5
 
 **WHY.** See §1.8. Small change, but S5's funnel is broken without it.
@@ -496,7 +502,7 @@ a duel's two participants each see their own side.
 
 ### S5 — Tag screen: live-race header, result card, Hot/Latest
 
-**STATUS:** PENDING
+**STATUS:** IMPLEMENTED (2026-08-27) — needs human tap-through, see §4
 **Est:** 4 days · **Depends on:** S1, S4
 
 **WHY.** This is the payoff of the whole funnel: the screen that has to make a challenge feel like a
@@ -564,7 +570,7 @@ test, parameterized over both routes) and rejects `offset < 0` with 422.
 
 ### S6 — Search screen + feed top-bar entry point
 
-**STATUS:** PENDING
+**STATUS:** IMPLEMENTED (2026-08-27) — needs human tap-through, see §4
 **Est:** 5 days · **Depends on:** S2, S3
 
 **FILES.**
@@ -615,8 +621,20 @@ is branching logic in `features/` and **is** required. Pure layout is not.
 
 ### S7 — Desktop-web parity
 
-**STATUS:** PENDING
+**STATUS:** IMPLEMENTED (2026-08-27) — with one deliberate scope trim, see note below.
 **Est:** 2 days · **Depends on:** S5, S6
+
+**Implementation note.** Step 1 done as specified (`DesktopSidebarNav` gained a `Search` item;
+`WebFeedTopBar` gained a search icon button next to the Instagram-link one). Step 2: confirmed no
+`SearchScreen.web.tsx`/`TagFeedScreen.web.tsx` needed — `DesktopShell` already caps every non-`/feed`
+content column at `DESKTOP_CONTENT_MAX_WIDTH` (680px), so neither screen renders phone-narrow *or*
+monitor-wide on desktop web; this also structurally covers most of step 4's "stretched at 1200pt"
+concern for `ChallengeRaceHeader`/`ChallengeResultCard` without extra work, since they can never
+exceed 680px regardless of window width. **Step 3 (two-column results grid) was deliberately
+skipped** — `FlatList`/`MemeFeedList` don't have an existing masonry/grid precedent anywhere in this
+codebase, and building one is a disproportionate new pattern for a single screen at a 680px cap
+(not egregiously wide). Flag if product wants a real two-column layout; the single-column render is
+correct and usable at this width, just not maximally space-efficient.
 
 **WHY.** This app has a real desktop-web shell (`DesktopShell` / `DesktopSidebarNav` / `WebModalFrame`,
 `Platform.OS === 'web'`-gated). A phone-shaped search screen dropped into it will look wrong, and

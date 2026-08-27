@@ -31,6 +31,9 @@ export interface ChallengeResponse {
   start_time: string;
   end_time: string;
   winning_side_id: string | null;
+  // Which side the requesting viewer is on, if any — null for a non-participant. Survives
+  // an app restart, unlike the old local-component-state workaround (Roadmap_Search.md S4).
+  viewer_side_id: string | null;
   sides: ChallengeSideResponse[];
 }
 

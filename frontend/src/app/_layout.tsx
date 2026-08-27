@@ -145,6 +145,7 @@ function AuthBoundary({ fontsLoaded }: { fontsLoaded: boolean }) {
         <Stack.Screen name="compete" />
         <Stack.Screen name="compete/open/new" />
         <Stack.Screen name="tag/[slug]" />
+        <Stack.Screen name="search" />
         </Stack>
       </DesktopShell>
     </ThemeProvider>

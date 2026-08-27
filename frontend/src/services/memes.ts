@@ -2,7 +2,6 @@ import { api } from '@/services/api';
 import type { PublicUserResponse } from '@/services/auth';
 import type { MemeContainerResponse } from '@/services/instagram';
 import { uploadImageDirect } from '@/services/media';
-import { appendImageToFormData } from '@/utils/multipartImage';
 
 export type AudienceType = 'public' | 'friends';
 
@@ -32,6 +31,13 @@ export interface MemeResponse {
 export interface FeedPageResponse {
   items: MemeResponse[];
   next_cursor: string | null;
+}
+
+// Hot-ranked, offset-paginated (as opposed to `FeedPageResponse`'s keyset `next_cursor`) —
+// backs the tag screen's Hot tab (Roadmap_Search.md S5) via `GET /hashtags/{slug}/memes/hot`.
+export interface HotFeedPageResponse {
+  items: MemeResponse[];
+  has_more: boolean;
 }
 
 // The public feed merges native memes with externally-shared MemeContainers (Instagram
@@ -100,13 +106,17 @@ export async function createCommunityMemeRequest(payload: {
   imageType: string;
   caption?: string;
 }) {
-  const form = new FormData();
-  await appendImageToFormData(form, 'image', {
-    uri: payload.imageUri,
-    name: payload.imageName,
-    type: payload.imageType,
-  });
+  // Roadmap_Scaling.md A4 — image bytes go straight to Cloudinary; only the confirmed
+  // public_id is sent to our own backend. Mirrors createMemeRequest above — this call site
+  // used to send the raw image Blob through axios instead, which is what threw "Unsupported
+  // FormData implementation" on some RN/axios combinations.
+  const imagePublicId = await uploadImageDirect(
+    { uri: payload.imageUri, name: payload.imageName, type: payload.imageType },
+    'memes'
+  );
 
+  const form = new FormData();
+  form.append('image_public_id', imagePublicId);
   if (payload.caption) form.append('caption', payload.caption);
 
   return api.post<MemeResponse>(`/communities/${payload.communityId}/memes`, form, {

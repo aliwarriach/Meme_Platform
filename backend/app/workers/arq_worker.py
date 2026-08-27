@@ -26,11 +26,13 @@ from app.workers.tasks.notifications import (
 )
 from app.workers.tasks.password_reset import send_password_reset_otp_job
 from app.workers.tasks.scoring import recompute_meme_scores
+from app.workers.tasks.trending import refresh_trending_hashtags
 
 SCORE_RECOMPUTE_INTERVAL_S = 30
 CHALLENGE_POLL_INTERVAL_S = 5
 ENDING_SOON_POLL_INTERVAL_MIN = 5
 SIDE_OVERTAKEN_POLL_INTERVAL_S = 60
+TRENDING_REFRESH_INTERVAL_MIN = 5
 
 _redis_settings = RedisSettings.from_dsn(settings.redis_url)
 # See the matching comment in app/core/redis.py — arq's default 1s conn_timeout is too
@@ -56,5 +58,9 @@ class WorkerSettings:
         cron(notify_side_overtaken, second=set(range(0, 60, SIDE_OVERTAKEN_POLL_INTERVAL_S))),
         # Monday 00:00 UTC — one fresh platform-run open challenge per ISO week.
         cron(create_weekly_open_challenge, weekday=0, hour=0, minute=0, second=0),
+        cron(
+            refresh_trending_hashtags,
+            minute=set(range(0, 60, TRENDING_REFRESH_INTERVAL_MIN)),
+        ),
     ]
     redis_settings = _redis_settings

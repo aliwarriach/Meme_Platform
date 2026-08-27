@@ -192,6 +192,22 @@ class HashtagAlreadyReservedError(DomainError):
     status_code = status.HTTP_409_CONFLICT
 
 
+class TooManyActiveReservationsError(DomainError):
+    """One active hashtag reservation per user at a time (Roadmap_Search.md S1) — stops one
+    account bulk-reserving every valuable tag on the platform. The platform system account
+    is exempt (its weekly auto-challenge always needs a fresh reservation)."""
+
+    status_code = status.HTTP_409_CONFLICT
+
+
+class HashtagTooPopularToReserveError(DomainError):
+    """The tag already has enough organic activity that it belongs to the community, not to
+    one challenge (Roadmap_Search.md S1). Not retroactive — a tag that becomes popular
+    *during* a challenge is unaffected."""
+
+    status_code = status.HTTP_409_CONFLICT
+
+
 class ChallengeNotOpenError(DomainError):
     """Self-service join/leave only applies to `open` challenges; the community shapes
     assign sides via the owner or via membership."""

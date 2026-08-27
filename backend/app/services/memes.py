@@ -260,16 +260,23 @@ async def create_community_meme(
     current_user: User,
     community_id: uuid.UUID,
     caption: str | None,
-    image: UploadFile,
+    image: UploadFile | None = None,
+    image_public_id: str | None = None,
 ) -> MemeOut:
     """Community posts are only created from inside a community — there's no client-chosen
     audience here. Visibility is entirely derived from the community's privacy: every
     community post gets a `community` audience row, and an **open** community additionally
     gets a `public` row so the post surfaces in the global feed (with this meme's `community`
     badge) — an **invite-only** community's posts stay community-only.
+
+    `image` (legacy multipart upload) and `image_public_id` (Roadmap_Scaling.md A4's
+    direct-to-Cloudinary flow) are mutually exclusive; exactly one is required — same
+    contract as the personal `create_meme` above.
     """
     community = await require_active_membership(db, community_id, current_user.id)
-    meme = await stage_community_meme(db, community, current_user.id, caption, image)
+    meme = await stage_community_meme(
+        db, community, current_user.id, caption, image, confirmed_image_public_id=image_public_id
+    )
 
     await db.commit()
     await db.refresh(meme)

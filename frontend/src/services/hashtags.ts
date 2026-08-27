@@ -1,5 +1,6 @@
 import { api } from '@/services/api';
-import type { FeedPageResponse } from '@/services/memes';
+import type { ChallengeResponse } from '@/services/challenges';
+import type { FeedPageResponse, HotFeedPageResponse } from '@/services/memes';
 
 export interface HashtagSuggestionResponse {
   id: string;
@@ -14,7 +15,11 @@ export interface HashtagResponse {
   slug: string;
   display_text: string;
   meme_count: number;
+  // Deprecated alias for `active_challenge.id`, kept for one release — read
+  // `active_challenge`/`recent_result_challenge` instead (Roadmap_Search.md S1/S5).
   challenge_id: string | null;
+  active_challenge: ChallengeResponse | null;
+  recent_result_challenge: ChallengeResponse | null;
 }
 
 export function searchHashtagsRequest(query: string, limit = 10) {
@@ -30,4 +35,8 @@ export function getHashtagFeedRequest(slug: string, cursor: string | null, limit
     limit,
     ...(cursor ? { cursor } : {}),
   });
+}
+
+export function getHashtagFeedHotRequest(slug: string, offset: number, limit = 20) {
+  return api.get<HotFeedPageResponse>(`/hashtags/${slug}/memes/hot`, { offset, limit });
 }

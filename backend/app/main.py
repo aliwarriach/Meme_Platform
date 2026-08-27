@@ -35,6 +35,7 @@ from app.routers import (
     messaging,
     notifications,
     profiles,
+    search,
     templates,
 )
 from app.websockets.connection_manager import connection_manager
@@ -189,6 +190,7 @@ app.include_router(competitions.router)
 app.include_router(challenges.router)
 app.include_router(challenges.flat_router)
 app.include_router(hashtags.router)
+app.include_router(search.router)
 app.include_router(meme_sending.router)
 app.include_router(messaging.router)
 app.include_router(notifications.router)

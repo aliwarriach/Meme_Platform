@@ -88,6 +88,10 @@ class ChallengeOut(BaseModel):
     start_time: datetime.datetime
     end_time: datetime.datetime
     winning_side_id: uuid.UUID | None
+    # Which side the requesting viewer is on, if any — `None` for a non-participant.
+    # Restores "You're on Team A" across app restarts without relying on local component
+    # state (Roadmap_Search.md S4/§1.8).
+    viewer_side_id: uuid.UUID | None = None
     sides: list[ChallengeSideOut]
 
 

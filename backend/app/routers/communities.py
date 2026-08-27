@@ -143,13 +143,17 @@ async def list_community_templates(
 @router.post("/{community_id}/memes", response_model=MemeOut, status_code=201)
 async def create_community_meme(
     community_id: uuid.UUID,
-    image: UploadFile,
     current_user: CurrentUser,
     db: DbSession,
+    image: UploadFile | None = None,
+    image_public_id: Annotated[str | None, Form()] = None,
     caption: Annotated[str | None, Form(max_length=500)] = None,
 ) -> MemeOut:
+    """`image` (legacy multipart upload) and `image_public_id` (Roadmap_Scaling.md A4's
+    direct-to-Cloudinary flow — confirm the `public_id` from
+    `POST /media/upload-signature`) are mutually exclusive; exactly one is required."""
     return await memes_service.create_community_meme(
-        db, current_user, community_id, caption, image
+        db, current_user, community_id, caption, image, image_public_id=image_public_id
     )
 
 

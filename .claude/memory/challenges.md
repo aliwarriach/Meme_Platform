@@ -1,5 +1,71 @@
 # challenges
 
+## 2026-08-27 — Roadmap_Search.md S1 + S4 (hashtag reservation lifecycle, `viewer_side_id`)
+
+**S1 — reservation is no longer permanent.** `create_open_challenge` (`services/challenges.py`) now
+runs four guards, all before the challenge row is created:
+1. **Release on evaluation** — the reservation guard and the DB constraint are both **status-filtered**
+   now (`Challenge.status != evaluated`), not a plain "does any challenge own this hashtag_id" check.
+   The DB-level enforcement moved from a plain unique index (`ix_challenges_hashtag_id`) to a
+   **partial** unique index, `uq_challenge_live_hashtag` (migration `1a2b3c4d5e6f`), `WHERE hashtag_id
+   IS NOT NULL AND status <> 'evaluated'`. Mirrored on the `Challenge` model's `__table_args__` via
+   `Index(..., unique=True, postgresql_where=text(...))` so `Base.metadata.create_all` (the test
+   suite's schema source) enforces the same constraint as the migration.
+2. **14-day max duration** (`MAX_OPEN_CHALLENGE_DAYS = 14`) — `open` only, checked against
+   `end_time - start_time`, strictly `>` rejected.
+3. **One active reservation per user** — any challenge with `creator_id == current_user.id`,
+   `hashtag_id IS NOT NULL`, `status != evaluated` blocks a new one (`TooManyActiveReservationsError`,
+   409). `current_user.is_platform_account` is exempt (resolved by the flag, matching
+   `_get_or_create_platform_user`'s existing precedent) — the weekly cron reuses the same platform
+   account every run and would otherwise be permanently blocked after week 1.
+4. **Popular-tag block** — `POPULAR_TAG_MEME_THRESHOLD = 50` **and** `POPULAR_TAG_AUTHOR_THRESHOLD =
+   20` (both required) on existing `MemeHashtag`/`Meme.author_id` rows for that tag →
+   `HashtagTooPopularToReserveError`, 409. Not retroactive — only blocks a *new* reservation attempt;
+   a tag crossing the threshold during a live challenge doesn't retroactively invalidate it.
+
+`create_weekly_open_challenge`'s idempotency **could no longer rely solely on
+`HashtagAlreadyReservedError`** once release-on-evaluation shipped — re-running the cron for an ISO
+week whose challenge had already been evaluated would no longer collide on the reservation and would
+create a duplicate. Fixed with an explicit pre-check (any challenge on that week's deterministic slug,
+regardless of status) before attempting creation.
+
+`HashtagOut` (see [[hashtags]]) now embeds `active_challenge`/`recent_result_challenge` instead of a
+bare `challenge_id` scalar, since a tag screen can show two challenges (a live one + a recently-ended
+one) at once now that reservations release.
+
+**S4 — `ChallengeOut.viewer_side_id`.** `_build_challenge_out` takes an optional `viewer_id:
+uuid.UUID | None = None` (same "pass `None` from genuinely viewer-agnostic call sites" precedent as
+`build_meme_out`'s `viewer_id`/`view_count` gating — see [[meme-feed]]) and resolves which side, if
+any, the caller is already on:
+- `intra_community`/`open`/`duel` — looked up from the `ChallengeParticipant` roster **`_build_challenge_out`
+  already fetches for `side_member_ids`** (reused, not a second query).
+- `community_vs_community` — derived live from `CommunityMembership`, same as `_get_caller_side_vs_community`,
+  but via a new, **read-only, non-raising** sibling `_resolve_viewer_side_id`: returns `None` for a
+  member-of-both (ambiguous) or member-of-neither caller instead of raising — unlike
+  `_resolve_caller_side` (submission-time), every viewer of a challenge needs an answer here, not just
+  its eligible submitters.
+
+Every one of the ~12 `_build_challenge_out` call sites in `services/challenges.py` was updated in the
+same changeset (`viewer_id=current_user.id`); `services/hashtags.py::_build_hashtag_out` threads its
+own `viewer_id` param through to the two challenges it embeds. `get_hashtag`'s signature gained a
+required `viewer_id` param — the router now passes `current_user.id`.
+
+Fixed two real (pre-existing, unrelated to S1/S4 logic) test bugs surfaced while verifying this:
+`PAST()`/`FUTURE()` test helpers each sample `datetime.now()` independently, which flipped an
+exactly-14-days-boundary assertion via clock drift — fixed by deriving both timestamps from one `now`
+reference. And a 20-distinct-author popularity test was registering users through `POST
+/auth/register`, tripping its `5/minute` rate limit — fixed by inserting `User` rows directly via
+`TestSessionFactory` (real rows still needed for the FK, but no HTTP round trip). Neither was a bug in
+application code.
+
+**Tests:** `test_open_challenges.py` (+13: release-on-evaluation, 14-day cap, per-user cap +
+platform-account exemption, popular-tag block (both thresholds required), `HashtagOut`'s two embedded
+challenges incl. the 24h drop-off, weekly-cron idempotency surviving evaluation, `viewer_side_id`
+survives a refetch and is `None` for a non-participant), `test_duels.py` (+1: each duelist sees their
+own side), `test_vs_challenges.py` (+1: own-community side / both-communities-ambiguous / neither
+returns `None`). 71/71 passing against real Postgres as of this changeset (`test_open_challenges.py`,
+`test_vs_challenges.py`, `test_duels.py`, `test_challenges.py`, `test_challenge_notification_crons.py`).
+
 ## 2026-08-27 — non-members of an open community can back it in community_vs_community challenges
 Product decision, not a bug fix: someone browsing an **open** community they haven't joined can now (a) see its active/evaluated `community_vs_community` challenges (never `intra_community`/team ones, never a still-`setup` proposal) and (b) actually submit an entry backing that community's side, via the one-transaction `POST /challenges/{id}/submissions` (`services/challenges.py::create_and_submit_to_challenge`) specifically — the two-step `submit_to_challenge` (an already-existing meme) stays practically unreachable for a genuine non-member, since it requires a meme that's already a community post, and plain community-post creation (`create_community_meme`) is deliberately **unaffected** and still member-only regardless of privacy.
 - `_get_caller_side_vs_community`: when the caller is a member of neither participating community, falls back to "whichever one is open" — still rejects if both are open (ambiguous, same guard as the existing both-member-of-both case) or neither is open.
@@ -100,6 +166,7 @@ All under `/communities/{community_id}/challenges`, registered in `backend/app/r
 - `_layout.tsx` Stack gained `communities/[id]/challenges/vs`, nested the same safe way as the other challenge routes (inside the `[id]` dynamic segment, no collision with the flat `communities.tsx` list screen).
 - **Phase 21**: `services/useChallenges.ts` gained flat-route variants `useChallengeFlat`/`useChallengeResultsFlat` (no `communityId`) and `useProposeDuelMutation`/`useAcceptDuelMutation`/`useDeclineDuelMutation`. `ChallengeResponse` widened: `community_id` is now `string | null` (was incorrectly non-null — also wrong for `open` challenges since Phase 20, only actually fixed now) and gained `invitee_id`/`invitee`. `features/challenges/DuelDetailScreen.tsx` (route `app/challenges/[challengeId].tsx`) is a **separate component from `ChallengeDetailScreen`**, not a branch inside it — `ChallengeDetailScreen`'s hooks all take a required `communityId`, and duels have none; forking was lower-risk than making that param optional across an already-shipped flow. Entry point for duels: a duel icon on `features/friends/components/FriendRow.tsx` opens `DuelProposeModal` (title auto-generated, duration picked from 3 presets), which on success navigates straight to the new challenge's detail screen.
 - **Phase 18+20**: `useCreateAndSubmitToChallengeMutation` takes `challengeId` as a **mutate-time variable, not a hook argument** (`useMutation<..., {challengeId, image, caption}>`) — changed from its original Phase 21 shape (`useCreateAndSubmitToChallengeMutation(challengeId)`) because the creator has two different possible target challenges at submit time (the URL `challengeId` param, or one resolved mid-session from a typed hashtag) and can't know which up front when the hook is created. `DuelDetailScreen`'s old inline `expo-image-picker` submission (Phase 21) is gone — it now routes to the creator like every other challenge-submission entry point.
+- **2026-08-27, Roadmap_Search.md S4**: `ChallengeResponse` gained `viewer_side_id: string | null`. `DuelDetailScreen.tsx`/`.web.tsx` (which also renders `open` challenges) previously resolved "which side is the viewer on" via `useState` local join-state that reset on every remount (documented limitation, dated 2026-08-06) — replaced with `challenge.viewer_side_id` directly in both files; `useJoinOpenChallengeMutation`'s existing `challengeFlatKey` invalidation already refetches it after a successful join, so no new invalidation was needed.
 
 ## Gotchas
 - **`app/workers/challenges.py` (the original in-process asyncio polling loop) has been retired** — replaced by the arq cron job noted above. `evaluate_challenge` still re-checks `status == "active"` before acting, so a duplicate/overlapping run is still a no-op — that safety property didn't depend on which scheduler calls it.
@@ -108,7 +175,7 @@ All under `/communities/{community_id}/challenges`, registered in `backend/app/r
 - `meme_id` on the submission endpoint is a **query param**, not a JSON body field.
 
 ## Key files
-- backend: `app/models/{challenge,challenge_side,challenge_participant,challenge_submission,badge}.py`, `app/schemas/{challenges,badges}.py`, `app/services/{challenges,badges}.py`, `app/routers/challenges.py`, `app/routers/auth.py` (badges route), `app/workers/tasks/challenges.py` (window-close cron) + `app/workers/tasks/notifications.py` (**Phase 21**: ending-soon/side-overtaken/weekly-challenge crons + the push-send job), `app/workers/arq_worker.py`, `alembic/versions/{82358ee59c4b_create_challenges_tables,133af838fbe7_add_opponent_community_to_challenges,89147fd6d359_add_duel_challenge_type}.py`.
+- backend: `app/models/{challenge,challenge_side,challenge_participant,challenge_submission,badge}.py`, `app/schemas/{challenges,badges}.py`, `app/services/{challenges,badges}.py`, `app/routers/challenges.py`, `app/routers/auth.py` (badges route), `app/workers/tasks/challenges.py` (window-close cron) + `app/workers/tasks/notifications.py` (**Phase 21**: ending-soon/side-overtaken/weekly-challenge crons + the push-send job), `app/workers/arq_worker.py`, `alembic/versions/{82358ee59c4b_create_challenges_tables,133af838fbe7_add_opponent_community_to_challenges,89147fd6d359_add_duel_challenge_type,1a2b3c4d5e6f_hashtag_reservation_lifecycle}.py` (**S1**, the partial-index migration).
 - frontend: `src/services/{challenges,badges,useChallenges}.ts`, `src/features/challenges/{CreateChallengeScreen,ProposeVsChallengeScreen,ChallengeDetailScreen,DuelDetailScreen,CompeteScreen,CreateOpenChallengeScreen}.tsx` (**Phase 21**: `DuelDetailScreen` + `components/DuelProposeModal.tsx`; **Phase 18+20**: `CompeteScreen`/`CreateOpenChallengeScreen`), `src/features/challenges/components/{SideMemberPicker,SubmissionPicker,ChallengeRow,CountdownTimer,HashtagInput}.tsx`, `src/app/communities/[id]/challenges/{new,vs,[challengeId]}.tsx`, `src/app/challenges/[challengeId].tsx` (flat route), `src/app/compete.tsx`, `src/app/compete/open/new.tsx`, `src/features/communities/CommunityDetailScreen.tsx` (Challenges tab), `src/features/friends/components/FriendRow.tsx` (duel entry point), `src/features/creator/CreatorScreen.tsx` (**Phase 18+20**: `challengeId` mode + hashtag input), `src/features/leaderboards/{LeaderboardsScreen,LeaderboardsPanel}.tsx`, `src/components/FloatingBottomNav.tsx`, `src/services/localFlags.ts`.
 
 ## Tests

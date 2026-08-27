@@ -29,7 +29,7 @@ import math
 import uuid
 
 from fastapi import UploadFile
-from sqlalchemy import case, exists, func, or_, select
+from sqlalchemy import ColumnElement, and_, case, exists, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,6 +39,7 @@ from app.core.exceptions import (
     CannotDuelSelfError,
     ChallengeNotOpenError,
     HashtagAlreadyReservedError,
+    HashtagTooPopularToReserveError,
     ChallengeNotActiveError,
     ChallengeNotEvaluatedError,
     ChallengeNotFoundError,
@@ -52,6 +53,7 @@ from app.core.exceptions import (
     NotChallengeParticipantError,
     NotCommunityOwnerError,
     NotFriendsError,
+    TooManyActiveReservationsError,
 )
 from app.core.security import hash_password
 from app.models.badge import Badge, BadgeType
@@ -94,6 +96,12 @@ PLATFORM_USERNAME = "memeversehq"
 PLATFORM_EMAIL = "platform@memeverse.internal"
 WEEKLY_CHALLENGE_SIDE_NAMES = ("Team Alpha", "Team Beta")
 WEEKLY_CHALLENGE_DURATION_DAYS = 7
+
+# Anti-squatting tunables for `open` challenges (Roadmap_Search.md S1) — the community
+# shapes are owner-created and not a squatting vector, so these apply to `open` only.
+MAX_OPEN_CHALLENGE_DAYS = 14
+POPULAR_TAG_MEME_THRESHOLD = 50
+POPULAR_TAG_AUTHOR_THRESHOLD = 20
 
 # Anti-gaming tunables for `_side_scores` — see its docstring for why each exists. Kept as
 # module constants like the [[scoring-engine]] atom's own tunables, so they're one edit to
@@ -153,6 +161,52 @@ async def _require_involved_member(db: AsyncSession, challenge: Challenge, user_
                 return
 
     raise CommunityAccessDeniedError("Only members of a participating community can do this")
+
+
+def challenge_visibility_clause(viewer_id: uuid.UUID) -> ColumnElement[bool]:
+    """A `WHERE`-clause equivalent of `_require_involved_member`, for list/search queries
+    that filter many challenges at once rather than checking one already-fetched row
+    (Roadmap_Search.md S3's Challenges scope). **Must be kept in exact parity with
+    `_require_involved_member`** — see `test_search.py`'s dedicated parity test — a drift
+    here is an information leak (a challenge showing up in search results/counts that the
+    same viewer can't actually open), not a cosmetic bug.
+    """
+    is_member_home = exists().where(
+        CommunityMembership.community_id == Challenge.community_id,
+        CommunityMembership.user_id == viewer_id,
+        CommunityMembership.status == MembershipStatus.active,
+    )
+    is_member_opponent = exists().where(
+        CommunityMembership.community_id == Challenge.opponent_community_id,
+        CommunityMembership.user_id == viewer_id,
+        CommunityMembership.status == MembershipStatus.active,
+    )
+    home_is_open = exists().where(
+        Community.id == Challenge.community_id, Community.privacy == CommunityPrivacy.open
+    )
+    opponent_is_open = exists().where(
+        Community.id == Challenge.opponent_community_id, Community.privacy == CommunityPrivacy.open
+    )
+
+    return or_(
+        Challenge.challenge_type == ChallengeType.open,
+        and_(
+            Challenge.challenge_type == ChallengeType.duel,
+            or_(Challenge.creator_id == viewer_id, Challenge.invitee_id == viewer_id),
+        ),
+        and_(Challenge.challenge_type == ChallengeType.intra_community, is_member_home),
+        and_(
+            Challenge.challenge_type == ChallengeType.community_vs_community,
+            or_(
+                is_member_home,
+                is_member_opponent,
+                and_(
+                    Challenge.status.in_((ChallengeStatus.active, ChallengeStatus.evaluated)),
+                    or_(home_is_open, opponent_is_open),
+                ),
+            ),
+        ),
+    )
 
 
 async def _get_challenge_or_404(db: AsyncSession, challenge_id: uuid.UUID) -> Challenge:
@@ -221,7 +275,45 @@ async def _side_scores(db: AsyncSession, challenge_id: uuid.UUID) -> dict[uuid.U
     }
 
 
-async def _build_challenge_out(db: AsyncSession, challenge: Challenge) -> ChallengeOut:
+async def _resolve_viewer_side_id(
+    db: AsyncSession,
+    challenge: Challenge,
+    viewer_id: uuid.UUID | None,
+    side_member_ids: dict[uuid.UUID, list[uuid.UUID]],
+) -> uuid.UUID | None:
+    """Which side, if any, the viewer is already on — backs `ChallengeOut.viewer_side_id`
+    (Roadmap_Search.md §1.8). Read-only and silent: unlike `_resolve_caller_side` (used at
+    submission time, which raises for an ineligible caller), this simply returns `None` for
+    a non-participant or an ambiguous `community_vs_community` membership (both/neither
+    community), so every viewer of a challenge — not just its participants — can fetch it.
+    """
+    if viewer_id is None:
+        return None
+
+    if challenge.challenge_type == ChallengeType.community_vs_community:
+        is_home_member = await _is_active_member(db, challenge.community_id, viewer_id)
+        is_opponent_member = challenge.opponent_community_id is not None and await _is_active_member(
+            db, challenge.opponent_community_id, viewer_id
+        )
+        if is_home_member == is_opponent_member:
+            # Member of both (ambiguous, same guard as submission) or of neither.
+            return None
+        side_community_id = challenge.community_id if is_home_member else challenge.opponent_community_id
+        return next(
+            (side.id for side in challenge.sides if side.community_id == side_community_id), None
+        )
+
+    # intra_community / open / duel all use an explicit ChallengeParticipant roster — reuse
+    # the roster this call already fetched rather than a second query.
+    return next(
+        (side_id for side_id, member_ids in side_member_ids.items() if viewer_id in member_ids),
+        None,
+    )
+
+
+async def _build_challenge_out(
+    db: AsyncSession, challenge: Challenge, viewer_id: uuid.UUID | None = None
+) -> ChallengeOut:
     side_member_ids: dict[uuid.UUID, list[uuid.UUID]] = {side.id: [] for side in challenge.sides}
     if side_member_ids:
         result = await db.execute(
@@ -231,6 +323,8 @@ async def _build_challenge_out(db: AsyncSession, challenge: Challenge) -> Challe
         )
         for participant in result.scalars().all():
             side_member_ids.setdefault(participant.side_id, []).append(participant.user_id)
+
+    viewer_side_id = await _resolve_viewer_side_id(db, challenge, viewer_id, side_member_ids)
 
     # Live scoreboard: a competitor must be able to see whether their side is winning
     # *during* the window, not only at results time.
@@ -280,6 +374,7 @@ async def _build_challenge_out(db: AsyncSession, challenge: Challenge) -> Challe
         start_time=challenge.start_time,
         end_time=challenge.end_time,
         winning_side_id=challenge.winning_side_id,
+        viewer_side_id=viewer_side_id,
         sides=[
             ChallengeSideOut(
                 id=side.id,
@@ -370,7 +465,7 @@ async def create_challenge(
             data={"challenge_id": str(challenge.id)},
         )
 
-    return await _build_challenge_out(db, challenge)
+    return await _build_challenge_out(db, challenge, viewer_id=current_user.id)
 
 
 async def propose_challenge(
@@ -434,7 +529,7 @@ async def propose_challenge(
         data={"challenge_id": str(challenge.id)},
     )
 
-    return await _build_challenge_out(db, challenge)
+    return await _build_challenge_out(db, challenge, viewer_id=current_user.id)
 
 
 async def create_open_challenge(
@@ -451,14 +546,65 @@ async def create_open_challenge(
     """
     if payload.end_time <= payload.start_time:
         raise ChallengeSetupInvalidError("end_time must be after start_time")
+    if payload.end_time - payload.start_time > datetime.timedelta(days=MAX_OPEN_CHALLENGE_DAYS):
+        raise ChallengeSetupInvalidError(
+            f"An open challenge can run for at most {MAX_OPEN_CHALLENGE_DAYS} days"
+        )
 
     names = [side.name.strip() for side in payload.sides]
     if len(set(names)) != len(names):
         raise ChallengeSetupInvalidError("Every side needs a distinct name")
 
+    # One active reservation per user at a time — otherwise one account could bulk-reserve
+    # every valuable tag in an afternoon. The platform account is exempt so the weekly
+    # auto-challenge (which always needs a fresh reservation) keeps working; resolved by
+    # the flag rather than by username, matching the precedent at `_get_or_create_platform_user`.
+    if not current_user.is_platform_account:
+        has_active_reservation = await db.scalar(
+            select(
+                exists().where(
+                    Challenge.creator_id == current_user.id,
+                    Challenge.hashtag_id.isnot(None),
+                    Challenge.status != ChallengeStatus.evaluated,
+                )
+            )
+        )
+        if has_active_reservation:
+            raise TooManyActiveReservationsError(
+                "You already have an active challenge with a reserved tag — "
+                "wait for it to finish before starting another"
+            )
+
     hashtag = await get_or_create_hashtag(db, payload.hashtag)
+
+    # A tag with enough organic activity belongs to the community, not to one challenge.
+    # Not retroactive: only blocks a *new* reservation, a tag that becomes popular during a
+    # live challenge is unaffected.
+    meme_count, author_count = (
+        await db.execute(
+            select(
+                func.count(MemeHashtag.id), func.count(func.distinct(Meme.author_id))
+            )
+            .select_from(MemeHashtag)
+            .join(Meme, Meme.id == MemeHashtag.meme_id)
+            .where(MemeHashtag.hashtag_id == hashtag.id)
+        )
+    ).one()
+    if meme_count >= POPULAR_TAG_MEME_THRESHOLD and author_count >= POPULAR_TAG_AUTHOR_THRESHOLD:
+        raise HashtagTooPopularToReserveError(
+            f"#{hashtag.slug} already has too much organic activity to be reserved by a "
+            "new challenge — it belongs to the whole community now"
+        )
+
+    # Status-filtered: a reservation only holds while the challenge is setup/active — once
+    # evaluated, the tag is free for the next challenge (partial unique index is the real
+    # gate on the write below; this is just the friendly pre-check).
     already_reserved = await db.scalar(
-        select(exists().where(Challenge.hashtag_id == hashtag.id))
+        select(
+            exists().where(
+                Challenge.hashtag_id == hashtag.id, Challenge.status != ChallengeStatus.evaluated
+            )
+        )
     )
     if already_reserved:
         raise HashtagAlreadyReservedError(
@@ -491,7 +637,7 @@ async def create_open_challenge(
         ) from None
 
     await db.refresh(challenge)
-    return await _build_challenge_out(db, challenge)
+    return await _build_challenge_out(db, challenge, viewer_id=current_user.id)
 
 
 async def join_open_challenge(
@@ -531,7 +677,7 @@ async def join_open_challenge(
         raise AlreadyJoinedChallengeError("You've already picked a side in this challenge") from None
 
     await db.refresh(challenge)
-    return await _build_challenge_out(db, challenge)
+    return await _build_challenge_out(db, challenge, viewer_id=current_user.id)
 
 
 async def list_open_challenges(db: AsyncSession, current_user: User) -> list[ChallengeOut]:
@@ -545,7 +691,10 @@ async def list_open_challenges(db: AsyncSession, current_user: User) -> list[Cha
         )
         .order_by(Challenge.end_time.asc())
     )
-    return [await _build_challenge_out(db, challenge) for challenge in result.scalars().all()]
+    return [
+        await _build_challenge_out(db, challenge, viewer_id=current_user.id)
+        for challenge in result.scalars().all()
+    ]
 
 
 async def _get_pending_proposal_for_opponent_owner(
@@ -593,7 +742,7 @@ async def accept_challenge(
             data={"challenge_id": str(challenge.id)},
         )
 
-    return await _build_challenge_out(db, challenge)
+    return await _build_challenge_out(db, challenge, viewer_id=current_user.id)
 
 
 async def decline_challenge(db: AsyncSession, current_user: User, challenge_id: uuid.UUID) -> None:
@@ -670,7 +819,7 @@ async def propose_duel(
         data={"challenge_id": str(challenge.id)},
     )
 
-    return await _build_challenge_out(db, challenge)
+    return await _build_challenge_out(db, challenge, viewer_id=current_user.id)
 
 
 async def _get_pending_duel_for_invitee(
@@ -722,7 +871,7 @@ async def accept_duel(db: AsyncSession, current_user: User, challenge_id: uuid.U
         data={"challenge_id": str(challenge.id)},
     )
 
-    return await _build_challenge_out(db, challenge)
+    return await _build_challenge_out(db, challenge, viewer_id=current_user.id)
 
 
 async def decline_duel(db: AsyncSession, current_user: User, challenge_id: uuid.UUID) -> None:
@@ -778,7 +927,7 @@ async def get_challenge(
 ) -> ChallengeOut:
     challenge = await _get_challenge_or_404(db, challenge_id)
     await _require_involved_member(db, challenge, current_user.id)
-    return await _build_challenge_out(db, challenge)
+    return await _build_challenge_out(db, challenge, viewer_id=current_user.id)
 
 
 async def list_community_challenges(
@@ -818,7 +967,10 @@ async def list_community_challenges(
             and c.status in (ChallengeStatus.active, ChallengeStatus.evaluated)
         ]
 
-    return [await _build_challenge_out(db, challenge) for challenge in challenges]
+    return [
+        await _build_challenge_out(db, challenge, viewer_id=current_user.id)
+        for challenge in challenges
+    ]
 
 
 async def _get_caller_side_intra_community(
@@ -1135,7 +1287,10 @@ async def list_my_challenges(db: AsyncSession, current_user: User) -> list[Chall
         )
         .order_by(status_rank, sort_time)
     )
-    return [await _build_challenge_out(db, challenge) for challenge in result.scalars().all()]
+    return [
+        await _build_challenge_out(db, challenge, viewer_id=current_user.id)
+        for challenge in result.scalars().all()
+    ]
 
 
 async def evaluate_challenge(db: AsyncSession, challenge_id: uuid.UUID) -> Challenge:
@@ -1265,7 +1420,8 @@ async def get_results(
         )
 
     return ChallengeResultsOut(
-        challenge=await _build_challenge_out(db, challenge), submissions=submissions
+        challenge=await _build_challenge_out(db, challenge, viewer_id=current_user.id),
+        submissions=submissions,
     )
 
 
@@ -1315,10 +1471,25 @@ async def create_weekly_open_challenge(db: AsyncSession) -> bool:
     platform_user = await _get_or_create_platform_user(db)
     now = datetime.datetime.now(datetime.timezone.utc)
     iso_year, iso_week, _ = now.isocalendar()
+    weekly_slug = f"weekly{iso_year}w{iso_week:02d}"
+
+    # Releasing reservations on `evaluated` (S1) broke the old "rely on
+    # HashtagAlreadyReservedError" idempotency check for one edge case: re-running this
+    # cron for an ISO week whose challenge has *already* been evaluated would no longer
+    # collide on the reservation and would create a duplicate. Explicit pre-check for any
+    # challenge on this slug regardless of status — one extra query, no dependency on an
+    # exception for control flow.
+    hashtag = await db.scalar(select(Hashtag).where(Hashtag.slug == weekly_slug))
+    if hashtag is not None:
+        already_ran = await db.scalar(
+            select(exists().where(Challenge.hashtag_id == hashtag.id))
+        )
+        if already_ran:
+            return False
 
     payload = OpenChallengeCreate(
         title=f"Weekly Meme Showdown — Week {iso_week}",
-        hashtag=f"weekly{iso_year}w{iso_week:02d}",
+        hashtag=weekly_slug,
         start_time=now,
         end_time=now + datetime.timedelta(days=WEEKLY_CHALLENGE_DURATION_DAYS),
         sides=[OpenChallengeSideSetup(name=name) for name in WEEKLY_CHALLENGE_SIDE_NAMES],

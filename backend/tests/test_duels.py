@@ -182,3 +182,21 @@ async def test_duel_notifications_fire_on_invite_accept_and_results(client: Asyn
     bob_notifications = (await client.get("/notifications", headers=auth_header(bob))).json()
     assert any(n["type"] == "challenge_results" for n in alice_notifications["items"])
     assert any(n["type"] == "challenge_results" for n in bob_notifications["items"])
+
+
+async def test_viewer_side_id_reports_each_duelists_own_side(client: AsyncClient):
+    alice = await create_user(client, "alice")
+    bob = await create_user(client, "bob")
+    await _befriend(client, alice, bob)
+    duel = (await _propose_duel(client, alice, bob)).json()
+    await client.post(f"/challenges/duels/{duel['id']}/accept", headers=auth_header(bob))
+
+    alice_side_id = next(s["id"] for s in duel["sides"] if s["name"] == alice["user"]["username"])
+    bob_side_id = next(s["id"] for s in duel["sides"] if s["name"] == bob["user"]["username"])
+
+    alice_view = (
+        await client.get(f"/challenges/{duel['id']}", headers=auth_header(alice))
+    ).json()
+    bob_view = (await client.get(f"/challenges/{duel['id']}", headers=auth_header(bob))).json()
+    assert alice_view["viewer_side_id"] == alice_side_id
+    assert bob_view["viewer_side_id"] == bob_side_id

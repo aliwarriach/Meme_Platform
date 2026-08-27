@@ -349,3 +349,37 @@ async def test_full_vs_lifecycle_evaluates_and_awards_both_communities_members(c
     assert len(alice_badges.json()) == 1
     assert len(carol_badges.json()) == 1
     assert bob_badges.json() == []
+
+
+async def test_viewer_side_id_resolves_from_community_membership(client: AsyncClient):
+    alice = await create_user(client, "alice")
+    bob = await create_user(client, "bob")
+    carol = await create_user(client, "carol")
+    home = await _create_community(client, alice, "Home", privacy="open")
+    opponent = await _create_community(client, bob, "Opponent", privacy="open")
+    await _join(client, carol, home["id"])
+    await _join(client, carol, opponent["id"])
+    challenge = (await _propose(client, alice, home["id"], opponent["id"])).json()
+    await client.post(
+        f"/communities/{opponent['id']}/challenges/{challenge['id']}/accept",
+        headers=auth_header(bob),
+    )
+    home_side_id = next(s["id"] for s in challenge["sides"] if s["community_id"] == home["id"])
+
+    alice_view = (
+        await client.get(f"/challenges/{challenge['id']}", headers=auth_header(alice))
+    ).json()
+    assert alice_view["viewer_side_id"] == home_side_id
+
+    # A member of both participating communities is ambiguous — same guard as submission.
+    carol_view = (
+        await client.get(f"/challenges/{challenge['id']}", headers=auth_header(carol))
+    ).json()
+    assert carol_view["viewer_side_id"] is None
+
+    # A non-member of either community.
+    outsider = await create_user(client, "outsider")
+    outsider_view = (
+        await client.get(f"/challenges/{challenge['id']}", headers=auth_header(outsider))
+    ).json()
+    assert outsider_view["viewer_side_id"] is None
