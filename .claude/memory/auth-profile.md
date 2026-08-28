@@ -36,6 +36,35 @@ All under `/auth`, registered in `backend/app/routers/auth.py`.
 - **2026-08-03 deploy note**: bumping `jwt_expire_minutes` down and adding the `tv` claim means every JWT issued before this change (no `tv` field) fails `decode_access_token`'s `token_version is None` check and is rejected as invalid — every existing session was force-logged-out by this deploy. Expected/accepted for a pre-launch app; would need a migration/grace-period plan for a live user base.
 
 ## Frontend integration notes
+- **2026-08-27, Forgot Password added (frontend-only — backend endpoints below were already
+  fully built/tested).** `POST /auth/password-reset/request` / `POST /auth/password-reset/confirm`
+  now have full client plumbing, following the exact pattern login/register already established:
+  - `services/auth.ts::passwordResetRequestRequest({email})` / `passwordResetConfirmRequest({email,
+    code, new_password})` — plain apisauce POSTs, no FormData involved (JSON body).
+  - `services/useAuth.ts::usePasswordResetRequestMutation()` / `usePasswordResetConfirmMutation()`
+    — server-call-only TanStack Query mutations, deliberately **no Redux/session involvement**
+    (unlike login/register's `persistCredentials`): a successful reset does not log the user in,
+    it bumps `token_version` server-side, so the UI routes back to `/login` for a fresh sign-in.
+  - `features/auth/schemas.ts::forgotPasswordRequestSchema` (email only) and
+    `resetPasswordConfirmSchema` (6-char `code` + `newPassword` min-8, matching `registerSchema`'s
+    password rule, + `confirmPassword` cross-field match via `.refine`).
+  - `features/auth/ForgotPasswordScreen.tsx` — one screen, two local-state steps (`request` →
+    `confirm`, mirrors `EmailVerificationBanner`'s existing `codeRequested` boolean pattern rather
+    than two separate routes). Step 1 always shows the same "if that email is registered…" copy
+    regardless of `response.ok` — the backend never confirms/denies existence, and the UI must
+    not either. Step 2 success routes to `/login` (not auto-login). Uses shared `TopBar` with
+    `showBack` for the back arrow, matching every other push-navigated sub-screen's convention
+    (`CommunityDetailScreen`, etc.) — Login/Register themselves don't use `TopBar` since they're
+    stack-root screens with no "back", but this one is reached by pushing from Login so it does.
+  - Route: `app/forgot-password.tsx` (same token-gate-redirect-to-`/` pattern as `login.tsx`/
+    `register.tsx`), registered in `app/_layout.tsx`'s `<Stack.Screen name="forgot-password" />`.
+  - `LoginScreen.tsx` gained a "Forgot password?" link (`font-title text-primary-dim`, same visual
+    convention as its own "Register" footer link) right-aligned directly under the password field.
+  - No new design-system tokens/components — reuses `TextField`/`PillButton`/`TopBar` as-is; see
+    `design-system/meme-platform/MASTER.md` (untouched) and the FULL MODE UX pass report for the
+    accompanying Login-screen layout polish (brand mark, "or" divider before Google, `autoComplete`/
+    `textContentType` on both fields for password-manager autofill — a net-new convention on this
+    screen, not yet applied to Register).
 - Base URL: `EXPO_PUBLIC_API_URL` env var, default `http://127.0.0.1:6001` (`frontend/src/constants/config.ts`, `frontend/.env`). See `backend/CLAUDE.md` for why it's 6001 and not 6000 or 8000 (6000 is Chrome's blocked "unsafe port" — X11 — never use it for anything a browser calls directly).
 - Auth header: `Authorization: Bearer <token>`, set globally on the shared `apisauce` instance via `setAuthToken()` (`frontend/src/services/api.ts`) — don't set it per-request.
 - Session persistence goes through `frontend/src/services/tokenStorage.ts` (NOT `expo-secure-store` directly — see Gotchas), key `meme_platform_auth_token`. On app boot, `bootstrapAuth()` thunk (`authSlice.ts`) reads it, calls `/auth/me` to validate + refresh user, clears it on failure. `_layout.tsx` blocks rendering the `Stack` until `isBootstrapped` is true (prevents a login-screen flash).
@@ -43,6 +72,8 @@ All under `/auth`, registered in `backend/app/routers/auth.py`.
 - Route gating is plain `expo-router` `<Redirect>` based on `state.auth.token`, done per-route (`app/index.tsx`, `app/login.tsx`, `app/register.tsx`) — no custom auth-guard hook (matches the "no custom hooks" rule in `frontend/CLAUDE.md`).
 
 ## Gotchas
+- **2026-08-27, root cause of "Unsupported FormData(Part) implementation" on every native multipart upload** (posts, challenge submissions, templates, avatar, community icon/banner — anything through `utils/multipartImage.ts::appendImageToFormData`): NOT an axios/apisauce/Metro issue (two theories along those lines were tried and ruled out first). Expo SDK 52+ ships its own WinterCG `fetch`/`FormData` (`expo/src/winter/fetch/convertFormData.ts`, patched onto React Native's `FormData.prototype` at startup via `expo/src/winter/FormData.ts::installFormDataPatch` — this patch is why RN's own lossy `getParts()`-based reconstruction never actually runs; the raw appended value is preserved as-is). That converter accepts exactly three shapes: a string, a real `Blob` (`entry instanceof Blob`), or an object exposing `.bytes()` (checked via `'bytes' in entry`, which walks the prototype chain — this is the branch specifically carved out for `expo-file-system`'s `File`/`ExpoBlob`, per its own `@ts-expect-error` comment "File or ExpoBlob don't extend Blob but implement the interface"). The old RN convention of appending a plain `{uri, name, type}` object (documented in React Native's own `FormData.js` as "the body part is a blob, which in React Native just means an object with a `uri` attribute") matches **none** of those three shapes — `convertFormData.ts`'s own docstring says outright "`uri` is not supported for React Native's FormData." Fix: `appendImageToFormData`'s native branch now does `form.append(field, new File(image.uri), image.name)` (import `File` from `expo-file-system`, already a dependency) instead of the `{uri,name,type}` object. Tradeoff: `File` has no `.type` getter, so the per-part `Content-Type` header is omitted on native uploads now — harmless here since Cloudinary re-verifies the actual format server-side from the uploaded bytes regardless (`services/media.py`), but worth knowing if a future upload target actually needs the client-declared MIME type. Don't reintroduce the `{uri,name,type}` convention anywhere in this codebase.
+- **2026-08-27, a second, separate bug that only became visible once the above was fixed**: fixing the FormData crash let a real upload reach Cloudinary for the first time, which then surfaced "No image was actually uploaded for this signature" on confirm — a genuine, independent backend bug in `services/media.py::confirm_pending_upload` (Cloudinary folder-prefixing, affects every A4 caller, not just avatars). See `[[meme-feed]]`'s A4 section for the full writeup and fix.
 - `passlib[bcrypt]` is NOT used — swapped for the `bcrypt` package directly in `requirements/base.txt` because passlib's bcrypt backend errors against bcrypt ≥4.1. If you see `AttributeError` mentioning `__about__` from passlib anywhere, that's why it was avoided.
 - Test DB engine must use `NullPool` (`tests/conftest.py`) — pytest-asyncio's per-test event loops otherwise collide with a pooled asyncpg connection (`InterfaceError: another operation is in progress`).
 - CORS is scoped by `CORS_ALLOWED_ORIGINS` (see `[[hardening]]`), not a wildcard, and as of the 2026-08-19 audit fix `Settings.cors_origins` refuses to start with a localhost-trusting or empty policy when `ENVIRONMENT=production`.
@@ -51,7 +82,7 @@ All under `/auth`, registered in `backend/app/routers/auth.py`.
 
 ## Key files
 - backend: `app/models/user.py`, `app/schemas/auth.py`, `app/services/auth.py`, `app/services/users.py`, `app/routers/auth.py`, `app/core/security.py`, `app/core/deps.py`, `app/core/exceptions.py`, `app/core/rate_limit.py`, `app/routers/meme_sending.py` (WS handshake), `alembic/versions/f8a6c1da5443_create_users_table.py`, `alembic/versions/95e49a19db9a_add_token_version_to_users.py`.
-- frontend: `src/store/authSlice.ts`, `src/services/tokenStorage.ts`, `src/services/api.ts`, `src/services/auth.ts`, `src/services/useAuth.ts`, `src/features/auth/*`, `src/app/{_layout,index,login,register}.tsx`.
+- frontend: `src/store/authSlice.ts`, `src/services/tokenStorage.ts`, `src/services/api.ts`, `src/services/auth.ts`, `src/services/useAuth.ts`, `src/features/auth/*` (incl. `ForgotPasswordScreen.tsx`), `src/app/{_layout,index,login,register,forgot-password}.tsx`.
 
 ## Tests
 - `backend/tests/test_auth.py` (13 tests, all passing against real Postgres): register success, duplicate email, duplicate username, login success, wrong password, unknown email, `/me` without token, `/me` with valid token, `/me` with garbage token, concurrent duplicate registration never 500s, logout invalidates the token, login-after-logout issues a working new token.

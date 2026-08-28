@@ -10,6 +10,7 @@ from tests.conftest import auth_header, create_user
 def _fake_resource(bytes_: int = 1000, format_: str = "png"):
     async def _get(public_id: str) -> dict:
         return {
+            "public_id": public_id,
             "bytes": bytes_,
             "format": format_,
             "secure_url": f"https://res.cloudinary.com/test/image/upload/{public_id}.{format_}",
@@ -72,10 +73,10 @@ async def test_create_community_icon_and_banner_via_direct_upload(
     assert response.status_code == 201
     body = response.json()
     assert body["icon_url"] == (
-        f"https://res.cloudinary.com/test/image/upload/{icon_sig['public_id']}.png"
+        f"https://res.cloudinary.com/test/image/upload/{icon_sig['folder']}/{icon_sig['public_id']}.png"
     )
     assert body["banner_url"] == (
-        f"https://res.cloudinary.com/test/image/upload/{banner_sig['public_id']}.png"
+        f"https://res.cloudinary.com/test/image/upload/{banner_sig['folder']}/{banner_sig['public_id']}.png"
     )
 
 

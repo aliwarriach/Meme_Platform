@@ -7,6 +7,7 @@ from tests.conftest import auth_header, create_user
 def _fake_resource(bytes_: int = 1000, format_: str = "png"):
     async def _get(public_id: str) -> dict:
         return {
+            "public_id": public_id,
             "bytes": bytes_,
             "format": format_,
             "secure_url": f"https://res.cloudinary.com/test/image/upload/{public_id}.{format_}",
@@ -179,7 +180,7 @@ async def test_update_profile_avatar_via_direct_upload(
     )
     assert response.status_code == 200
     assert response.json()["avatar_url"] == (
-        f"https://res.cloudinary.com/test/image/upload/{sig['public_id']}.png"
+        f"https://res.cloudinary.com/test/image/upload/{sig['folder']}/{sig['public_id']}.png"
     )
     assert len(mock_media_delete) == 0
 

@@ -65,6 +65,7 @@ All under `/communities`, registered in `backend/app/routers/communities.py`. Al
 - `_layout.tsx` Stack now lists `communities` (flat), `communities/new`, `communities/[id]`.
 
 ## Gotchas
+- **Community icon/banner uploads hit the "Unsupported FormData(Part) implementation" bug too** (shared `utils/multipartImage.ts` helper) — see `[[auth-profile]]`'s Gotchas for the actual root cause (Expo's own WinterCG `fetch`/`FormData`, not axios) and fix (2026-08-27).
 - **Same orphaned-`uvicorn`-worker issue as [[meme-creator]], hit twice in a row.** Every time new routes were added this phase, the running dev server had to be manually killed (both the reloader *and* its orphaned child, found via `Where CommandLine -like '*uvicorn*' -or '*multiprocessing.spawn*'`) and restarted before the new endpoints appeared — `--reload` alone was not reliably picking up new router registrations in `main.py` on this machine. If a fresh 404 shows up for a route that was just added, restart the server before debugging the code.
 
 ## Key files

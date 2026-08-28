@@ -11,6 +11,7 @@ from tests.conftest import auth_header, create_user
 def _fake_resource(bytes_: int = 1000, format_: str = "png"):
     async def _get(public_id: str) -> dict:
         return {
+            "public_id": public_id,
             "bytes": bytes_,
             "format": format_,
             "secure_url": f"https://res.cloudinary.com/test/image/upload/{public_id}.{format_}",
@@ -90,7 +91,7 @@ async def test_uploading_an_icon_clears_a_previously_chosen_preset(
     assert response.status_code == 200
     body = response.json()
     assert body["icon_url"] == (
-        f"https://res.cloudinary.com/test/image/upload/{sig['public_id']}.png"
+        f"https://res.cloudinary.com/test/image/upload/{sig['folder']}/{sig['public_id']}.png"
     )
     assert body["icon_preset"] is None
 
@@ -124,7 +125,7 @@ async def test_owner_sets_and_clears_banner(client: AsyncClient, monkeypatch):
     )
     assert set_response.status_code == 200
     assert set_response.json()["banner_url"] == (
-        f"https://res.cloudinary.com/test/image/upload/{sig['public_id']}.png"
+        f"https://res.cloudinary.com/test/image/upload/{sig['folder']}/{sig['public_id']}.png"
     )
 
     clear_response = await client.patch(

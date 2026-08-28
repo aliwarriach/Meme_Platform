@@ -24,8 +24,13 @@ from tests.conftest import auth_header, create_user
 
 
 def _fake_resource(bytes_: int = 1000, format_: str = "png"):
+    """`public_id` here is whatever `confirm_pending_upload` actually queries with —
+    the real Cloudinary-prefixed `folder/public_id` form, not the bare id issued to the
+    client — echoed back in the response exactly as the real Admin API would."""
+
     async def _get(public_id: str) -> dict:
         return {
+            "public_id": public_id,
             "bytes": bytes_,
             "format": format_,
             "secure_url": f"https://res.cloudinary.com/test/image/upload/{public_id}.{format_}",
@@ -83,7 +88,7 @@ async def test_meme_creation_via_direct_upload_confirms_and_creates(
     )
     assert response.status_code == 201
     assert response.json()["image_url"] == (
-        f"https://res.cloudinary.com/test/image/upload/{sig['public_id']}.png"
+        f"https://res.cloudinary.com/test/image/upload/{sig['folder']}/{sig['public_id']}.png"
     )
 
 
@@ -172,7 +177,7 @@ async def test_oversized_uploaded_resource_is_rejected_and_deleted(
         headers=auth_header(alice),
     )
     assert response.status_code == 400
-    assert deleted == [sig["public_id"]]
+    assert deleted == [f"{sig['folder']}/{sig['public_id']}"]
 
 
 async def test_disallowed_format_on_the_uploaded_resource_is_rejected_and_deleted(
@@ -195,7 +200,7 @@ async def test_disallowed_format_on_the_uploaded_resource_is_rejected_and_delete
         headers=auth_header(alice),
     )
     assert response.status_code == 400
-    assert deleted == [sig["public_id"]]
+    assert deleted == [f"{sig['folder']}/{sig['public_id']}"]
 
 
 async def test_meme_creation_requires_exactly_one_image_source(client: AsyncClient):

@@ -4,6 +4,8 @@ import { useDispatch } from 'react-redux';
 import { throwApiError } from '@/services/api';
 import {
   loginRequest,
+  passwordResetConfirmRequest,
+  passwordResetRequestRequest,
   registerRequest,
   updateAvatarRequest,
   type AuthUserResponse,
@@ -37,6 +39,32 @@ export function useLoginMutation() {
         throwApiError(response, 'login');
       }
       return response.data;
+    },
+  });
+}
+
+/** Step 1 of password recovery — server-call only, no session/Redux involvement (unlike
+ * login/register, nothing here is authenticated yet). Always resolves on `204`; the caller
+ * must show the same generic "check your email" copy whether or not the address is
+ * registered, per `passwordResetRequestRequest`'s own doc comment. */
+export function usePasswordResetRequestMutation() {
+  return useMutation<void, Error, { email: string }>({
+    mutationFn: async (payload) => {
+      const response = await passwordResetRequestRequest(payload);
+      if (!response.ok) throwApiError(response, 'request password reset');
+    },
+  });
+}
+
+/** Step 2 — confirms the emailed code and sets the new password. Server-call only: a
+ * successful reset does NOT log the user in (the backend also bumps `token_version`,
+ * invalidating any existing sessions), so the caller routes back to `/login` for a fresh
+ * sign-in rather than persisting credentials here. */
+export function usePasswordResetConfirmMutation() {
+  return useMutation<void, Error, { email: string; code: string; new_password: string }>({
+    mutationFn: async (payload) => {
+      const response = await passwordResetConfirmRequest(payload);
+      if (!response.ok) throwApiError(response, 'reset password');
     },
   });
 }

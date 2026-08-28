@@ -37,6 +37,22 @@ export function loginRequest(payload: { email: string; password: string }) {
   return api.post<TokenResponse>('/auth/login', payload);
 }
 
+/** Always resolves `204` regardless of whether `email` belongs to a registered account —
+ * the backend deliberately never confirms/denies existence (`[[auth-profile]]` F-2). Callers
+ * must not surface a different UI state based on `response.ok` vs. account existence, since
+ * there is no such signal to read. */
+export function passwordResetRequestRequest(payload: { email: string }) {
+  return api.post<void>('/auth/password-reset/request', payload);
+}
+
+export function passwordResetConfirmRequest(payload: {
+  email: string;
+  code: string;
+  new_password: string;
+}) {
+  return api.post<void>('/auth/password-reset/confirm', payload);
+}
+
 /** Avatar state is a closed set of mutually exclusive moves — pass exactly one. `PATCH
  * /auth/me` is a `Form()` endpoint (shared with the legacy multipart-file upload path), so
  * even these non-file fields go over as `multipart/form-data`, not JSON. */

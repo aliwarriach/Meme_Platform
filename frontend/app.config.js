@@ -14,7 +14,14 @@ module.exports = {
     version: '1.0.0',
     orientation: 'portrait',
     icon: './assets/images/icon.png',
-    scheme: 'frontend',
+    // 'com.memeversestudio.app' is registered alongside the app's own 'frontend' deep-link
+    // scheme specifically so Android has an intent filter for expo-auth-session's Google
+    // OAuth redirect, which is built from the package name (Application.applicationId +
+    // ':/oauthredirect'), not from this scheme field — without it, Android has no handler
+    // for that URI at all, so the post-consent redirect silently strands in the browser.
+    // Requires a native rebuild (AndroidManifest.xml intent filters are build-time only,
+    // not something a JS/Metro reload can pick up).
+    scheme: ['frontend', 'com.memeversestudio.app'],
     userInterfaceStyle: 'automatic',
     ios: {
       icon: './assets/expo.icon',
