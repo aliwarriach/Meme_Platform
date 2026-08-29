@@ -7,11 +7,9 @@ import Chip from '@/components/Chip';
 import { TextField } from '@/components/TextField';
 import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import {
-  clampScale,
   COLOR_SWATCHES,
   FONT_OPTIONS,
   isTextLayer,
-  SCALE_STEP,
   STROKE_WIDTH_OPTIONS,
   type TextAlignId,
   type TextLayer,
@@ -22,7 +20,6 @@ import {
   reorderSelected,
   selectLayer,
   selectSelectedLayer,
-  setSelectedScale,
   setSelectedText,
   updateSelectedStyle,
 } from '@/store/creatorDraftSlice';
@@ -145,36 +142,21 @@ export function LayerInspector() {
   const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   if (!layer) return null;
 
-  const stepScale = (factor: number) =>
-    dispatch(setSelectedScale(clampScale(layer.scale * factor)));
-
   return (
     <View className="mb-4 rounded-card border border-outline-variant/30 bg-surface p-3">
       {isTextLayer(layer) ? (
-        <TextStyleControls layer={layer} />
+        <>
+          <TextStyleControls layer={layer} />
+          <Text className="mt-2 font-body text-xs text-ink-muted">
+            Drag the 4 dots on its box: left/right resize how wide it wraps, top/bottom
+            resize how tall — the text reflows to fit.
+          </Text>
+        </>
       ) : (
         <Text className="font-title text-sm text-ink-muted">
           Image layer — drag, pinch, and rotate on the canvas.
         </Text>
       )}
-
-      <SectionLabel>Size</SectionLabel>
-      <View className="flex-row gap-2">
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Decrease size"
-          onPress={() => stepScale(1 / SCALE_STEP)}
-          className="min-h-[44px] flex-1 items-center justify-center rounded-full border border-outline-variant">
-          <Text className="font-title text-lg text-heading">A−</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Increase size"
-          onPress={() => stepScale(SCALE_STEP)}
-          className="min-h-[44px] flex-1 items-center justify-center rounded-full border border-outline-variant">
-          <Text className="font-title text-2xl text-heading">A+</Text>
-        </Pressable>
-      </View>
 
       <SectionLabel>Layer</SectionLabel>
       <View className="flex-row items-center gap-2">

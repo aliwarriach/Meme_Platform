@@ -2,6 +2,8 @@ import { createSlice, current, type PayloadAction } from '@reduxjs/toolkit';
 
 import {
   type CanvasSpec,
+  clampBoxHeight,
+  clampBoxWidth,
   clampScale,
   cloneLayer,
   createEmojiLayer,
@@ -9,6 +11,8 @@ import {
   createInitialDocument,
   createTextLayer,
   type MemeDocument,
+  type NormPos,
+  type TextBox,
   type TextStyleSpec,
 } from '@/features/creator/document';
 
@@ -115,6 +119,23 @@ const creatorDraftSlice = createSlice({
       recordHistory(state);
       layer.rotation = action.payload;
     },
+    // Commits a text layer's resize-handle drag: the handle that moved changes its own box
+    // dimension, but (per EditorCanvas's edge-anchored resize math) BOTH dimensions and the
+    // recentered position are always written together — the first drag on any edge is what
+    // turns an auto-sized layer into an explicit box, fixed on both axes from then on.
+    setSelectedBox(state, action: PayloadAction<{ pos: NormPos; box: TextBox }>) {
+      const layer = selected(state.present);
+      if (!layer || layer.kind !== 'text') return;
+      recordHistory(state);
+      layer.pos = {
+        x: Math.min(1, Math.max(0, action.payload.pos.x)),
+        y: Math.min(1, Math.max(0, action.payload.pos.y)),
+      };
+      layer.box = {
+        width: clampBoxWidth(action.payload.box.width),
+        height: clampBoxHeight(action.payload.box.height),
+      };
+    },
     duplicateSelected(state) {
       const layer = selected(state.present);
       if (!layer) return;
@@ -180,6 +201,7 @@ export const {
   setSelectedPosition,
   setSelectedScale,
   setSelectedRotation,
+  setSelectedBox,
   duplicateSelected,
   deleteSelected,
   reorderSelected,

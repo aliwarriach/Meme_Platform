@@ -1,6 +1,13 @@
 import { describe, expect, test } from '@jest/globals';
 
-import { SCALE_MAX, SCALE_MIN, type Layer, type TextLayer } from '@/features/creator/document';
+import {
+  MAX_BOX_HEIGHT_FRACTION,
+  MIN_BOX_WIDTH_FRACTION,
+  SCALE_MAX,
+  SCALE_MIN,
+  type Layer,
+  type TextLayer,
+} from '@/features/creator/document';
 import reducer, {
   addEmojiLayer,
   addImageLayer,
@@ -12,6 +19,7 @@ import reducer, {
   resetDraft,
   selectLayer,
   setBaseImage,
+  setSelectedBox,
   setSelectedPosition,
   setSelectedRotation,
   setSelectedScale,
@@ -163,6 +171,31 @@ describe('creatorDraftSlice — selected-layer edits', () => {
   test('setSelectedRotation stores the absolute angle', () => {
     const state = reducer(withOneLayer(), setSelectedRotation(1.5));
     expect(state.present.layers[0].rotation).toBe(1.5);
+  });
+
+  test('setSelectedBox sets the box and recenters position, clamped, and records history', () => {
+    const base = withOneLayer();
+    const before = base.past.length;
+    const state = reducer(base, setSelectedBox({ pos: { x: 0.6, y: 0.4 }, box: { width: 0.5, height: 0.2 } }));
+    const layer = asText(state.present.layers[0]);
+    expect(layer.pos).toEqual({ x: 0.6, y: 0.4 });
+    expect(layer.box).toEqual({ width: 0.5, height: 0.2 });
+    expect(state.past.length).toBe(before + 1);
+
+    // Out-of-range box dims clamp to MIN/MAX; position clamps to [0,1] like setSelectedPosition.
+    const clamped = reducer(
+      base,
+      setSelectedBox({ pos: { x: 1.5, y: -0.2 }, box: { width: 0, height: 100 } })
+    );
+    const clampedLayer = asText(clamped.present.layers[0]);
+    expect(clampedLayer.pos).toEqual({ x: 1, y: 0 });
+    expect(clampedLayer.box).toEqual({ width: MIN_BOX_WIDTH_FRACTION, height: MAX_BOX_HEIGHT_FRACTION });
+  });
+
+  test('setSelectedBox is a no-op on an image layer', () => {
+    const base = reducer(init(), addImageLayer('file:///photo.jpg'));
+    const state = reducer(base, setSelectedBox({ pos: { x: 0.5, y: 0.5 }, box: { width: 0.5, height: 0.2 } }));
+    expect(state).toEqual(base);
   });
 
   test('edits with no selection are no-ops', () => {

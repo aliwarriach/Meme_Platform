@@ -444,14 +444,21 @@ export default function CreatorScreen() {
             ) : null}
 
             <View className="mb-2 mt-3 flex-row gap-2">
-              <PillButton label="＋ Text" className="flex-1" onPress={() => dispatch(addTextLayer())} />
+              <PillButton compact label="＋ Text" className="flex-1" onPress={() => dispatch(addTextLayer())} />
               <PillButton
+                compact
                 label="😊 Sticker"
                 variant="outline"
                 className="flex-1"
                 onPress={() => setStickerPickerVisible(true)}
               />
-              <PillButton label="🖼 Image" variant="outline" className="flex-1" onPress={onAddImageLayer} />
+              <PillButton
+                compact
+                label="🖼 Image"
+                variant="outline"
+                className="flex-1"
+                onPress={onAddImageLayer}
+              />
             </View>
 
             <View className="mb-3 flex-row justify-end gap-2">

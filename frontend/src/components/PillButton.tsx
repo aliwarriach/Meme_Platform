@@ -15,6 +15,10 @@ type PillButtonProps = {
   icon?: ReactNode;
   accessibilityLabel?: string;
   className?: string;
+  // Shorter vertical padding for rows of small, secondary actions (e.g. the creator's
+  // Text/Sticker/Image row) that don't need the same visual weight as a primary CTA. The
+  // 44px touch-target floor is untouched — only the padding shrinks.
+  compact?: boolean;
 };
 
 // `primary`/`secondary` use their `-container` fill-safe variants, not the bright base tokens
@@ -45,6 +49,7 @@ export default function PillButton({
   icon,
   accessibilityLabel,
   className,
+  compact = false,
 }: PillButtonProps) {
   const isDisabled = disabled || loading;
   const { mode } = useThemeMode();
@@ -69,7 +74,7 @@ export default function PillButton({
             }
           : undefined
       }
-      className={`min-h-[44px] flex-row items-center justify-center gap-2 rounded-full px-6 py-3 ${VARIANT_CLASSES[variant]} ${isDisabled ? 'opacity-50' : ''} ${className ?? ''}`}>
+      className={`min-h-[44px] flex-row items-center justify-center gap-2 rounded-full ${compact ? 'px-4 py-2' : 'px-6 py-3'} ${VARIANT_CLASSES[variant]} ${isDisabled ? 'opacity-50' : ''} ${className ?? ''}`}>
       {loading ? (
         <ActivityIndicator color={spinnerColor} />
       ) : (
