@@ -62,8 +62,11 @@ export default function VotingScreen() {
       <TopBar title="Competitions" showBack />
       <FlatList
         data={standingsQuery.data?.items ?? []}
+        // Live standings entries never carry a deleted (meme: null) placeholder — that only
+        // ever appears in a *closed* period's winner (WinnerBanner, handled separately and
+        // never opened via onPress) — so the assertion here is a real structural invariant.
         keyExtractor={(item) =>
-          item.content.kind === 'meme' ? item.content.meme.id : item.content.container.id
+          item.content.kind === 'meme' ? item.content.meme!.id : item.content.container.id
         }
         renderItem={({ item }) => <StandingRow entry={item} onPress={setSelectedContent} />}
         ListHeaderComponent={header}

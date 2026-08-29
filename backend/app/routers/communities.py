@@ -140,6 +140,15 @@ async def list_community_templates(
     )
 
 
+@router.delete("/{community_id}/templates/{template_id}", status_code=204)
+async def delete_community_template(
+    community_id: uuid.UUID, template_id: uuid.UUID, current_user: CurrentUser, db: DbSession
+) -> None:
+    """Owner-only — removes any template from this community's private library,
+    regardless of who uploaded it."""
+    await templates_service.delete_community_template(db, current_user, community_id, template_id)
+
+
 @router.post("/{community_id}/memes", response_model=MemeOut, status_code=201)
 async def create_community_meme(
     community_id: uuid.UUID,
@@ -148,12 +157,15 @@ async def create_community_meme(
     image: UploadFile | None = None,
     image_public_id: Annotated[str | None, Form()] = None,
     caption: Annotated[str | None, Form(max_length=500)] = None,
+    editor_document_json: Annotated[str | None, Form()] = None,
 ) -> MemeOut:
     """`image` (legacy multipart upload) and `image_public_id` (Roadmap_Scaling.md A4's
     direct-to-Cloudinary flow — confirm the `public_id` from
-    `POST /media/upload-signature`) are mutually exclusive; exactly one is required."""
+    `POST /media/upload-signature`) are mutually exclusive; exactly one is required.
+    `editor_document_json` (optional) mirrors `POST /memes`'s — see there."""
     return await memes_service.create_community_meme(
-        db, current_user, community_id, caption, image, image_public_id=image_public_id
+        db, current_user, community_id, caption, image,
+        image_public_id=image_public_id, editor_document_json=editor_document_json,
     )
 
 

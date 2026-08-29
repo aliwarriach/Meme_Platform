@@ -27,6 +27,7 @@ import { ChallengeRow } from '@/features/challenges/components/ChallengeRow';
 import { AddCommunityTemplateModal } from '@/features/communities/components/AddCommunityTemplateModal';
 import { AddMembersModal } from '@/features/communities/components/AddMembersModal';
 import { CommunityRequestsModal } from '@/features/communities/components/CommunityRequestsModal';
+import { DeleteTemplateConfirmModal } from '@/features/communities/components/DeleteTemplateConfirmModal';
 import { EditCommunityBannerModal } from '@/features/communities/components/EditCommunityBannerModal';
 import { EditCommunityIconModal } from '@/features/communities/components/EditCommunityIconModal';
 import { MemberRow } from '@/features/communities/components/MemberRow';
@@ -46,6 +47,7 @@ import { useInternalCommunityLeaderboard } from '@/services/useLeaderboards';
 import { useCommunityChallenges } from '@/services/useChallenges';
 import { useCommunityTemplates } from '@/services/useTemplates';
 import type { MemeResponse } from '@/services/memes';
+import type { TemplateResponse } from '@/services/templates';
 
 interface CommunityDetailScreenProps {
   communityId: string;
@@ -71,6 +73,7 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
   const currentUser = useSelector((state: RootState) => state.auth.user);
   const [activeTab, setActiveTab] = useState<Tab>('feed');
   const [addTemplateOpen, setAddTemplateOpen] = useState(false);
+  const [templateToDelete, setTemplateToDelete] = useState<TemplateResponse | null>(null);
   const [editIconOpen, setEditIconOpen] = useState(false);
   const [editBannerOpen, setEditBannerOpen] = useState(false);
   const [addMembersOpen, setAddMembersOpen] = useState(false);
@@ -575,6 +578,18 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
               }
               className="m-1 aspect-square flex-1 overflow-hidden rounded-card border border-outline-variant/30">
               <Image source={{ uri: item.image_url }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+              {isOwner ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Delete ${item.name}`}
+                  onPress={(event) => {
+                    event.stopPropagation();
+                    setTemplateToDelete(item);
+                  }}
+                  className="absolute right-1 top-1 h-7 w-7 items-center justify-center rounded-full bg-black/60">
+                  <MaterialIcons name="delete-outline" size={16} color="#FFFFFF" />
+                </Pressable>
+              ) : null}
             </Pressable>
           )}
           ListFooterComponent={
@@ -598,6 +613,11 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
           visible={addTemplateOpen}
           onClose={() => setAddTemplateOpen(false)}
           communityId={community.id}
+        />
+        <DeleteTemplateConfirmModal
+          communityId={community.id}
+          template={templateToDelete}
+          onClose={() => setTemplateToDelete(null)}
         />
       </SafeAreaView>
     );

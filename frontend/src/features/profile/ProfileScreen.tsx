@@ -13,7 +13,9 @@ import TopBar from '@/components/TopBar';
 import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import { EmailVerificationBanner } from '@/features/auth/EmailVerificationBanner';
 import { EditAvatarModal } from '@/features/profile/components/EditAvatarModal';
+import { EditBioModal } from '@/features/profile/components/EditBioModal';
 import type { BadgeResponse } from '@/services/badges';
+import { useOpenConversationMutation } from '@/services/useMessaging';
 import type { MemeResponse } from '@/services/memes';
 import { useSendFriendRequestMutation } from '@/services/useFriends';
 import { useUserPosts, useUserProfile } from '@/services/useProfiles';
@@ -77,8 +79,10 @@ export default function ProfileScreen({ userId, isOwnProfile }: ProfileScreenPro
   const postsUnlocked = !!profileQuery.data && !profileQuery.data.posts_locked;
   const postsQuery = useUserPosts(userId, postsUnlocked);
   const sendFriendRequest = useSendFriendRequestMutation();
+  const openConversation = useOpenConversationMutation();
   const [requestSent, setRequestSent] = useState(false);
   const [editAvatarVisible, setEditAvatarVisible] = useState(false);
+  const [editBioVisible, setEditBioVisible] = useState(false);
 
   const posts: MemeResponse[] = postsQuery.data?.pages.flatMap((page) => page.items) ?? [];
 
@@ -104,12 +108,20 @@ export default function ProfileScreen({ userId, isOwnProfile }: ProfileScreenPro
   }
 
   const profile = profileQuery.data;
+  const requestPending = requestSent || profile.friend_request_sent;
 
   const onAddFriend = () => {
     sendFriendRequest.mutate(
       { username: profile.user.username },
       { onSuccess: () => setRequestSent(true) }
     );
+  };
+
+  const onMessage = () => {
+    openConversation.mutate(profile.user.id, {
+      onSuccess: (conversation) =>
+        router.push({ pathname: '/inbox/[conversationId]', params: { conversationId: conversation.id } }),
+    });
   };
 
   return (
@@ -132,7 +144,8 @@ export default function ProfileScreen({ userId, isOwnProfile }: ProfileScreenPro
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Change profile photo"
-                  onPress={() => setEditAvatarVisible(true)}>
+                  onPress={() => setEditAvatarVisible(true)}
+                  className="relative h-20 w-20">
                   <Avatar
                     username={profile.user.username}
                     avatarUrl={profile.user.avatar_url}
@@ -159,7 +172,18 @@ export default function ProfileScreen({ userId, isOwnProfile }: ProfileScreenPro
               </View>
             </View>
 
-            {profile.user.bio ? (
+            {isOwnProfile ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={profile.user.bio ? 'Edit bio' : 'Add a bio'}
+                onPress={() => setEditBioVisible(true)}
+                className="mt-3 min-h-[24px]">
+                <Text
+                  className={`font-body text-sm ${profile.user.bio ? 'text-ink' : 'text-ink-muted'}`}>
+                  {profile.user.bio ?? 'Add a bio'}
+                </Text>
+              </Pressable>
+            ) : profile.user.bio ? (
               <Text className="mt-3 font-body text-sm text-ink">{profile.user.bio}</Text>
             ) : null}
 
@@ -174,22 +198,24 @@ export default function ProfileScreen({ userId, isOwnProfile }: ProfileScreenPro
             {!isOwnProfile ? (
               profile.is_friend ? (
                 <PillButton
-                  label="Message"
+                  label={openConversation.isPending ? 'Opening…' : 'Message'}
                   variant="outline"
-                  onPress={() => router.push('/inbox')}
+                  onPress={onMessage}
+                  disabled={openConversation.isPending}
+                  loading={openConversation.isPending}
                   className="mt-4 w-full"
                 />
               ) : (
                 <PillButton
                   label={
-                    requestSent
+                    requestPending
                       ? 'Request Sent'
                       : sendFriendRequest.isPending
                         ? 'Sending…'
                         : 'Add Friend'
                   }
                   onPress={onAddFriend}
-                  disabled={requestSent || sendFriendRequest.isPending}
+                  disabled={requestPending || sendFriendRequest.isPending}
                   loading={sendFriendRequest.isPending}
                   className="mt-4 w-full"
                 />
@@ -197,6 +223,9 @@ export default function ProfileScreen({ userId, isOwnProfile }: ProfileScreenPro
             ) : null}
             {sendFriendRequest.isError ? (
               <Text className="mt-2 font-body text-xs text-error">{sendFriendRequest.error.message}</Text>
+            ) : null}
+            {openConversation.isError ? (
+              <Text className="mt-2 font-body text-xs text-error">{openConversation.error.message}</Text>
             ) : null}
           </View>
         }
@@ -236,11 +265,18 @@ export default function ProfileScreen({ userId, isOwnProfile }: ProfileScreenPro
       {isOwnProfile ? <FloatingBottomNav active="profile" /> : null}
 
       {isOwnProfile ? (
-        <EditAvatarModal
-          visible={editAvatarVisible}
-          onClose={() => setEditAvatarVisible(false)}
-          hasAvatar={!!profile.user.avatar_url || !!profile.user.avatar_preset}
-        />
+        <>
+          <EditAvatarModal
+            visible={editAvatarVisible}
+            onClose={() => setEditAvatarVisible(false)}
+            hasAvatar={!!profile.user.avatar_url || !!profile.user.avatar_preset}
+          />
+          <EditBioModal
+            visible={editBioVisible}
+            onClose={() => setEditBioVisible(false)}
+            bio={profile.user.bio}
+          />
+        </>
       ) : null}
     </SafeAreaView>
   );

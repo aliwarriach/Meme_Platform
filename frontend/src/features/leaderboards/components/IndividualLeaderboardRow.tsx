@@ -21,7 +21,12 @@ export function IndividualLeaderboardRow({ entry, isViewer }: IndividualLeaderbo
         <RankBadge rank={entry.rank} />
       </View>
       <View className="mr-3">
-        <Avatar username={entry.user.username} size="sm" />
+        <Avatar
+          username={entry.user.username}
+          avatarUrl={entry.user.avatar_url}
+          avatarPreset={entry.user.avatar_preset}
+          size="sm"
+        />
       </View>
       <Text className="flex-1 font-body text-heading">{entry.user.username}</Text>
       {isViewer ? (

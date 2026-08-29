@@ -81,7 +81,9 @@ function VotingScreenContent() {
 
         <FlatList
           data={items}
-          keyExtractor={(item) => (item.content.kind === 'meme' ? item.content.meme.id : item.content.container.id)}
+          // Live standings entries never carry a deleted (meme: null) placeholder — see
+          // VotingScreen.tsx's identical comment.
+          keyExtractor={(item) => (item.content.kind === 'meme' ? item.content.meme!.id : item.content.container.id)}
           renderItem={({ item }) => <WebStandingRow entry={item} onPress={setSelectedContent} />}
           contentContainerStyle={styles.listContent}
           style={styles.list}

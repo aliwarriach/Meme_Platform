@@ -107,6 +107,45 @@ this fully done, per that file's own instruction for any UI-touching phase.
   chrome). 300ms debounce + 2-char minimum implemented as local `useState`/`useEffect` inside
   `SearchScreen.tsx` itself, not a shared custom hook (no debounce precedent existed anywhere
   in this codebase before this).
+- **2026-08-28, native only (Reddit-style reference, user-requested):** the feed's search bar
+  moved from its own full-width row below `TopBar` into `TopBar`'s title slot itself, replacing
+  the "MemeVerse" title text entirely — now sits inline between the hamburger and the
+  reel-import/bell/inbox icons, same row, same tap target (still just navigates to `/search`,
+  not an inline-typing field on the feed itself). Needed a new `TopBar.tsx` prop,
+  `titleContent?: ReactNode`, since the existing `title` prop only ever rendered a centered
+  `Text` — `titleContent` replaces that slot's content entirely (and made `title` optional;
+  every other screen's plain-string usage is unaffected). Visual treatment is the exact same
+  pill (`rounded-full border-outline-variant bg-surface-high/60`, `MaterialIcons name="search"`)
+  the old standalone row already used — no new tokens. `WebFeedTopBar.tsx` (its own separate
+  Vaporwave design system) was deliberately left untouched — this was a native-only ask.
+- **2026-08-28: `SearchTabs.tsx`'s chip row had no `items-center`** on its `flex-row` wrapper —
+  React Native's flexbox default cross-axis alignment is `stretch`, so every `Chip` was being
+  stretched to match whichever sibling computed the tallest natural height (reported as "Posts
+  looks too tall and it drags the others up with it"). One-line fix: `flex-row items-center
+  gap-2`. If a future horizontal chip/pill row shows the same symptom, check for this exact
+  missing `items-center` first before suspecting the chip component itself.
+- **2026-08-28 follow-up, the real one — confirmed via live DOM inspection (Playwright,
+  `getComputedStyle`), not guessed:** adding `items-center` above surfaced a second, bigger bug
+  it had been masking. `SearchTabs`'s horizontal `ScrollView` was rendering **~320px tall**
+  instead of hugging its ~44px content, splitting the search screen's remaining vertical space
+  roughly 50/50 with the results list below it — with `items-center` now correctly vertically
+  centering the chips *within* that oversized box, the visible symptom was "an invisible wall
+  from the search bar to mid-screen, with the tags floating in the middle of it." Root cause:
+  react-native-web's `ScrollView` sets its own `flexGrow: 1` as a **runtime-injected** CSS rule,
+  which lands in the stylesheet *after* NativeWind's static utility sheet — so a same-specificity
+  Tailwind class (`flex-none`, `grow-0`) targeting the same property **silently loses the
+  cascade and has zero effect**, confirmed by reading `getComputedStyle(...).flexGrow` before and
+  after (stayed `"1"` even with `flex-none` present in the DOM's `class` list). **Fix that
+  actually works: an inline `style={{ flexGrow: 0, flexShrink: 0 }}` prop**, not a className —
+  RN merges a component's own `style` prop after its internal default style array, so it wins
+  reliably on both web and native, unlike a Tailwind utility class fighting a runtime-injected
+  one. **General lesson for this codebase: if a NativeWind flex-behavior utility class (`flex-1`,
+  `flex-none`, `grow`, `shrink`) appears to have no effect on a `ScrollView` (or any RN
+  component that sets its own default style internally) specifically on the web build, don't
+  trust the className — verify with `getComputedStyle` and fall back to an inline `style` prop.**
+  Not confirmed whether native Android exhibits the identical `flexGrow:1` default (RN's own
+  docs suggest native `ScrollView` does *not* auto-grow the way this turned out to on web) —
+  the inline-style fix is applied regardless since it's correct and harmless on both platforms.
 - **Tab selection is derived during render, not synced via a `setState`-in-effect** — an
   earlier version reset `activeTab`/`autoSelected` inside a `useEffect` keyed on the debounced
   query, which trips this repo's React Compiler lint rule
@@ -149,7 +188,8 @@ this fully done, per that file's own instruction for any UI-touching phase.
   `app/schemas/hashtags.py` (`active_challenge`/`recent_result_challenge`).
 - frontend: `src/services/{search,trending,useSearch}.ts`, `src/features/search/SearchScreen.tsx` +
   `src/features/search/components/{TrendingList,SearchTabs,SearchResultsList}.tsx`,
-  `src/app/search.tsx`, `src/features/feed/FeedScreen.tsx` (search entry) +
+  `src/app/search.tsx`, `src/components/TopBar.tsx` (`titleContent` prop, 2026-08-28),
+  `src/features/feed/FeedScreen.tsx` (search entry, now inline in the top bar) +
   `src/components/web/WebFeedTopBar.tsx` (web search icon) +
   `src/components/web/DesktopSidebarNav.tsx` (Search nav item), `src/features/hashtags/TagFeedScreen.tsx` +
   `src/features/hashtags/components/{ChallengeRaceHeader,ChallengeResultCard}.tsx`,

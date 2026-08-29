@@ -125,6 +125,7 @@ function AuthBoundary({ fontsLoaded }: { fontsLoaded: boolean }) {
         <Stack.Screen name="login" />
         <Stack.Screen name="register" />
         <Stack.Screen name="forgot-password" />
+        <Stack.Screen name="oauthredirect" />
         <Stack.Screen name="profile" />
         <Stack.Screen name="users/[id]" />
         <Stack.Screen name="friends" />

@@ -42,18 +42,15 @@ export function WebWinnerBanner({ winner, isLoading, isError, errorMessage, labe
   const styles = useMemo(() => createStyles(colors, radius, spacing), [colors, radius, spacing]);
 
   const content = winner?.content;
-  const imageUrl = content?.kind === 'container' ? content.container.thumbnail_url : content?.meme.image_url;
+  const isDeletedMeme = content?.kind === 'meme' && content.is_deleted;
+  const imageUrl = content?.kind === 'container' ? content.container.thumbnail_url : content?.meme?.image_url;
   const authorName =
-    content?.kind === 'container' ? content.container.submitter.username : content?.meme.author.username;
-  const caption = content?.kind === 'container' ? content.container.title : content?.meme.caption;
+    content?.kind === 'container' ? content.container.submitter.username : content?.meme?.author.username;
+  const caption = content?.kind === 'container' ? content.container.title : content?.meme?.caption;
 
   if (!isLoading && !isError && content) {
-    return (
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Open winning entry by ${authorName}`}
-        onPress={() => onPress(content)}
-        style={({ hovered }: WebPressableState) => [styles.root, hovered && styles.rootHovered]}>
+    const body = (
+      <>
         <View style={styles.headerRow}>
           <View style={styles.trophyBadge}>
             <MaterialIcons name="emoji-events" size={16} color={colors.onAccentInk} />
@@ -64,7 +61,11 @@ export function WebWinnerBanner({ winner, isLoading, isError, errorMessage, labe
         <View style={styles.entryRow}>
           <Text style={[type.display, { color: colors.foreground }]}>1</Text>
 
-          {imageUrl ? (
+          {isDeletedMeme ? (
+            <View style={[styles.thumb, styles.thumbFallback]}>
+              <MaterialIcons name="delete-outline" size={18} color={colors.foregroundMuted} />
+            </View>
+          ) : imageUrl ? (
             <Image source={{ uri: imageUrl }} style={styles.thumb} contentFit="cover" />
           ) : (
             <View style={[styles.thumb, styles.thumbFallback]}>
@@ -74,9 +75,9 @@ export function WebWinnerBanner({ winner, isLoading, isError, errorMessage, labe
 
           <View style={styles.entryText}>
             <Text style={[type.title, { color: colors.foreground }]} numberOfLines={1}>
-              {authorName}
+              {isDeletedMeme ? 'Deleted Post' : authorName}
             </Text>
-            {caption ? (
+            {!isDeletedMeme && caption ? (
               <Text style={[type.meta, { color: colors.foregroundMuted }]} numberOfLines={1}>
                 {caption}
               </Text>
@@ -84,6 +85,20 @@ export function WebWinnerBanner({ winner, isLoading, isError, errorMessage, labe
             <Text style={[type.meta, styles.scoreText, { color: colors.foregroundMuted }]}>score {winner.score}</Text>
           </View>
         </View>
+      </>
+    );
+
+    if (isDeletedMeme) {
+      return <View style={[styles.root, styles.rootDisabled]}>{body}</View>;
+    }
+
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Open winning entry by ${authorName}`}
+        onPress={() => onPress(content)}
+        style={({ hovered }: WebPressableState) => [styles.root, hovered && styles.rootHovered]}>
+        {body}
       </Pressable>
     );
   }
@@ -133,6 +148,9 @@ const createStyles = (
     rootHovered: {
       backgroundColor: colors.hoverTint,
       borderColor: colors.borderHighlight,
+    },
+    rootDisabled: {
+      opacity: 0.7,
     },
     headerRow: {
       flexDirection: 'row',

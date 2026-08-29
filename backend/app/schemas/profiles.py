@@ -24,3 +24,7 @@ class UserProfileOut(BaseModel):
     is_self: bool
     is_friend: bool
     posts_locked: bool
+    # True only for a non-friend, non-self viewer with an outstanding pending request they
+    # sent to this profile's owner — lets the client persist "Request Sent" across
+    # navigation/remounts instead of resetting to "Add Friend" every time the screen reloads.
+    friend_request_sent: bool

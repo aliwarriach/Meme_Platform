@@ -90,3 +90,38 @@ async def test_profile_nonexistent_user_404(client: AsyncClient):
         "/users/00000000-0000-0000-0000-000000000000/profile", headers=auth_header(alice)
     )
     assert response.status_code == 404
+
+
+async def test_profile_flags_pending_outgoing_request(client: AsyncClient):
+    alice = await create_user(client, "alice")
+    bob = await create_user(client, "bob")
+
+    before = await client.get(f"/users/{bob['user']['id']}/profile", headers=auth_header(alice))
+    assert before.json()["friend_request_sent"] is False
+
+    await client.post("/friends/requests", json={"username": "bob"}, headers=auth_header(alice))
+
+    after = await client.get(f"/users/{bob['user']['id']}/profile", headers=auth_header(alice))
+    assert after.json()["friend_request_sent"] is True
+
+    # Direction matters — bob is the addressee, not the requester, so his own view of
+    # alice's profile must not show a request as sent by him.
+    reverse = await client.get(f"/users/{alice['user']['id']}/profile", headers=auth_header(bob))
+    assert reverse.json()["friend_request_sent"] is False
+
+
+async def test_profile_pending_request_clears_once_accepted(client: AsyncClient):
+    alice = await create_user(client, "alice")
+    bob = await create_user(client, "bob")
+
+    request = await client.post(
+        "/friends/requests", json={"username": "bob"}, headers=auth_header(alice)
+    )
+    await client.post(
+        f"/friends/requests/{request.json()['id']}/accept", headers=auth_header(bob)
+    )
+
+    response = await client.get(f"/users/{bob['user']['id']}/profile", headers=auth_header(alice))
+    body = response.json()
+    assert body["is_friend"] is True
+    assert body["friend_request_sent"] is False

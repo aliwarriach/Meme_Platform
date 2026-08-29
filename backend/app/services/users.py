@@ -4,7 +4,7 @@ from fastapi import UploadFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import InvalidAvatarPresetError, InvalidImageSourceError
+from app.core.exceptions import InvalidAvatarPresetError, InvalidBioError, InvalidImageSourceError
 from app.models.user import User
 from app.services.media import confirm_pending_upload, delete_uploaded_image, validate_and_upload_image
 
@@ -12,6 +12,10 @@ from app.services.media import confirm_pending_upload, delete_uploaded_image, va
 # is the real gate (never trusts a client-supplied id as-is); the frontend list is just
 # what the picker offers.
 ALLOWED_AVATAR_PRESETS = {"blaze", "chill", "goblin", "royal", "frog"}
+
+# Mirrors the frontend bio editor's row cap (`EditBioModal.tsx`) — 7 lines allowed means at
+# most 6 newlines. `Form(max_length=150)` on the route already bounds total length.
+MAX_BIO_NEWLINES = 6
 
 
 async def get_user_by_id(db: AsyncSession, user_id: uuid.UUID) -> User | None:
@@ -37,6 +41,8 @@ async def update_profile(
     if clear_bio:
         current_user.bio = None
     elif bio:
+        if bio.count("\n") > MAX_BIO_NEWLINES:
+            raise InvalidBioError(f"A bio can have at most {MAX_BIO_NEWLINES + 1} lines")
         current_user.bio = bio
 
     if avatar_public_id is not None and avatar is not None:

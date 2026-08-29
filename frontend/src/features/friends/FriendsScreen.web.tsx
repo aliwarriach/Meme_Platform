@@ -1,3 +1,4 @@
+import { MaterialIcons } from '@expo/vector-icons';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect, useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
@@ -48,6 +49,7 @@ function FriendsScreenContent() {
   const acceptMutation = useAcceptFriendRequestMutation();
   const removeMutation = useRemoveFriendshipMutation();
   const [duelTarget, setDuelTarget] = useState<FriendResponse | null>(null);
+  const [friendSearch, setFriendSearch] = useState('');
 
   useEffect(() => {
     injectFeedWebFont();
@@ -73,7 +75,12 @@ function FriendsScreenContent() {
   });
 
   const requests = requestsQuery.data ?? [];
-  const friends = friendsQuery.data ?? [];
+  const friends = useMemo(() => friendsQuery.data ?? [], [friendsQuery.data]);
+  const filteredFriends = useMemo(() => {
+    const needle = friendSearch.trim().toLowerCase();
+    if (!needle) return friends;
+    return friends.filter((f) => f.user.username.toLowerCase().includes(needle));
+  }, [friends, friendSearch]);
 
   const listHeader = (
     <View style={styles.section}>
@@ -136,6 +143,19 @@ function FriendsScreenContent() {
       )}
 
       <Text style={[type.label, styles.sectionLabel, styles.sectionLabelSpaced]}>Your friends</Text>
+      {friends.length > 0 ? (
+        <View style={styles.friendSearchRow}>
+          <MaterialIcons name="search" size={18} color={colors.foregroundMuted} />
+          <TextInput
+            value={friendSearch}
+            onChangeText={setFriendSearch}
+            placeholder="Search your friends"
+            placeholderTextColor={colors.foregroundMuted}
+            accessibilityLabel="Search your friends"
+            style={[type.body, styles.friendSearchInput]}
+          />
+        </View>
+      ) : null}
     </View>
   );
 
@@ -147,7 +167,7 @@ function FriendsScreenContent() {
         <WebFriendsTopBar title="Friends" />
 
         <FlatList
-          data={friends}
+          data={filteredFriends}
           keyExtractor={(item) => item.friendship_id}
           renderItem={({ item }) => (
             <WebFriendRow
@@ -164,8 +184,12 @@ function FriendsScreenContent() {
               <ActivityIndicator style={styles.spinner} color={colors.foregroundMuted} />
             ) : friendsQuery.isError ? (
               <Text style={[type.body, styles.errorText, styles.listEmptyPadding]}>{friendsQuery.error.message}</Text>
-            ) : (
+            ) : friends.length === 0 ? (
               <Text style={[type.body, styles.mutedText, styles.listEmptyPadding]}>No friends yet</Text>
+            ) : (
+              <Text style={[type.body, styles.mutedText, styles.listEmptyPadding]}>
+                No friends match &quot;{friendSearch}&quot;.
+              </Text>
             )
           }
         />
@@ -222,6 +246,22 @@ const createStyles = (
       paddingHorizontal: spacing.lg,
       color: colors.foreground,
       backgroundColor: colors.surfaceGlass,
+    },
+    friendSearchRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      marginBottom: spacing.sm,
+      minHeight: 44,
+      borderWidth: 1,
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.lg,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceGlass,
+    },
+    friendSearchInput: {
+      flex: 1,
+      color: colors.foreground,
     },
     sendButton: {
       minHeight: 44,

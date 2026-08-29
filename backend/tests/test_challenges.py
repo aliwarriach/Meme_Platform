@@ -206,6 +206,69 @@ async def test_submission_rejected_after_window_close(client: AsyncClient):
     assert response.status_code == 400
 
 
+async def test_submission_rejected_for_a_deleted_meme(client: AsyncClient):
+    """A deleted post can never be *freshly* nominated for a challenge — see
+    services/challenges.py::submit_to_challenge's deleted-meme check."""
+    alice = await create_user(client, "alice")
+    bob = await create_user(client, "bob")
+    community = await _create_community(client, alice)
+    await _join(client, bob, community["id"])
+    challenge = (await _setup_two_side_challenge(client, alice, bob, community["id"])).json()
+
+    meme = await _post_meme(client, alice)
+    delete_response = await client.delete(f"/memes/{meme['id']}", headers=auth_header(alice))
+    assert delete_response.status_code == 204
+
+    response = await client.post(
+        f"/communities/{community['id']}/challenges/{challenge['id']}/submissions",
+        params={"meme_id": meme["id"]},
+        headers=auth_header(alice),
+    )
+    assert response.status_code == 400
+
+
+async def test_challenge_score_survives_meme_deletion_after_submission(client: AsyncClient):
+    """A meme submitted *before* being deleted keeps counting toward its side's score —
+    only a *fresh* nomination is blocked by deletion (test_submission_rejected_for_a_deleted_meme
+    above), not an existing one. Confirmed product decision, see
+    services/challenges.py::_side_scores's header comment."""
+    alice = await create_user(client, "alice")
+    bob = await create_user(client, "bob")
+    community = await _create_community(client, alice)
+    await _join(client, bob, community["id"])
+    challenge = (await _setup_two_side_challenge(client, alice, bob, community["id"])).json()
+
+    winning_meme = await _post_meme(client, alice)
+    await client.post(
+        f"/communities/{community['id']}/challenges/{challenge['id']}/submissions",
+        params={"meme_id": winning_meme["id"]}, headers=auth_header(alice),
+    )
+    carol = await create_user(client, "carol")
+    await client.post(
+        f"/memes/{winning_meme['id']}/votes", json={"value": 1}, headers=auth_header(carol)
+    )
+
+    losing_meme = await _post_meme(client, bob)
+    await client.post(
+        f"/communities/{community['id']}/challenges/{challenge['id']}/submissions",
+        params={"meme_id": losing_meme["id"]}, headers=auth_header(bob),
+    )
+
+    # Alice deletes her already-submitted, already-winning meme — the submission and its
+    # score must still stand at evaluation time.
+    delete_response = await client.delete(f"/memes/{winning_meme['id']}", headers=auth_header(alice))
+    assert delete_response.status_code == 204
+
+    async with TestSessionFactory() as session:
+        evaluated = await evaluate_challenge(session, uuid.UUID(challenge["id"]))
+    assert evaluated.status.value == "evaluated"
+
+    winning_side_id = evaluated.winning_side_id
+    assert winning_side_id is not None
+    winning_side = next(s for s in challenge["sides"] if s["id"] == str(winning_side_id))
+    assert winning_side["name"] == "Team A"
+
+
 async def test_concurrent_submission_of_same_meme_never_returns_500(client: AsyncClient):
     """Both requests pass the "already submitted?" check before either commits; the DB
     unique constraint catches the loser — must be a clean 400, never a raw 500."""

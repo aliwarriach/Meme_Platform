@@ -20,7 +20,7 @@ from app.schemas.memes import FeedPage
 from app.schemas.profiles import UserProfileOut
 from app.services import badges as badges_service
 from app.services import memes as memes_service
-from app.services.friends import are_friends
+from app.services.friends import are_friends, has_pending_outgoing_request
 from app.services.leaderboards import get_profile_score
 
 
@@ -37,6 +37,11 @@ async def get_user_profile(
     target = await _get_user_or_404(db, user_id)
     is_self = target.id == current_user.id
     is_friend = is_self or await are_friends(db, current_user.id, target.id)
+    friend_request_sent = (
+        not is_self
+        and not is_friend
+        and await has_pending_outgoing_request(db, current_user.id, target.id)
+    )
 
     profile_score = await get_profile_score(db, user_id)
     badges = await badges_service.list_user_badges(db, user_id)
@@ -56,6 +61,7 @@ async def get_user_profile(
         is_self=is_self,
         is_friend=is_friend,
         posts_locked=not is_friend,
+        friend_request_sent=friend_request_sent,
     )
 
 

@@ -8,11 +8,13 @@ import {
   passwordResetRequestRequest,
   registerRequest,
   updateAvatarRequest,
+  updateBioRequest,
   type AuthUserResponse,
   type TokenResponse,
   type UpdateAvatarPayload,
+  type UpdateBioPayload,
 } from '@/services/auth';
-import { setAvatar } from '@/store/authSlice';
+import { setAvatar, setBio } from '@/store/authSlice';
 import type { AppDispatch } from '@/store/store';
 
 export function useRegisterMutation() {
@@ -85,6 +87,25 @@ export function useUpdateAvatarMutation() {
     },
     onSuccess: (user) => {
       dispatch(setAvatar({ avatarUrl: user.avatar_url, avatarPreset: user.avatar_preset }));
+      queryClient.invalidateQueries({ queryKey: ['profiles', user.id] });
+    },
+  });
+}
+
+/** Same "patch Redux + invalidate this user's own profile query" shape as
+ * `useUpdateAvatarMutation` above, for the bio editor. */
+export function useUpdateBioMutation() {
+  const dispatch = useDispatch<AppDispatch>();
+  const queryClient = useQueryClient();
+
+  return useMutation<AuthUserResponse, Error, UpdateBioPayload>({
+    mutationFn: async (payload) => {
+      const response = await updateBioRequest(payload);
+      if (!response.ok || !response.data) throwApiError(response, 'update bio');
+      return response.data;
+    },
+    onSuccess: (user) => {
+      dispatch(setBio(user.bio));
       queryClient.invalidateQueries({ queryKey: ['profiles', user.id] });
     },
   });

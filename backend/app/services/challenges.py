@@ -84,7 +84,12 @@ from app.services import friends as friends_service
 from app.services import notifications as notifications_service
 from app.services.communities import require_membership_or_open_community
 from app.services.hashtags import get_or_create_hashtag
-from app.services.memes import build_meme_out, stage_community_meme, stage_personal_meme
+from app.services.memes import (
+    build_meme_out,
+    parse_editor_document_json,
+    stage_community_meme,
+    stage_personal_meme,
+)
 from app.services.scoring import meme_score_expr
 
 WINNER_POINTS = 100
@@ -239,6 +244,11 @@ async def _side_scores(db: AsyncSession, challenge_id: uuid.UUID) -> dict[uuid.U
     the roster is assigned or self-selected, and one code path is easier to reason about
     than two. With one submission per side (the common community case) neither lever binds:
     the cap doesn't bite and a single contributor's multiplier is exactly 1.
+
+    Deliberately deletion-agnostic: no `Meme.deleted_at` filter here, so a submission whose
+    meme is later deleted keeps its score in this side's total (confirmed product decision —
+    a deleted post can never be *freshly* nominated into a challenge, see
+    `submit_to_challenge`'s deleted-meme check, but one already counted stays counted).
     """
     atom = meme_score_expr()
     ranked = (
@@ -1103,9 +1113,18 @@ async def submit_to_challenge(
     side = await _resolve_caller_side(db, challenge, current_user.id)
     side_id = side.id
 
-    author_id = await db.scalar(select(Meme.author_id).where(Meme.id == meme_id))
-    if author_id is None or author_id != current_user.id:
+    meme_row = (
+        await db.execute(select(Meme.author_id, Meme.deleted_at).where(Meme.id == meme_id))
+    ).one_or_none()
+    if meme_row is None or meme_row.author_id != current_user.id:
         raise MemeNotEligibleForChallengeError("You can only submit your own memes")
+    if meme_row.deleted_at is not None:
+        # A deleted post can never be freshly nominated for a challenge — the score of a
+        # meme already submitted before deletion still counts (see `_side_scores`, which is
+        # deliberately deletion-agnostic), but a deleted meme can't newly enter one.
+        raise MemeNotEligibleForChallengeError(
+            "This meme has been deleted and can't be submitted to a challenge"
+        )
 
     if challenge.challenge_type == ChallengeType.community_vs_community:
         targets_side_community = await db.scalar(
@@ -1162,6 +1181,7 @@ async def create_and_submit_to_challenge(
     caption: str | None,
     image: UploadFile | None,
     image_public_id: str | None = None,
+    editor_document_json: str | None = None,
 ) -> ChallengeSubmissionOut:
     """Create a meme **and** enter it into a challenge in one transaction.
 
@@ -1184,6 +1204,7 @@ async def create_and_submit_to_challenge(
 
     side = await _resolve_caller_side(db, challenge, current_user.id)
     target_community_id = _submission_target_community_id(challenge, side)
+    editor_document = parse_editor_document_json(editor_document_json)
 
     if target_community_id is None:
         # Open challenge: no community to post into, so the entry is a public personal post
@@ -1191,7 +1212,7 @@ async def create_and_submit_to_challenge(
         # that tag's feed alongside everyone else's entries.
         meme = await stage_personal_meme(
             db, current_user.id, caption, {AudienceType.public}, image,
-            confirmed_image_public_id=image_public_id,
+            confirmed_image_public_id=image_public_id, editor_document=editor_document,
         )
         if challenge.hashtag_id is not None:
             # Attached by id rather than via `challenge.hashtag.slug`: `_get_challenge_or_404`
@@ -1208,7 +1229,7 @@ async def create_and_submit_to_challenge(
         # accept the same caller it just approved, not re-reject them here.
         community = await require_membership_or_open_community(db, target_community_id, current_user.id)
         meme = await stage_community_meme(
-            db, community, current_user.id, caption, image,
+            db, community, current_user.id, caption, image, editor_document=editor_document,
             confirmed_image_public_id=image_public_id,
         )
 

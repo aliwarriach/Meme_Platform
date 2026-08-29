@@ -61,7 +61,12 @@ export function ContainerCommentsSection({ containerId, index, listRef }: Contai
       ) : (
         commentsQuery.data?.map((comment) => (
           <View key={comment.id} className="mb-3 flex-row items-start gap-2">
-            <Avatar username={comment.author.username} size="sm" />
+            <Avatar
+              username={comment.author.username}
+              avatarUrl={comment.author.avatar_url}
+              avatarPreset={comment.author.avatar_preset}
+              size="sm"
+            />
             <Text className="flex-1 font-body text-sm text-ink">
               <Text className="font-title text-heading">{comment.author.username} </Text>
               {comment.body}

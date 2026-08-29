@@ -40,6 +40,22 @@ class MemeViewOut(BaseModel):
     view_count: int
 
 
+class MemeEditOut(BaseModel):
+    """Author-only — the data an edit screen needs to rehydrate itself. Deliberately not
+    part of `MemeOut` (which every feed card fetches): `editor_document` can be sizable
+    JSON that nobody but the author, mid-edit, has any use for."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    image_url: str
+    caption: str | None
+    hashtags: list[str]
+    # Null for a meme published before this column existed — the edit screen falls back to
+    # treating the flattened image as a fresh, layer-less base image in that case.
+    editor_document: dict | None
+
+
 class FeedPage(BaseModel):
     items: list[MemeOut]
     next_cursor: str | None

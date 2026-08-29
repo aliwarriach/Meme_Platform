@@ -72,3 +72,12 @@ export function updateAvatarRequest(payload: UpdateAvatarPayload) {
   // every other multipart call in this codebase already uses (e.g. services/communities.ts).
   return api.patch<AuthUserResponse>('/auth/me', form, { headers: { 'Content-Type': undefined } });
 }
+
+export type UpdateBioPayload = { kind: 'set'; bio: string } | { kind: 'clear' };
+
+export function updateBioRequest(payload: UpdateBioPayload) {
+  const form = new FormData();
+  if (payload.kind === 'set') form.append('bio', payload.bio);
+  else form.append('clear_bio', 'true');
+  return api.patch<AuthUserResponse>('/auth/me', form, { headers: { 'Content-Type': undefined } });
+}

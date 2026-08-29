@@ -50,3 +50,9 @@ export async function createTemplateRequest(payload: {
     headers: { 'Content-Type': undefined },
   });
 }
+
+// Owner-only — removes any template from that community's private library, regardless of
+// who uploaded it.
+export function deleteCommunityTemplateRequest(communityId: string, templateId: string) {
+  return api.delete(`/communities/${communityId}/templates/${templateId}`);
+}

@@ -38,7 +38,12 @@ function ConversationRow({ conversation }: { conversation: ConversationResponse 
         router.push({ pathname: '/inbox/[conversationId]', params: { conversationId: conversation.id } })
       }
       className="min-h-[44px] flex-row items-center gap-3 border-b border-outline-variant/30 px-4 py-3">
-      <Avatar username={conversation.other_user.username} size="md" />
+      <Avatar
+        username={conversation.other_user.username}
+        avatarUrl={conversation.other_user.avatar_url}
+        avatarPreset={conversation.other_user.avatar_preset}
+        size="md"
+      />
 
       <View className="flex-1">
         <View className="flex-row items-center justify-between">

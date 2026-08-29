@@ -129,6 +129,20 @@ async def are_friends(db: AsyncSession, user_a_id: uuid.UUID, user_b_id: uuid.UU
     return friendship is not None and friendship.status == FriendshipStatus.accepted
 
 
+async def has_pending_outgoing_request(
+    db: AsyncSession, requester_id: uuid.UUID, addressee_id: uuid.UUID
+) -> bool:
+    """True only if `requester_id` is the one who sent a still-pending request to
+    `addressee_id` — direction matters (an incoming request the viewer hasn't acted on
+    yet is a different UI state, handled by `list_incoming_requests`, not this)."""
+    friendship = await _get_friendship_between(db, requester_id, addressee_id)
+    return (
+        friendship is not None
+        and friendship.status == FriendshipStatus.pending
+        and friendship.requester_id == requester_id
+    )
+
+
 async def list_incoming_requests(db: AsyncSession, current_user: User) -> list[Friendship]:
     result = await db.execute(
         select(Friendship).where(

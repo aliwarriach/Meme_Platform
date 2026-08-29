@@ -5,13 +5,13 @@ from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import Select
 
-from app.core.exceptions import InvalidImageSourceError
+from app.core.exceptions import InvalidImageSourceError, TemplateNotFoundError
 from app.core.pagination import decode_cursor, encode_cursor
 from app.models.template import Template
 from app.models.user import User
 from app.schemas.templates import TemplateOut, TemplatePage
-from app.services.communities import require_active_membership
-from app.services.media import confirm_pending_upload, validate_and_upload_image
+from app.services.communities import _get_community_or_404, _require_owner, require_active_membership
+from app.services.media import confirm_pending_upload, delete_uploaded_image, validate_and_upload_image
 
 
 async def create_template(
@@ -93,3 +93,25 @@ async def list_community_templates(
     await require_active_membership(db, community_id, current_user.id)
     base_stmt = select(Template).where(Template.community_id == community_id)
     return await _paginate_templates(db, base_stmt, cursor, limit)
+
+
+async def delete_community_template(
+    db: AsyncSession, current_user: User, community_id: uuid.UUID, template_id: uuid.UUID
+) -> None:
+    """Owner-only — a community owner can remove **any** template from their own
+    community's private library, regardless of who uploaded it (the same "owner manages
+    everything in their own community" precedent as challenges/members/join-requests).
+    Templates have no soft-delete mixin (nothing else references a template by id, unlike
+    a `Meme` whose score/challenge history must survive deletion) — this is a real row
+    delete plus best-effort Cloudinary cleanup, same pattern as `services/memes.py::delete_meme`.
+    """
+    community = await _get_community_or_404(db, community_id)
+    _require_owner(community, current_user)
+
+    template = await db.get(Template, template_id)
+    if template is None or template.community_id != community_id:
+        raise TemplateNotFoundError("Template not found")
+
+    await db.delete(template)
+    await db.commit()
+    await delete_uploaded_image(template.image_public_id)

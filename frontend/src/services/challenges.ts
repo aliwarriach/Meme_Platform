@@ -123,7 +123,8 @@ export function getChallengeResultsFlatRequest(challengeId: string) {
 export async function createAndSubmitToChallengeRequest(
   challengeId: string,
   image: { uri: string; name: string; type: string },
-  caption?: string
+  caption?: string,
+  editorDocumentJson?: string
 ) {
   // Roadmap_Scaling.md A4 — image bytes go straight to Cloudinary; only the confirmed
   // public_id is sent to our own backend.
@@ -132,6 +133,7 @@ export async function createAndSubmitToChallengeRequest(
   const form = new FormData();
   form.append('image_public_id', imagePublicId);
   if (caption) form.append('caption', caption);
+  if (editorDocumentJson) form.append('editor_document_json', editorDocumentJson);
 
   return api.post<ChallengeSubmissionResponse>(
     `/challenges/${challengeId}/submissions`,

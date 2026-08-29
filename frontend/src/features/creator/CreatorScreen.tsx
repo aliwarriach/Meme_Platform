@@ -4,7 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 
@@ -17,7 +17,9 @@ import { EditorCanvas, type EditorCanvasHandle } from '@/features/creator/compon
 import { LayerInspector } from '@/features/creator/components/LayerInspector';
 import { StickerPickerModal } from '@/features/creator/components/StickerPickerModal';
 import { TemplatePickerModal } from '@/features/creator/components/TemplatePickerModal';
-import { aspectRatio } from '@/features/creator/document';
+import { aspectRatio, type MemeDocument } from '@/features/creator/document';
+import { EditTagsEditor } from '@/features/creator/components/EditTagsEditor';
+import { resolveDocumentForPersistence } from '@/features/creator/persistDocument';
 import { buildCreatorSchema, type CreatorFormValues } from '@/features/creator/schemas';
 import {
   HashtagInput,
@@ -31,11 +33,17 @@ import {
   useChallengeFlat,
   useCreateAndSubmitToChallengeMutation,
 } from '@/services/useChallenges';
-import { useCreateCommunityMemeMutation, useCreateMemeMutation } from '@/services/useMemes';
+import {
+  useCreateCommunityMemeMutation,
+  useCreateMemeMutation,
+  useMemeEditData,
+  useUpdateMemeMutation,
+} from '@/services/useMemes';
 import {
   addEmojiLayer,
   addImageLayer,
   addTextLayer,
+  loadDocument,
   redo,
   resetDraft,
   selectCanRedo,
@@ -54,11 +62,12 @@ const AUDIENCE_OPTIONS: { value: AudienceType; label: string }[] = [
 export default function CreatorScreen() {
   const router = useRouter();
   const dispatch = useDispatch<AppDispatch>();
-  const { communityId, communityName, challengeId, templateUrl } = useLocalSearchParams<{
+  const { communityId, communityName, challengeId, templateUrl, editMemeId } = useLocalSearchParams<{
     communityId?: string;
     communityName?: string;
     challengeId?: string;
     templateUrl?: string;
+    editMemeId?: string;
   }>();
   // Posting from inside a community has no manual audience picker — visibility is
   // fully derived server-side from the community's privacy setting.
@@ -66,17 +75,24 @@ export default function CreatorScreen() {
   // Entered from a challenge (the "Create a meme for this challenge" CTA) — publish
   // submits directly into it instead of the normal audience-based post.
   const isChallengeMode = !!challengeId;
+  // Entered from a post's own "Edit" menu — scoped to photo/caption/tags/text only, never
+  // combined with the community/challenge params above (edit never re-derives audience).
+  const isEditMode = !!editMemeId;
 
   const createMeme = useCreateMemeMutation();
   const createCommunityMeme = useCreateCommunityMemeMutation();
   const createAndSubmitToChallenge = useCreateAndSubmitToChallengeMutation();
-  const activeMutation = isChallengeMode
-    ? createAndSubmitToChallenge
-    : isCommunityPost
-      ? createCommunityMeme
-      : createMeme;
+  const updateMeme = useUpdateMemeMutation();
+  const activeMutation = isEditMode
+    ? updateMeme
+    : isChallengeMode
+      ? createAndSubmitToChallenge
+      : isCommunityPost
+        ? createCommunityMeme
+        : createMeme;
   const generateCaption = useGenerateCaptionMutation();
   const challengeQuery = useChallengeFlat(challengeId ?? '');
+  const editDataQuery = useMemeEditData(editMemeId ?? '', isEditMode);
 
   const [tags, setTags] = useState<string[]>([]);
   const [challengeEntry, setChallengeEntry] = useState<ChallengeTagEntry | null>(null);
@@ -99,16 +115,20 @@ export default function CreatorScreen() {
   // Start every creator session from a clean draft so a previous, unpublished draft
   // (or another community's image) never leaks into this one. Arriving with a `templateUrl`
   // (tapped from a community's Templates tab) preloads it as the base image, same as picking
-  // it from the in-editor `TemplatePickerModal` would.
+  // it from the in-editor `TemplatePickerModal` would. Skipped in edit mode — that session's
+  // draft is rehydrated from the fetched meme instead (see the effect below), and resetting
+  // it here would discard that load's timing/race with nothing to replace it until the fetch
+  // resolves.
   useEffect(() => {
+    if (isEditMode) return;
     dispatch(resetDraft());
     if (templateUrl) dispatch(setBaseImage(templateUrl));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dispatch]);
+  }, [dispatch, isEditMode]);
 
   const schema = useMemo(
-    () => buildCreatorSchema(!isCommunityPost && !isChallengeMode),
-    [isCommunityPost, isChallengeMode]
+    () => buildCreatorSchema(!isCommunityPost && !isChallengeMode && !isEditMode),
+    [isCommunityPost, isChallengeMode, isEditMode]
   );
 
   const {
@@ -125,6 +145,26 @@ export default function CreatorScreen() {
 
   const caption = watch('caption') ?? '';
   const selectedAudiences = watch('audiences');
+
+  // Rehydrates the draft once the meme-to-edit loads: the exact stored layer document when
+  // one exists, or a fresh layer-less document wrapping the current flattened image for a
+  // meme published before this column existed (that image's original text is now baked into
+  // its pixels — there's nothing left to decompose back into layers). Runs once per fetch,
+  // guarded so a background refetch (e.g. after publish invalidates the feed) never stomps
+  // on whatever the user is mid-editing.
+  const editDocLoadedRef = useRef(false);
+  useEffect(() => {
+    if (!isEditMode || !editDataQuery.data || editDocLoadedRef.current) return;
+    editDocLoadedRef.current = true;
+    const fetched = editDataQuery.data;
+    if (fetched.editor_document) {
+      dispatch(loadDocument(fetched.editor_document as unknown as MemeDocument));
+    } else {
+      dispatch(setBaseImage(fetched.image_url));
+    }
+    reset({ caption: fetched.caption ?? '', audiences: [] });
+    setTags(fetched.hashtags);
+  }, [isEditMode, editDataQuery.data, dispatch, reset]);
 
   const onPickOwnImage = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -211,11 +251,27 @@ export default function CreatorScreen() {
     if (!capturedUri) return;
     setJoinError(null);
     try {
-      if (isChallengeMode && challengeId) {
+      // Uploads any locally-referenced image (base or "+ Image" layers) to a stable
+      // Cloudinary URL and JSON-encodes the result — this is what makes a later edit able
+      // to rehydrate the exact layers instead of only ever having the flattened PNG. Done
+      // once here, on the same document that produced `capturedUri`, for every path below.
+      const resolvedDoc = await resolveDocumentForPersistence(doc);
+      const editorDocumentJson = JSON.stringify(resolvedDoc);
+
+      if (isEditMode && editMemeId) {
+        await updateMeme.mutateAsync({
+          memeId: editMemeId,
+          caption: values.caption || null,
+          hashtags: tags,
+          image: { uri: capturedUri, name: 'meme.png', type: 'image/png' },
+          editorDocumentJson,
+        });
+      } else if (isChallengeMode && challengeId) {
         await createAndSubmitToChallenge.mutateAsync({
           challengeId,
           image: { uri: capturedUri, name: 'meme.png', type: 'image/png' },
           caption: values.caption || undefined,
+          editorDocumentJson,
         });
       } else if (challengeEntry) {
         // Typed tag resolved to a challenge — join first (a re-join of the same side the
@@ -231,6 +287,7 @@ export default function CreatorScreen() {
           challengeId: challengeEntry.challengeId,
           image: { uri: capturedUri, name: 'meme.png', type: 'image/png' },
           caption: values.caption || undefined,
+          editorDocumentJson,
         });
       } else if (isCommunityPost) {
         await createCommunityMeme.mutateAsync({
@@ -239,6 +296,7 @@ export default function CreatorScreen() {
           imageName: 'meme.png',
           imageType: 'image/png',
           caption: values.caption || undefined,
+          editorDocumentJson,
         });
       } else {
         await createMeme.mutateAsync({
@@ -248,6 +306,7 @@ export default function CreatorScreen() {
           caption: values.caption || undefined,
           audiences: values.audiences,
           hashtags: tags,
+          editorDocumentJson,
         });
       }
       dispatch(resetDraft());
@@ -265,6 +324,25 @@ export default function CreatorScreen() {
   });
 
   if (!baseImageUri) {
+    // Edit mode never shows the upload/template picker — the meme-to-edit's image loads
+    // straight into the draft (see the effect above) the moment the fetch resolves.
+    if (isEditMode) {
+      return (
+        <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
+          <TopBar title="Edit Meme" showBack />
+          <View className="flex-1 items-center justify-center px-6">
+            {editDataQuery.isError ? (
+              <Text className="text-center font-body text-sm text-error">
+                {editDataQuery.error.message}
+              </Text>
+            ) : (
+              <ActivityIndicator />
+            )}
+          </View>
+        </SafeAreaView>
+      );
+    }
+
     return (
       <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
         <TopBar
@@ -302,19 +380,33 @@ export default function CreatorScreen() {
       <View className="flex-row items-center justify-between border-b border-outline-variant/30 px-4 pb-3 pt-2">
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={capturedUri ? 'Edit meme' : 'Start over'}
-          onPress={() => (capturedUri ? setCapturedUri(null) : onStartOver())}
+          accessibilityLabel={capturedUri ? 'Edit meme' : isEditMode ? 'Cancel' : 'Start over'}
+          onPress={() => {
+            if (capturedUri) {
+              setCapturedUri(null);
+            } else if (isEditMode) {
+              // Edit mode has no blank/upload screen to fall back to — "start over" here
+              // just abandons the in-progress edit instead of wiping the loaded draft.
+              router.back();
+            } else {
+              onStartOver();
+            }
+          }}
           className="min-h-[44px] items-center justify-center">
-          <Text className="font-title text-base text-heading">{capturedUri ? '‹ Edit' : '‹ Start over'}</Text>
+          <Text className="font-title text-base text-heading">
+            {capturedUri ? '‹ Edit' : isEditMode ? '‹ Cancel' : '‹ Start over'}
+          </Text>
         </Pressable>
         <Text className="font-heading text-lg text-heading">
           {capturedUri
             ? 'Preview'
-            : isChallengeMode
-              ? (challengeQuery.data?.title ?? 'Challenge Entry')
-              : isCommunityPost
-                ? `New Post to ${communityName}`
-                : 'New Meme'}
+            : isEditMode
+              ? 'Edit Meme'
+              : isChallengeMode
+                ? (challengeQuery.data?.title ?? 'Challenge Entry')
+                : isCommunityPost
+                  ? `New Post to ${communityName}`
+                  : 'New Meme'}
         </Text>
         <View
           accessibilityElementsHidden
@@ -342,6 +434,15 @@ export default function CreatorScreen() {
 
         {!capturedUri ? (
           <>
+            {isEditMode ? (
+              <PillButton
+                label="🖼 Change Photo"
+                variant="outline"
+                onPress={onPickOwnImage}
+                className="mb-2 mt-3"
+              />
+            ) : null}
+
             <View className="mb-2 mt-3 flex-row gap-2">
               <PillButton label="＋ Text" className="flex-1" onPress={() => dispatch(addTextLayer())} />
               <PillButton
@@ -417,7 +518,20 @@ export default function CreatorScreen() {
               </Text>
             ) : null}
 
-            {isChallengeMode ? (
+            {isEditMode ? (
+              <>
+                {editDataQuery.data && !editDataQuery.data.editor_document ? (
+                  <View className="mb-4 rounded-card bg-surface-high/60 px-4 py-3">
+                    <Text className="font-body text-xs text-ink-muted">
+                      This post was created before per-layer editing was saved — you can still
+                      update the photo, caption, and tags, but any old text is now part of the
+                      image itself.
+                    </Text>
+                  </View>
+                ) : null}
+                <EditTagsEditor tags={tags} onTagsChange={setTags} />
+              </>
+            ) : isChallengeMode ? (
               <View className="mb-4 rounded-card border border-primary/40 bg-primary/10 px-4 py-3">
                 <Text className="font-body text-sm text-ink">
                   Competing in{' '}
@@ -474,7 +588,15 @@ export default function CreatorScreen() {
             ) : null}
 
             <PillButton
-              label={activeMutation.isPending ? 'Publishing…' : 'Publish'}
+              label={
+                activeMutation.isPending
+                  ? isEditMode
+                    ? 'Saving…'
+                    : 'Publishing…'
+                  : isEditMode
+                    ? 'Save Changes'
+                    : 'Publish'
+              }
               onPress={onSubmit}
               loading={activeMutation.isPending}
               className="mb-6"

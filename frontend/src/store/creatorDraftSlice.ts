@@ -146,6 +146,13 @@ const creatorDraftSlice = createSlice({
       state.present = createInitialDocument();
       state.future = [];
     },
+    // Rehydrates the draft from a previously-published document (meme edit) — a fresh
+    // history, same as resetDraft, since there's nothing to undo back to before the load.
+    loadDocument(state, action: PayloadAction<MemeDocument>) {
+      state.past = [];
+      state.present = action.payload;
+      state.future = [];
+    },
     undo(state) {
       const previous = state.past.pop();
       if (!previous) return;
@@ -177,6 +184,7 @@ export const {
   deleteSelected,
   reorderSelected,
   resetDraft,
+  loadDocument,
   undo,
   redo,
 } = creatorDraftSlice.actions;

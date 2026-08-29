@@ -239,3 +239,67 @@ async def test_templates_endpoints_require_authentication(client: AsyncClient):
     files = {"image": ("template.png", b"fake-bytes", "image/png")}
     response = await client.post("/templates", files=files, data={"name": "x"})
     assert response.status_code == 401
+
+
+async def test_owner_can_delete_any_template_in_their_community(client: AsyncClient, mock_media_delete):
+    alice = await create_user(client, "alice")
+    bob = await create_user(client, "bob")
+    community = await _create_community(client, alice)
+    await client.post(f"/communities/{community['id']}/join", headers=auth_header(bob))
+
+    uploaded = (
+        await _post_template(client, bob, name="bob's template", community_id=community["id"])
+    ).json()
+
+    response = await client.delete(
+        f"/communities/{community['id']}/templates/{uploaded['id']}", headers=auth_header(alice)
+    )
+    assert response.status_code == 204
+    assert len(mock_media_delete) == 1
+
+    listing = await client.get(
+        f"/communities/{community['id']}/templates", headers=auth_header(alice)
+    )
+    assert uploaded["id"] not in [t["id"] for t in listing.json()["items"]]
+
+
+async def test_non_owner_cannot_delete_community_template(client: AsyncClient):
+    alice = await create_user(client, "alice")
+    bob = await create_user(client, "bob")
+    community = await _create_community(client, alice)
+    await client.post(f"/communities/{community['id']}/join", headers=auth_header(bob))
+
+    uploaded = (
+        await _post_template(client, bob, name="bob's template", community_id=community["id"])
+    ).json()
+
+    response = await client.delete(
+        f"/communities/{community['id']}/templates/{uploaded['id']}", headers=auth_header(bob)
+    )
+    assert response.status_code == 403
+
+
+async def test_delete_template_rejects_mismatched_community(client: AsyncClient):
+    alice = await create_user(client, "alice")
+    community_a = await _create_community(client, alice)
+    community_b = await _create_community(client, alice)
+
+    uploaded = (
+        await _post_template(client, alice, community_id=community_a["id"])
+    ).json()
+
+    response = await client.delete(
+        f"/communities/{community_b['id']}/templates/{uploaded['id']}", headers=auth_header(alice)
+    )
+    assert response.status_code == 404
+
+
+async def test_delete_nonexistent_template_404(client: AsyncClient):
+    alice = await create_user(client, "alice")
+    community = await _create_community(client, alice)
+
+    response = await client.delete(
+        f"/communities/{community['id']}/templates/00000000-0000-0000-0000-000000000000",
+        headers=auth_header(alice),
+    )
+    assert response.status_code == 404

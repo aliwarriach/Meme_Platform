@@ -41,7 +41,6 @@ export default function FeedScreen() {
   const feedPane = (
     <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
       <TopBar
-        title="MemeVerse"
         leftActions={
           <Pressable
             accessibilityRole="button"
@@ -49,6 +48,18 @@ export default function FeedScreen() {
             onPress={() => setDrawerVisible(true)}
             className="h-11 w-11 items-center justify-center">
             <MaterialIcons name="menu" size={24} color={c.heading} />
+          </Pressable>
+        }
+        titleContent={
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Search"
+            onPress={() => router.push('/search')}
+            className="min-h-[44px] w-full flex-row items-center gap-2 rounded-full border border-outline-variant bg-surface-high/60 px-4">
+            <MaterialIcons name="search" size={18} color={c.inkMuted} />
+            <Text className="font-body text-base text-ink-muted" numberOfLines={1}>
+              Search MemeVerse
+            </Text>
           </Pressable>
         }
         rightActions={
@@ -73,15 +84,6 @@ export default function FeedScreen() {
           </>
         }
       />
-
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Search"
-        onPress={() => router.push('/search')}
-        className="mx-4 mb-2 mt-3 min-h-[44px] flex-row items-center gap-2 rounded-full border border-outline-variant bg-surface-high/60 px-4 py-2">
-        <MaterialIcons name="search" size={18} color={c.inkMuted} />
-        <Text className="font-body text-base text-ink-muted">Search MemeVerse</Text>
-      </Pressable>
 
       <View className="flex-1">
         <MergedFeedList

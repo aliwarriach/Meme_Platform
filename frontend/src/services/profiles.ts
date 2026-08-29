@@ -16,6 +16,10 @@ export interface UserProfileResponse {
   // (backend enforces this itself on GET /users/{id}/posts; this just tells the client
   // it's not worth the guaranteed-403 round trip). See backend services/profiles.py.
   posts_locked: boolean;
+  // True only if the viewer already has an outstanding request sent to this profile's
+  // owner — lets the client show "Request Sent" across remounts instead of resetting to
+  // "Add Friend" every time the screen reloads.
+  friend_request_sent: boolean;
 }
 
 export function getUserProfileRequest(userId: string) {

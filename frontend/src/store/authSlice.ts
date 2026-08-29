@@ -119,6 +119,10 @@ const authSlice = createSlice({
       state.user.avatarUrl = action.payload.avatarUrl;
       state.user.avatarPreset = action.payload.avatarPreset;
     },
+    setBio(state, action: PayloadAction<string | null>) {
+      if (!state.user) return;
+      state.user.bio = action.payload;
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -141,5 +145,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { setCredentials, setEmailVerified, setAvatar } = authSlice.actions;
+export const { setCredentials, setEmailVerified, setAvatar, setBio } = authSlice.actions;
 export default authSlice.reducer;

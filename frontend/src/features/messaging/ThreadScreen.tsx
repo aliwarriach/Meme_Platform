@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
 import { useThemeMode } from '@/constants/ThemeMode';
 
+import Avatar from '@/components/Avatar';
 import TopBar from '@/components/TopBar';
 import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import MessageBubble from '@/features/messaging/MessageBubble';
@@ -119,7 +120,20 @@ export default function ThreadScreen({ conversationId }: { conversationId: strin
 
   return (
     <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
-      <TopBar title={conversation?.other_user.username ?? 'Conversation'} showBack />
+      <TopBar
+        title={conversation?.other_user.username ?? 'Conversation'}
+        showBack
+        titleAdornment={
+          conversation ? (
+            <Avatar
+              username={conversation.other_user.username}
+              avatarUrl={conversation.other_user.avatar_url}
+              avatarPreset={conversation.other_user.avatar_preset}
+              size="sm"
+            />
+          ) : null
+        }
+      />
 
       <KeyboardAvoidingView
         className="flex-1"

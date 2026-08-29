@@ -16,7 +16,7 @@ since votes could still change the outcome.
 
 import datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import InvalidPeriodError
@@ -79,7 +79,11 @@ def current_period_key(period_type: CompetitionPeriod) -> str:
 
 
 async def _standings_query(
-    db: AsyncSession, period_type: CompetitionPeriod, key: str, limit: int
+    db: AsyncSession,
+    period_type: CompetitionPeriod,
+    key: str,
+    limit: int,
+    deleted_cutoff: datetime.datetime | None = None,
 ) -> list[StandingEntry]:
     """Ranks native memes and MemeContainers together by their **MemeScore atom** (see
     services/scoring.py), scoped to content **created within** the period `[start, end)`.
@@ -97,15 +101,35 @@ async def _standings_query(
     Standings are computed live on read (no snapshot table yet); a closed period can still
     drift if late votes land on its memes — acceptable pre-launch, flagged for a freeze-at-
     close snapshot when it matters.
+
+    `deleted_cutoff` (2026-08-30) answers "was this meme still alive as of this instant?",
+    and callers pass a different instant depending on what they're asking:
+    - **Live/ongoing period** (`get_current_standings`, `deleted_cutoff=None`, default):
+      excludes any *currently*-deleted meme outright — it's a fresh, still-open contest,
+      and a deleted post can never be *nominated* into it (matches `submit_to_challenge`'s
+      equivalent rule). Equivalent to checking "deleted as of right now."
+    - **Already-closed period** (`get_winner`, `deleted_cutoff=<the period's own end
+      boundary>`): a meme deleted *before* the period even closed was never actually in the
+      running the whole time it was live (same exclusion current standings already applied
+      throughout that window) and stays excluded permanently — deletion timing doesn't
+      retroactively un-exclude it. But a meme only deleted *after* the period had already
+      closed keeps its already-decided win: the winner was fixed by whatever had the top
+      score at close, and a later moderation action must never retroactively promote the
+      runner-up by rewriting who "actually" won. That entry still ranks/scores normally;
+      only its *content* degrades (see the `meme=None, is_deleted=True` branch below — the
+      Cloudinary asset is gone by the time a delete completes, so there's nothing live left
+      to show anyway).
     """
     start, end = period_bounds(period_type, key)
 
+    meme_filters = [Meme.created_at >= start, Meme.created_at < end]
+    if deleted_cutoff is None:
+        meme_filters.append(Meme.deleted_at.is_(None))
+    else:
+        meme_filters.append(or_(Meme.deleted_at.is_(None), Meme.deleted_at >= deleted_cutoff))
+
     meme_scores = (
-        await db.execute(
-            select(Meme.id, meme_score_expr().label("score")).where(
-                Meme.created_at >= start, Meme.created_at < end
-            )
-        )
+        await db.execute(select(Meme.id, meme_score_expr().label("score")).where(*meme_filters))
     ).all()
     container_scores = (
         await db.execute(
@@ -128,6 +152,17 @@ async def _standings_query(
             meme = await db.get(Meme, id_)
             if meme is None:
                 continue
+            if meme.deleted_at is not None:
+                # Only reachable when include_deleted=True (get_winner) — a live standings
+                # query never selects a deleted meme's id in the first place.
+                entries.append(
+                    StandingEntry(
+                        rank=rank,
+                        content=StandingContentMeme(kind="meme", meme=None, is_deleted=True),
+                        score=score,
+                    )
+                )
+                continue
             upvote_count = await db.scalar(
                 select(func.count(MemeVote.id)).where(MemeVote.meme_id == id_, MemeVote.value == 1)
             )
@@ -146,7 +181,9 @@ async def _standings_query(
             )
             entries.append(
                 StandingEntry(
-                    rank=rank, content=StandingContentMeme(kind="meme", meme=meme_out), score=score
+                    rank=rank,
+                    content=StandingContentMeme(kind="meme", meme=meme_out, is_deleted=False),
+                    score=score,
                 )
             )
         else:
@@ -184,7 +221,7 @@ async def get_winner(db: AsyncSession, period_type: CompetitionPeriod, key: str)
             f"{period_type.value} period {key!r} hasn't closed yet (closes at {end.isoformat()})"
         )
 
-    top = await _standings_query(db, period_type, key, limit=1)
+    top = await _standings_query(db, period_type, key, limit=1, deleted_cutoff=end)
     if not top:
         return WinnerOut(period_type=period_type, period_key=key, content=None, score=0)
 

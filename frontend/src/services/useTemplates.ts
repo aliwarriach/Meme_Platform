@@ -3,6 +3,7 @@ import { useInfiniteQuery, useMutation, useQueryClient, type InfiniteData } from
 import { throwApiError } from '@/services/api';
 import {
   createTemplateRequest,
+  deleteCommunityTemplateRequest,
   getCommunityTemplatesRequest,
   getTemplatesRequest,
   type TemplatePageResponse,
@@ -73,6 +74,20 @@ export function useCreateTemplateMutation() {
       } else {
         queryClient.invalidateQueries({ queryKey: templatesKey });
       }
+    },
+  });
+}
+
+// Owner-only — see `deleteCommunityTemplateRequest`.
+export function useDeleteCommunityTemplateMutation(communityId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, string>({
+    mutationFn: async (templateId) => {
+      const response = await deleteCommunityTemplateRequest(communityId, templateId);
+      if (!response.ok) throwApiError(response, 'delete template');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: communityTemplatesKey(communityId) });
     },
   });
 }

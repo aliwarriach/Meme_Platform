@@ -1,13 +1,15 @@
 import datetime
+import json
 import uuid
 
 from fastapi import UploadFile
-from sqlalchemy import ColumnElement, and_, exists, func, or_, select, update
+from sqlalchemy import ColumnElement, and_, delete, exists, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
     InvalidAudienceSelectionError,
+    InvalidEditorDocumentError,
     InvalidImageSourceError,
     MemeNotFoundError,
     NotMemeAuthorError,
@@ -16,6 +18,7 @@ from app.core.pagination import decode_cursor, encode_cursor
 from app.models.community import Community, CommunityPrivacy
 from app.models.community_membership import CommunityMembership, MembershipStatus
 from app.models.friendship import Friendship, FriendshipStatus
+from app.models.hashtag import Hashtag, MemeHashtag
 from app.models.meme import Meme
 from app.models.meme_view import MemeView
 from app.models.meme_vote import MemeVote
@@ -23,11 +26,32 @@ from app.models.post_audience import AudienceType, PostAudience
 from app.models.comment import Comment
 from app.models.user import User
 from app.schemas.auth import PublicUserOut
-from app.schemas.memes import CommunityBadge, FeedPage, HotFeedPage, MemeOut, MemeViewOut
+from app.schemas.memes import CommunityBadge, FeedPage, HotFeedPage, MemeEditOut, MemeOut, MemeViewOut
 from app.services.blocks import is_blocked_clause
 from app.services.communities import require_active_membership, require_membership_or_open_community
 from app.services.media import confirm_pending_upload, delete_uploaded_image, validate_and_upload_image
 from app.services.scoring import hot_score_expr
+
+# The document is opaque JSON to this module (base image URI + canvas + layers, defined
+# client-side in features/creator/document.ts) — never inspected beyond size/shape, only
+# capped so a client can't wedge an arbitrarily large blob into the row.
+MAX_EDITOR_DOCUMENT_BYTES = 200_000
+
+
+def parse_editor_document_json(raw: str | None) -> dict | None:
+    """`None` means "don't touch/attach a document" — distinct from a client sending one
+    that fails to parse, which is a real 400, not a silent no-op."""
+    if raw is None:
+        return None
+    if len(raw.encode("utf-8")) > MAX_EDITOR_DOCUMENT_BYTES:
+        raise InvalidEditorDocumentError("editor_document_json is too large")
+    try:
+        parsed = json.loads(raw)
+    except ValueError as exc:
+        raise InvalidEditorDocumentError("editor_document_json is not valid JSON") from exc
+    if not isinstance(parsed, dict):
+        raise InvalidEditorDocumentError("editor_document_json must be a JSON object")
+    return parsed
 
 
 def meme_visibility_clause(viewer_id: uuid.UUID):
@@ -124,6 +148,7 @@ async def stage_personal_meme(
     audiences: set[AudienceType],
     image: UploadFile | None = None,
     confirmed_image_public_id: str | None = None,
+    editor_document: dict | None = None,
 ) -> Meme:
     """Uploads the image and stages the `Meme` + its `PostAudience` rows **without
     committing** — the caller owns the transaction. Counterpart to `stage_community_meme`,
@@ -153,6 +178,7 @@ async def stage_personal_meme(
         image_url=image_url,
         image_public_id=image_public_id,
         caption=caption,
+        editor_document=editor_document,
     )
     db.add(meme)
     await db.flush()
@@ -171,6 +197,7 @@ async def create_meme(
     image: UploadFile | None,
     hashtags: list[str] | None = None,
     image_public_id: str | None = None,
+    editor_document_json: str | None = None,
 ) -> MemeOut:
     if AudienceType.community in audiences:
         raise InvalidAudienceSelectionError(
@@ -182,9 +209,10 @@ async def create_meme(
     if not unique_audiences:
         raise InvalidAudienceSelectionError("Choose at least one audience")
 
+    editor_document = parse_editor_document_json(editor_document_json)
     meme = await stage_personal_meme(
         db, current_user.id, caption, unique_audiences, image,
-        confirmed_image_public_id=image_public_id,
+        confirmed_image_public_id=image_public_id, editor_document=editor_document,
     )
 
     if hashtags:
@@ -211,6 +239,7 @@ async def stage_community_meme(
     caption: str | None,
     image: UploadFile | None = None,
     confirmed_image_public_id: str | None = None,
+    editor_document: dict | None = None,
 ) -> Meme:
     """Uploads the image and stages the `Meme` + its derived `PostAudience` rows **without
     committing** — the caller owns the transaction. Split out of `create_community_meme` so
@@ -240,6 +269,7 @@ async def stage_community_meme(
         image_url=image_url,
         image_public_id=image_public_id,
         caption=caption,
+        editor_document=editor_document,
     )
     db.add(meme)
     await db.flush()
@@ -262,6 +292,7 @@ async def create_community_meme(
     caption: str | None,
     image: UploadFile | None = None,
     image_public_id: str | None = None,
+    editor_document_json: str | None = None,
 ) -> MemeOut:
     """Community posts are only created from inside a community — there's no client-chosen
     audience here. Visibility is entirely derived from the community's privacy: every
@@ -274,8 +305,10 @@ async def create_community_meme(
     contract as the personal `create_meme` above.
     """
     community = await require_active_membership(db, community_id, current_user.id)
+    editor_document = parse_editor_document_json(editor_document_json)
     meme = await stage_community_meme(
-        db, community, current_user.id, caption, image, confirmed_image_public_id=image_public_id
+        db, community, current_user.id, caption, image,
+        confirmed_image_public_id=image_public_id, editor_document=editor_document,
     )
 
     await db.commit()
@@ -474,10 +507,18 @@ async def get_community_feed(
     readable by a non-member browsing it (2026-08-27) — posting into it (`create_community_meme`
     above) is deliberately unaffected and stays member-only regardless of privacy."""
     await require_membership_or_open_community(db, community_id, current_user.id)
-    is_targeting_community = exists().where(
-        PostAudience.meme_id == Meme.id,
-        PostAudience.audience_type == AudienceType.community,
-        PostAudience.community_id == community_id,
+    # Pre-existing bug, fixed 2026-08-30 (surfaced by testing the new community-owner
+    # delete capability): unlike `meme_visibility_clause` (the main feed's clause, which
+    # excludes soft-deleted memes as its very first condition), this hand-rolled clause
+    # never filtered `deleted_at` at all — a deleted community post never actually left
+    # its community's feed, regardless of who deleted it or why.
+    is_targeting_community = and_(
+        Meme.deleted_at.is_(None),
+        exists().where(
+            PostAudience.meme_id == Meme.id,
+            PostAudience.audience_type == AudienceType.community,
+            PostAudience.community_id == community_id,
+        ),
     )
     return await _paginated_feed(db, current_user, is_targeting_community, cursor, limit)
 
@@ -517,16 +558,110 @@ async def get_meme_detail(db: AsyncSession, current_user: User, meme_id: uuid.UU
 
 
 async def delete_meme(db: AsyncSession, current_user: User, meme_id: uuid.UUID) -> None:
-    """Author-only soft delete (SecurityFeatures.md F-4). Goes through
+    """Soft delete (SecurityFeatures.md F-4), allowed for the author OR — 2026-08-30,
+    closing a previously-flagged gap — the owner of the community a community post was made
+    in (moderation: an owner can remove a member's post from their own community feed, same
+    as they can already manage members/challenges/templates there). Goes through
     `get_visible_meme` first, so a nonexistent/already-deleted/not-visible meme 404s the
-    same way any other lookup does, rather than leaking existence via a distinct error."""
+    same way any other lookup does, rather than leaking existence via a distinct error —
+    the owner already has visibility into every post in their own community, so this never
+    widens what they can see, only what they can remove.
+    """
     meme = await get_visible_meme(db, current_user, meme_id)
-    if meme.author_id != current_user.id:
-        raise NotMemeAuthorError("Only the author can delete this meme")
+    community_row = next((a for a in meme.audiences if a.community_id is not None), None)
+    is_community_owner = community_row is not None and community_row.community.owner_id == current_user.id
+    if meme.author_id != current_user.id and not is_community_owner:
+        raise NotMemeAuthorError("Only the author or that community's owner can delete this meme")
 
     meme.deleted_at = datetime.datetime.now(datetime.timezone.utc)
     await db.commit()
     await delete_uploaded_image(meme.image_public_id)
+
+
+async def get_meme_edit_data(db: AsyncSession, current_user: User, meme_id: uuid.UUID) -> MemeEditOut:
+    """Author-only — the edit screen's rehydration payload. Goes through `get_visible_meme`
+    first for the same "don't leak existence" 404 convention as delete."""
+    meme = await get_visible_meme(db, current_user, meme_id)
+    if meme.author_id != current_user.id:
+        raise NotMemeAuthorError("Only the author can edit this meme")
+
+    hashtags = (
+        await db.execute(
+            select(Hashtag.slug)
+            .join(MemeHashtag, MemeHashtag.hashtag_id == Hashtag.id)
+            .where(MemeHashtag.meme_id == meme.id)
+        )
+    ).scalars().all()
+
+    return MemeEditOut(
+        id=meme.id,
+        image_url=meme.image_url,
+        caption=meme.caption,
+        hashtags=list(hashtags),
+        editor_document=meme.editor_document,
+    )
+
+
+async def update_meme(
+    db: AsyncSession,
+    current_user: User,
+    meme_id: uuid.UUID,
+    caption: str | None,
+    hashtags: list[str] | None,
+    image: UploadFile | None,
+    image_public_id: str | None,
+    editor_document_json: str | None,
+) -> MemeOut:
+    """Author-only edit, scoped deliberately to photo/caption/tags/text-overlay only —
+    audience and community/challenge association are immutable after publish (out of
+    scope per product decision; changing either would need to re-run visibility/eligibility
+    checks this endpoint never does).
+
+    `hashtags=None` means "leave tags untouched"; an empty list means "remove every tag" —
+    the router distinguishes the two via an explicit `hashtags_provided` flag, since a
+    multipart form has no way to tell "field omitted" apart from "field sent with zero
+    values" for a repeated field.
+    """
+    if image is not None and image_public_id is not None:
+        raise InvalidImageSourceError("Provide either image or image_public_id, not both")
+
+    meme = await get_visible_meme(db, current_user, meme_id)
+    if meme.author_id != current_user.id:
+        raise NotMemeAuthorError("Only the author can edit this meme")
+
+    if caption is not None:
+        meme.caption = caption or None
+
+    if image is not None or image_public_id is not None:
+        old_public_id = meme.image_public_id
+        if image_public_id is not None:
+            image_url, new_public_id = await confirm_pending_upload(current_user.id, image_public_id)
+        else:
+            image_url, new_public_id = await validate_and_upload_image(image, folder="memes")
+        meme.image_url = image_url
+        meme.image_public_id = new_public_id
+        # Flush the new asset onto the row before best-effort-deleting the old one — never
+        # want to end up with neither if something goes wrong mid-way.
+        await db.flush()
+        await delete_uploaded_image(old_public_id)
+
+    editor_document = parse_editor_document_json(editor_document_json)
+    if editor_document is not None:
+        meme.editor_document = editor_document
+
+    if hashtags is not None:
+        await db.execute(delete(MemeHashtag).where(MemeHashtag.meme_id == meme.id))
+        if hashtags:
+            from app.services.hashtags import attach_hashtags
+
+            await attach_hashtags(db, meme.id, hashtags)
+
+    await db.commit()
+    await db.refresh(meme)
+    meme_out = await get_meme_out_for_viewer(db, meme.id, current_user.id)
+    if meme_out is None:
+        raise MemeNotFoundError("Meme not found")
+    return meme_out
 
 
 async def record_meme_view(

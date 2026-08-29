@@ -79,6 +79,14 @@ class InvalidAvatarPresetError(DomainError):
     status_code = status.HTTP_400_BAD_REQUEST
 
 
+class InvalidBioError(DomainError):
+    """A bio may have at most 6 newlines (7 lines) — the frontend's editor enforces this
+    interactively, but the API is the real boundary, so it's re-checked here regardless
+    of what a given client build actually sent."""
+
+    status_code = status.HTTP_400_BAD_REQUEST
+
+
 class UploadSignatureNotFoundError(DomainError):
     """The `public_id` was never issued by `POST /media/upload-signature`, or its
     15-minute pending window already expired (Roadmap_Scaling.md A4)."""
@@ -100,6 +108,18 @@ class MemeNotFoundError(DomainError):
 
 class NotMemeAuthorError(DomainError):
     status_code = status.HTTP_403_FORBIDDEN
+
+
+class TemplateNotFoundError(DomainError):
+    status_code = status.HTTP_404_NOT_FOUND
+
+
+class InvalidEditorDocumentError(DomainError):
+    """`editor_document_json` didn't parse as a JSON object, or exceeded the size cap —
+    never trust client-supplied JSON blindly, even for an opaque, backend-uninspected
+    payload (Roadmap_UX_Overhaul.md, meme edit)."""
+
+    status_code = status.HTTP_400_BAD_REQUEST
 
 
 class CommentNotFoundError(DomainError):

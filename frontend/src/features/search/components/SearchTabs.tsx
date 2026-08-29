@@ -40,8 +40,21 @@ export function selectAutoTab(sections: SearchAllResponse): SearchTabKey {
  * screen's "Pending (3)" chip already establishes, not a fork. */
 export function SearchTabs({ sections, active, onChange }: SearchTabsProps) {
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} className="px-4 pb-2">
-      <View className="flex-row gap-2">
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      // Explicit `style`, not a `flex-none` className: react-native-web's `ScrollView`
+      // injects its own `flexGrow: 1` as a runtime CSS rule that lands *after* NativeWind's
+      // static utility sheet, so a same-specificity `.flex-none` class loses the cascade and
+      // never actually applies (confirmed via computed styles). Without this the ScrollView
+      // competes with the results list below for the parent's vertical space (split ~50/50)
+      // instead of sizing to its own ~44px content — the chips then rendered vertically
+      // centered inside that oversized box, looking like a big blank "wall" with the tags
+      // floating in the middle of it. An inline `style` prop is merged after the component's
+      // internal default style array, so it reliably wins on both web and native.
+      style={{ flexGrow: 0, flexShrink: 0 }}
+      className="px-4 pb-2">
+      <View className="flex-row items-center gap-2">
         {SEARCH_TAB_ORDER.map((tab) => {
           const section = sections[tab];
           const countLabel = section.capped ? `${section.count}+` : `${section.count}`;

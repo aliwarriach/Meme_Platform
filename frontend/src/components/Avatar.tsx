@@ -38,14 +38,17 @@ const TEXT_SIZE_CLASSES: Record<AvatarSize, string> = {
  * built-in avatar (`avatarPreset`, see `constants/avatarPresets.ts`) renders as a gradient +
  * emoji tile; otherwise falls back to the username's initials on a primary-tinted background. */
 export default function Avatar({ username, avatarUrl, avatarPreset, size = 'md' }: AvatarProps) {
-  const sizeClass = SIZE_CLASSES[size];
-
   if (avatarUrl) {
+    // Explicit numeric `style`, not `className` — unlike a plain `View`, `expo-image`'s
+    // `Image` doesn't reliably pick up NativeWind's className-driven sizing (confirmed:
+    // it rendered as an empty/blank circle in some layouts). The other two branches below
+    // already use inline `style` for this same reason; this one was the sole holdout.
+    const px = SIZE_PX[size];
     return (
       <Image
         source={{ uri: avatarUrl }}
         accessibilityIgnoresInvertColors
-        className={`${sizeClass} rounded-full`}
+        style={{ width: px, height: px, borderRadius: px / 2 }}
       />
     );
   }
@@ -75,7 +78,7 @@ export default function Avatar({ username, avatarUrl, avatarPreset, size = 'md' 
     <View
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
-      className={`${sizeClass} items-center justify-center rounded-full bg-primary-container`}>
+      className={`${SIZE_CLASSES[size]} items-center justify-center rounded-full bg-primary-container`}>
       <Text className={`font-title text-white ${TEXT_SIZE_CLASSES[size]}`}>
         {username.slice(0, 2).toUpperCase()}
       </Text>

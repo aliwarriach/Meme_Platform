@@ -33,14 +33,20 @@ export interface ImageFile {
   type: string;
 }
 
+interface DirectUploadResult {
+  publicId: string;
+  secureUrl: string;
+}
+
 /**
- * Roadmap_Scaling.md A4 — uploads an image straight to Cloudinary using a server-issued,
- * single-use signature, so image bytes never pass through this app's own backend.
- * Returns the confirmed `public_id`; the creating endpoint (`POST /memes`,
- * `POST /templates`, etc.) verifies and consumes it server-side via its own
- * `image_public_id`/`icon_public_id`/`avatar_public_id` field.
+ * Shared core of the A4 direct-to-Cloudinary flow — signs, uploads, and returns both the
+ * confirmed `public_id` (what our own backend's `*_public_id` fields consume) and the
+ * `secure_url` Cloudinary's own upload response hands back. Most callers only need the
+ * `public_id` (see `uploadImageDirect` below); the meme editor's document-persistence path
+ * needs the real fetchable URL too, since a locally-picked image's device URI isn't stable
+ * enough to store as a "come back and re-edit this later" reference.
  */
-export async function uploadImageDirect(image: ImageFile, context: UploadContext): Promise<string> {
+async function uploadImageDirectFull(image: ImageFile, context: UploadContext): Promise<DirectUploadResult> {
   const sig = await issueUploadSignature(context);
 
   const form = new FormData();
@@ -63,5 +69,26 @@ export async function uploadImageDirect(image: ImageFile, context: UploadContext
     throw new Error(`Image upload failed (${response.status}). ${body}`);
   }
 
-  return sig.public_id;
+  const body = (await response.json()) as { secure_url: string };
+  return { publicId: sig.public_id, secureUrl: body.secure_url };
+}
+
+/**
+ * Roadmap_Scaling.md A4 — uploads an image straight to Cloudinary using a server-issued,
+ * single-use signature, so image bytes never pass through this app's own backend.
+ * Returns the confirmed `public_id`; the creating endpoint (`POST /memes`,
+ * `POST /templates`, etc.) verifies and consumes it server-side via its own
+ * `image_public_id`/`icon_public_id`/`avatar_public_id` field.
+ */
+export async function uploadImageDirect(image: ImageFile, context: UploadContext): Promise<string> {
+  const { publicId } = await uploadImageDirectFull(image, context);
+  return publicId;
+}
+
+/** Same upload, but also returns the `secure_url` — see `uploadImageDirectFull` above. */
+export async function uploadImageDirectWithUrl(
+  image: ImageFile,
+  context: UploadContext
+): Promise<DirectUploadResult> {
+  return uploadImageDirectFull(image, context);
 }

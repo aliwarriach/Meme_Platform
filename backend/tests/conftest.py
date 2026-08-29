@@ -22,6 +22,7 @@ import app.services.memes as memes_service
 import app.services.messaging as messaging_service
 import app.services.notifications as notifications_service
 import app.services.password_reset as password_reset_service
+import app.services.templates as templates_service
 import app.services.users as users_service
 import app.workers.tasks.email_verification as email_verification_worker_tasks
 import app.workers.tasks.instagram as instagram_worker_tasks
@@ -288,6 +289,7 @@ def mock_media_delete(monkeypatch):
 
     monkeypatch.setattr(memes_service, "delete_uploaded_image", _fake_delete)
     monkeypatch.setattr(users_service, "delete_uploaded_image", _fake_delete)
+    monkeypatch.setattr(templates_service, "delete_uploaded_image", _fake_delete)
     return calls
 
 

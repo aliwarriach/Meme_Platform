@@ -8,7 +8,7 @@ from app.core.rate_limit import limiter
 from app.models.post_audience import AudienceType
 from app.schemas.comments import CommentCreate, CommentOut
 from app.schemas.instagram import MergedFeedPage
-from app.schemas.memes import MemeOut, MemeViewOut
+from app.schemas.memes import MemeEditOut, MemeOut, MemeViewOut
 from app.schemas.votes import VoteCast, VoteOut
 from app.services import comments as comments_service
 from app.services import instagram as instagram_service
@@ -29,19 +29,60 @@ async def create_meme(
     audiences: Annotated[list[AudienceType], Form()] = [],
     caption: Annotated[str | None, Form(max_length=500)] = None,
     hashtags: Annotated[list[str], Form()] = [],
+    editor_document_json: Annotated[str | None, Form()] = None,
 ) -> MemeOut:
     """`image` (legacy multipart upload) and `image_public_id` (Roadmap_Scaling.md A4's
     direct-to-Cloudinary flow — confirm the `public_id` from
-    `POST /media/upload-signature`) are mutually exclusive; exactly one is required."""
+    `POST /media/upload-signature`) are mutually exclusive; exactly one is required.
+    `editor_document_json` (optional) is the creator's serializable layer document, JSON-
+    encoded — stored opaquely so a later edit can rehydrate the real Skia editor instead of
+    only ever having the flattened image to work from."""
     return await memes_service.create_meme(
-        db, current_user, caption, audiences, image, hashtags, image_public_id=image_public_id
+        db, current_user, caption, audiences, image, hashtags,
+        image_public_id=image_public_id, editor_document_json=editor_document_json,
+    )
+
+
+@router.get("/{meme_id}/edit", response_model=MemeEditOut)
+async def get_meme_edit_data(meme_id: uuid.UUID, current_user: CurrentUser, db: ReadDbSession) -> MemeEditOut:
+    """Author-only. Backs the edit screen: current image/caption/tags plus the stored
+    editor document (null for a meme published before that column existed)."""
+    return await memes_service.get_meme_edit_data(db, current_user, meme_id)
+
+
+@router.patch("/{meme_id}", response_model=MemeOut)
+async def update_meme(
+    meme_id: uuid.UUID,
+    current_user: CurrentUser,
+    db: DbSession,
+    image: UploadFile | None = None,
+    image_public_id: Annotated[str | None, Form()] = None,
+    caption: Annotated[str | None, Form(max_length=500)] = None,
+    hashtags_provided: Annotated[bool, Form()] = False,
+    hashtags: Annotated[list[str], Form()] = [],
+    editor_document_json: Annotated[str | None, Form()] = None,
+) -> MemeOut:
+    """Author-only edit of photo/caption/tags/text-overlay — audience, community, and any
+    challenge association are immutable here. Every field is optional; omitted fields are
+    left untouched. `hashtags_provided` disambiguates "no `hashtags` field sent" (leave
+    tags alone) from "sent with zero values" (clear every tag) — a multipart form can't
+    otherwise tell those apart. `image`/`image_public_id` are mutually exclusive, and
+    either may be omitted entirely to leave the current image as-is."""
+    return await memes_service.update_meme(
+        db, current_user, meme_id,
+        caption=caption,
+        hashtags=hashtags if hashtags_provided else None,
+        image=image,
+        image_public_id=image_public_id,
+        editor_document_json=editor_document_json,
     )
 
 
 @router.delete("/{meme_id}", status_code=204)
 async def delete_meme(meme_id: uuid.UUID, current_user: CurrentUser, db: DbSession) -> None:
-    """Author-only soft delete (SecurityFeatures.md F-4) — the meme drops out of every
-    feed/read immediately; a DM referencing it degrades to a null-meme placeholder."""
+    """Soft delete (SecurityFeatures.md F-4) — the author, or a community post's community
+    owner, can remove it; it drops out of every feed/read immediately, and a DM referencing
+    it degrades to a null-meme placeholder."""
     await memes_service.delete_meme(db, current_user, meme_id)
 
 

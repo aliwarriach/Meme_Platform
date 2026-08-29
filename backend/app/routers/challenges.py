@@ -58,15 +58,18 @@ async def create_and_submit_to_challenge(
     image: UploadFile | None = None,
     image_public_id: str | None = Form(None),
     caption: str | None = Form(None),
+    editor_document_json: str | None = Form(None),
 ) -> ChallengeSubmissionOut:
     """Creates the meme and enters it into the challenge in one transaction. Distinct from
     the community-scoped `POST .../challenges/{id}/submissions?meme_id=`, which enters a
     meme that already exists. `image` (legacy multipart upload) and `image_public_id`
     (Roadmap_Scaling.md A4's direct-to-Cloudinary flow — confirm the `public_id` from
     `POST /media/upload-signature`) are mutually exclusive; exactly one is required.
+    `editor_document_json` (optional) mirrors `POST /memes`'s — see there.
     """
     return await challenges_service.create_and_submit_to_challenge(
-        db, current_user, challenge_id, caption, image, image_public_id=image_public_id
+        db, current_user, challenge_id, caption, image,
+        image_public_id=image_public_id, editor_document_json=editor_document_json,
     )
 
 

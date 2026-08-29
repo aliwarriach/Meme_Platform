@@ -52,6 +52,13 @@ from app.services.scoring import meme_score_expr
 
 _stored_or_live_score = func.coalesce(MemeScore.score, meme_score_expr())
 
+# Deliberately deletion-agnostic (confirmed product decision, not an oversight): every
+# query below sums/reads straight off `memes` with no `deleted_at` filter, so a deleted
+# post's score keeps contributing to a user's leaderboard/profile total. Only competition
+# standings (services/competitions.py) and fresh challenge nomination (services/challenges.py
+# ::submit_to_challenge) exclude a deleted post — a challenge it was already submitted to
+# before deletion still counts it too (services/challenges.py::_side_scores).
+
 # Competitive leaderboards reflect the last 30 days, so newcomers can climb and last
 # month's winner doesn't own the board forever. Lifetime totals live on the profile score.
 LEADERBOARD_WINDOW_DAYS = 30

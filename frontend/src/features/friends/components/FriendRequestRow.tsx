@@ -18,7 +18,12 @@ export function FriendRequestRow({ request, onAccept, isAccepting }: FriendReque
   return (
     <View className="flex-row items-center justify-between border-b border-outline-variant/20 px-4 py-3">
       <View className="flex-row items-center gap-3">
-        <Avatar username={request.requester.username} size="md" />
+        <Avatar
+          username={request.requester.username}
+          avatarUrl={request.requester.avatar_url}
+          avatarPreset={request.requester.avatar_preset}
+          size="md"
+        />
         <View>
           <Text className="font-title text-heading">{request.requester.username}</Text>
           <Text className="font-body text-xs text-ink-muted">Requested {timeAgo(request.created_at)} ago</Text>

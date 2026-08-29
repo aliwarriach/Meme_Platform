@@ -58,7 +58,7 @@ async def me(current_user: CurrentUser) -> UserOut:
 async def update_me(
     current_user: CurrentUser,
     db: DbSession,
-    bio: Annotated[str | None, Form(max_length=280)] = None,
+    bio: Annotated[str | None, Form(max_length=150)] = None,
     clear_bio: Annotated[bool, Form()] = False,
     avatar: UploadFile | None = None,
     avatar_public_id: Annotated[str | None, Form()] = None,

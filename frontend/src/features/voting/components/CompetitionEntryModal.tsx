@@ -32,7 +32,7 @@ export function CompetitionEntryModal({ content, onClose }: CompetitionEntryModa
           </Pressable>
         </View>
         <ScrollView>
-          {content?.kind === 'meme' ? (
+          {content?.kind === 'meme' && content.meme ? (
             <MemeCard meme={content.meme} />
           ) : content?.kind === 'container' ? (
             <ContainerCard container={content.container} />

@@ -9,8 +9,14 @@ export type CompetitionPeriodType = 'day' | 'week' | 'month';
 // by net vote score (upvotes minus downvotes cast within the period window), derived
 // automatically from the same upvote/downvote votes cast via /memes/{id}/votes and
 // /instagram/containers/{id}/votes — there's no separate "cast a competition vote" action.
+// `meme` is null only for a *closed period's* winner whose post was deleted after already
+// winning — the winner slot/score stay fixed (deletion never rewrites who actually won),
+// but there's no live content left to show (the Cloudinary asset is gone). `is_deleted`
+// tells the UI to render "Deleted Post" and disable the click-through. A meme entry in the
+// *live* current-standings list is never in this state — a deleted post is excluded from
+// that ranking outright (see backend services/competitions.py).
 export type StandingContent =
-  | { kind: 'meme'; meme: MemeResponse }
+  | { kind: 'meme'; meme: MemeResponse | null; is_deleted: boolean }
   | { kind: 'container'; container: MemeContainerResponse };
 
 export interface StandingEntryResponse {
