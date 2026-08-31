@@ -1,20 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  Keyboard,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ActivityIndicator, FlatList, Pressable, Text, TextInput, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
 import { useThemeMode } from '@/constants/ThemeMode';
 
 import Avatar from '@/components/Avatar';
+import { StickyKeyboardFooter } from '@/components/KeyboardAvoidingScreen';
 import TopBar from '@/components/TopBar';
 import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import MessageBubble from '@/features/messaging/MessageBubble';
@@ -29,7 +20,7 @@ import type { RootState } from '@/store/store';
 
 const MAX_MESSAGE_LENGTH = 2000;
 
-function Composer({ conversationId }: { conversationId: string }) {
+function Composer({ conversationId, bottomInset }: { conversationId: string; bottomInset: number }) {
   const { mode } = useThemeMode();
   const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const [draft, setDraft] = useState('');
@@ -45,7 +36,9 @@ function Composer({ conversationId }: { conversationId: string }) {
   };
 
   return (
-    <View className="border-t border-outline-variant/30 bg-bg px-3 py-2">
+    <View
+      className="border-t border-outline-variant/30 bg-bg px-3 py-2"
+      style={{ paddingBottom: bottomInset + 8 }}>
       {sendMessage.isError ? (
         <Text className="px-1 pb-1 font-body text-xs text-error">
           {sendMessage.error.message}
@@ -98,25 +91,7 @@ export default function ThreadScreen({ conversationId }: { conversationId: strin
   }, [conversationId]);
 
   const messages: MessageResponse[] = data?.pages.flatMap((page) => page.items) ?? [];
-
-  // Android-only: `KeyboardAvoidingView`'s automatic `'height'` mode is unreliable in this
-  // exact tree (composer stays hidden behind the keyboard even with `windowSoftInputMode:
-  // 'resize'` set — see app.config.js), so on Android this screen measures the keyboard
-  // itself via `Keyboard.addListener` (the same event source `CommentsSection` already
-  // uses successfully) and applies it as explicit bottom padding instead of trusting the
-  // built-in heuristic. iOS's `'padding'` behavior isn't affected and is left untouched.
-  const [androidKeyboardHeight, setAndroidKeyboardHeight] = useState(0);
-  useEffect(() => {
-    if (Platform.OS !== 'android') return;
-    const showSub = Keyboard.addListener('keyboardDidShow', (e) =>
-      setAndroidKeyboardHeight(e.endCoordinates.height)
-    );
-    const hideSub = Keyboard.addListener('keyboardDidHide', () => setAndroidKeyboardHeight(0));
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, []);
+  const insets = useSafeAreaInsets();
 
   return (
     <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
@@ -135,10 +110,7 @@ export default function ThreadScreen({ conversationId }: { conversationId: strin
         }
       />
 
-      <KeyboardAvoidingView
-        className="flex-1"
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={Platform.OS === 'android' ? { paddingBottom: androidKeyboardHeight } : undefined}>
+      <View className="flex-1">
         {isLoading ? (
           <ActivityIndicator className="mt-8" color={c.inkMuted} />
         ) : isError ? (
@@ -173,9 +145,11 @@ export default function ThreadScreen({ conversationId }: { conversationId: strin
             }
           />
         )}
+      </View>
 
-        <Composer conversationId={conversationId} />
-      </KeyboardAvoidingView>
+      <StickyKeyboardFooter>
+        <Composer conversationId={conversationId} bottomInset={insets.bottom} />
+      </StickyKeyboardFooter>
     </SafeAreaView>
   );
 }

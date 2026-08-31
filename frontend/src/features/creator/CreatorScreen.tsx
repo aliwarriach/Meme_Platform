@@ -4,11 +4,12 @@ import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 
 import Chip from '@/components/Chip';
+import { KeyboardAwareForm } from '@/components/KeyboardAvoidingScreen';
 import PillButton from '@/components/PillButton';
 import { TextField } from '@/components/TextField';
 import TopBar from '@/components/TopBar';
@@ -415,7 +416,7 @@ export default function CreatorScreen() {
         />
       </View>
 
-      <ScrollView className="flex-1 px-6 py-4" keyboardShouldPersistTaps="handled">
+      <KeyboardAwareForm className="flex-1 px-6 py-4">
         {capturedUri ? (
           <Image
             source={{ uri: capturedUri }}
@@ -610,7 +611,7 @@ export default function CreatorScreen() {
             />
           </>
         )}
-      </ScrollView>
+      </KeyboardAwareForm>
 
       <StickerPickerModal
         visible={stickerPickerVisible}

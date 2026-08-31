@@ -97,8 +97,8 @@ WINNER_POINTS = 100
 # Cold-start weekly platform challenge (Roadmap §3.3) — a seeded system account, never a
 # real login (unguessable random password), so a brand-new user's Compete tab is never
 # empty. See create_weekly_open_challenge / _get_or_create_platform_user.
-PLATFORM_USERNAME = "memeversehq"
-PLATFORM_EMAIL = "platform@memeverse.internal"
+PLATFORM_USERNAME = "moshhq"
+PLATFORM_EMAIL = "platform@mosh.internal"
 WEEKLY_CHALLENGE_SIDE_NAMES = ("Team Alpha", "Team Beta")
 WEEKLY_CHALLENGE_DURATION_DAYS = 7
 
@@ -1462,7 +1462,7 @@ async def _get_or_create_platform_user(db: AsyncSession) -> User:
         # Unguessable random password — this account is never meant to log in, it only
         # exists as a `creator_id` for platform-run challenges.
         hashed_password=hash_password(uuid.uuid4().hex),
-        bio="Official MemeVerse account — runs the weekly platform challenge.",
+        bio="Official Mosh account — runs the weekly platform challenge.",
         is_platform_account=True,
     )
     db.add(user)

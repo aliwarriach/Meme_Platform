@@ -1,5 +1,14 @@
 import { useEffect, type ReactNode } from 'react';
-import { Modal, Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import {
+  BackHandler,
+  Keyboard,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
@@ -10,6 +19,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import { KeyboardAvoidingScreen } from '@/components/KeyboardAvoidingScreen';
 import { DESKTOP_MODAL_MAX_WIDTH } from '@/constants/webLayout';
 
 interface BottomSheetProps {
@@ -56,6 +66,22 @@ export function BottomSheet({ visible, onClose, children, maxHeightPercent = 80 
   useEffect(() => {
     if (visible) revealedHeight.value = restHeight;
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
+
+  // Android hardware back button: dismiss the keyboard first if it's up (matches every other
+  // Android surface — comments, chat, ...), only closing the sheet itself on a second press.
+  // Returning `false` when the keyboard is already down lets the event fall through to the
+  // `Modal`'s own `onRequestClose` below, which is what actually closes the sheet.
+  useEffect(() => {
+    if (!visible || Platform.OS !== 'android') return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (Keyboard.isVisible()) {
+        Keyboard.dismiss();
+        return true;
+      }
+      return false;
+    });
+    return () => sub.remove();
   }, [visible]);
 
   const close = () => onClose();
@@ -138,7 +164,11 @@ export function BottomSheet({ visible, onClose, children, maxHeightPercent = 80 
                 <View className="h-1.5 w-12 rounded-full bg-outline" />
               </View>
             </GestureDetector>
-            <View style={{ flex: 1 }}>{children}</View>
+            {/* Every sheet that holds a text field (bio editor, add-members search, send-to
+                search, ...) needs its content to shift above the keyboard on its own — the
+                sheet's own height is a fixed percentage of the screen (`revealedHeight` above),
+                not something the keyboard opening changes by itself. */}
+            <KeyboardAvoidingScreen>{children}</KeyboardAvoidingScreen>
           </Animated.View>
         </View>
       </GestureHandlerRootView>

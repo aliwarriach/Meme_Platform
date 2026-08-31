@@ -6,6 +6,7 @@ import { ActivityIndicator, FlatList, Text, TextInput, View } from 'react-native
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useThemeMode } from '@/constants/ThemeMode';
 
+import { KeyboardAvoidingScreen } from '@/components/KeyboardAvoidingScreen';
 import PillButton from '@/components/PillButton';
 import { TextField } from '@/components/TextField';
 import TopBar from '@/components/TopBar';
@@ -76,6 +77,7 @@ export default function FriendsScreen() {
     <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
       <TopBar title="Friends" showBack />
 
+      <KeyboardAvoidingScreen>
       <FlatList
         data={filteredFriends}
         keyExtractor={(item) => item.friendship_id}
@@ -165,6 +167,7 @@ export default function FriendsScreen() {
           )
         }
       />
+      </KeyboardAvoidingScreen>
 
       {duelTarget ? (
         <DuelProposeModal

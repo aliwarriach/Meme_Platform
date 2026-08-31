@@ -9,8 +9,8 @@ const IS_PRODUCTION_BUILD = process.env.EAS_BUILD_PROFILE === 'production';
 
 module.exports = {
   expo: {
-    name: 'frontend',
-    slug: 'frontend',
+    name: 'mosh',
+    slug: 'mosh',
     version: '1.0.0',
     orientation: 'portrait',
     icon: './assets/images/icon.png',
@@ -29,7 +29,7 @@ module.exports = {
     android: {
       package: 'com.memeversestudio.app',
       adaptiveIcon: {
-        backgroundColor: '#E6F4FE',
+        backgroundColor: '#DB2777',
         foregroundImage: './assets/images/android-icon-foreground.png',
         backgroundImage: './assets/images/android-icon-background.png',
         monochromeImage: './assets/images/android-icon-monochrome.png',
@@ -49,7 +49,7 @@ module.exports = {
       [
         'expo-splash-screen',
         {
-          backgroundColor: '#208AEF',
+          backgroundColor: '#120A10',
           image: './assets/images/splash-icon.png',
           imageWidth: 76,
         },
@@ -71,8 +71,11 @@ module.exports = {
       [
         'expo-notifications',
         {
-          icon: './assets/images/icon.png',
-          color: '#ff3385',
+          // Android renders this as a flat single-color silhouette (alpha channel only,
+          // color info discarded) — must be a plain white shape on transparency, never the
+          // full-color app icon. See `notification-icon.png` (frontend/assets/images).
+          icon: './assets/images/notification-icon.png',
+          color: '#FF5CA0',
         },
       ],
     ],

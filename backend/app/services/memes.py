@@ -22,11 +22,13 @@ from app.models.hashtag import Hashtag, MemeHashtag
 from app.models.meme import Meme
 from app.models.meme_view import MemeView
 from app.models.meme_vote import MemeVote
+from app.models.notification import NotificationType
 from app.models.post_audience import AudienceType, PostAudience
 from app.models.comment import Comment
 from app.models.user import User
 from app.schemas.auth import PublicUserOut
 from app.schemas.memes import CommunityBadge, FeedPage, HotFeedPage, MemeEditOut, MemeOut, MemeViewOut
+from app.services import notifications as notifications_service
 from app.services.blocks import is_blocked_clause
 from app.services.communities import require_active_membership, require_membership_or_open_community
 from app.services.media import confirm_pending_upload, delete_uploaded_image, validate_and_upload_image
@@ -573,9 +575,22 @@ async def delete_meme(db: AsyncSession, current_user: User, meme_id: uuid.UUID) 
     if meme.author_id != current_user.id and not is_community_owner:
         raise NotMemeAuthorError("Only the author or that community's owner can delete this meme")
 
+    is_owner_moderating_someone_else = is_community_owner and meme.author_id != current_user.id
+    author_id, community_name = meme.author_id, community_row.community.name if community_row else None
+
     meme.deleted_at = datetime.datetime.now(datetime.timezone.utc)
     await db.commit()
     await delete_uploaded_image(meme.image_public_id)
+
+    if is_owner_moderating_someone_else:
+        await notifications_service.notify_one(
+            db,
+            author_id,
+            NotificationType.community_post_removed,
+            title=f"Your post was removed from {community_name}",
+            body="A community owner removed one of your posts.",
+            data={"community_id": str(community_row.community_id)},
+        )
 
 
 async def get_meme_edit_data(db: AsyncSession, current_user: User, meme_id: uuid.UUID) -> MemeEditOut:

@@ -2,9 +2,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { ScrollView, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { KeyboardAwareForm } from '@/components/KeyboardAvoidingScreen';
 import PillButton from '@/components/PillButton';
 import { TextField } from '@/components/TextField';
 import TopBar from '@/components/TopBar';
@@ -73,10 +74,9 @@ export default function ForgotPasswordScreen() {
   return (
     <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
       <TopBar title="Reset password" showBack />
-      <ScrollView
+      <KeyboardAwareForm
         className="flex-1"
-        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
-        keyboardShouldPersistTaps="handled">
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}>
         <View className="px-6 py-10">
           {step === 'request' ? (
             <>
@@ -192,7 +192,7 @@ export default function ForgotPasswordScreen() {
             </>
           )}
         </View>
-      </ScrollView>
+      </KeyboardAwareForm>
     </SafeAreaView>
   );
 }

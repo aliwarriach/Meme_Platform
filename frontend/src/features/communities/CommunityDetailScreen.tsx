@@ -1,7 +1,7 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useThemeMode } from '@/constants/ThemeMode';
 import { useState } from 'react';
 import {
@@ -18,6 +18,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
 
+import { KeyboardAwareForm } from '@/components/KeyboardAvoidingScreen';
 import PillButton from '@/components/PillButton';
 import { SegmentedControl } from '@/components/SegmentedControl';
 import TopBar from '@/components/TopBar';
@@ -71,13 +72,24 @@ const ICON_OVERLAP_FRACTION = 0.5; // how far the icon overlaps up into the cove
 export default function CommunityDetailScreen({ communityId }: CommunityDetailScreenProps) {
   const router = useRouter();
   const currentUser = useSelector((state: RootState) => state.auth.user);
-  const [activeTab, setActiveTab] = useState<Tab>('feed');
+  // `openRequests=1` (set by the "New join request" notification tap, NotificationsScreen.tsx)
+  // lands the owner straight on the same Members-tab-plus-requests-sheet state the pending-
+  // requests badge already opens below — the notification's whole point is "come approve this,"
+  // so it should reach exactly that state, not just the community's default Feed tab.
+  const { tab: tabParam, openRequests } = useLocalSearchParams<{
+    tab?: string;
+    openRequests?: string;
+  }>();
+  const [activeTab, setActiveTab] = useState<Tab>(tabParam === 'members' ? 'members' : 'feed');
   const [addTemplateOpen, setAddTemplateOpen] = useState(false);
   const [templateToDelete, setTemplateToDelete] = useState<TemplateResponse | null>(null);
   const [editIconOpen, setEditIconOpen] = useState(false);
   const [editBannerOpen, setEditBannerOpen] = useState(false);
   const [addMembersOpen, setAddMembersOpen] = useState(false);
-  const [requestsOpen, setRequestsOpen] = useState(false);
+  // Initialized (not effect-driven) from the same `openRequests` param — `CommunityRequestsModal`
+  // is already owner-gated server-side (a non-owner gets a normal inline error, never a crash),
+  // so there's no need to wait on `isOwner` resolving before deciding this initial value.
+  const [requestsOpen, setRequestsOpen] = useState(openRequests === '1');
   const [memberSearchInput, setMemberSearchInput] = useState('');
   const [appliedMemberSearch, setAppliedMemberSearch] = useState('');
   const { mode } = useThemeMode();
@@ -630,7 +642,7 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
   return (
     <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
       <TopBar title={community.name} showBack rightActions={pendingRequestsBadge} />
-      <ScrollView className="flex-1">
+      <KeyboardAwareForm className="flex-1">
         {header}
         <View className="px-6 pb-6">
           {isMember ? (
@@ -691,7 +703,7 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
             visibleMembers.map((member) => <MemberRow key={member.id} membership={member} />)
           )}
         </View>
-      </ScrollView>
+      </KeyboardAwareForm>
     </SafeAreaView>
   );
 }

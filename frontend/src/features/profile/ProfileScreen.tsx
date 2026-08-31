@@ -8,6 +8,7 @@ import { useThemeMode } from '@/constants/ThemeMode';
 
 import Avatar from '@/components/Avatar';
 import FloatingBottomNav from '@/components/FloatingBottomNav';
+import { KeyboardAvoidingScreen } from '@/components/KeyboardAvoidingScreen';
 import PillButton from '@/components/PillButton';
 import TopBar from '@/components/TopBar';
 import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
@@ -128,6 +129,7 @@ export default function ProfileScreen({ userId, isOwnProfile }: ProfileScreenPro
     <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
       <TopBar title={profile.user.username} showBack={!isOwnProfile} />
 
+      <KeyboardAvoidingScreen>
       <FlatList
         data={posts}
         keyExtractor={(item) => item.id}
@@ -261,6 +263,7 @@ export default function ProfileScreen({ userId, isOwnProfile }: ProfileScreenPro
           )
         }
       />
+      </KeyboardAvoidingScreen>
 
       {isOwnProfile ? <FloatingBottomNav active="profile" /> : null}
 

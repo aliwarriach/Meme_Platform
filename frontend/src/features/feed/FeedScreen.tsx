@@ -58,7 +58,7 @@ export default function FeedScreen() {
             className="min-h-[44px] w-full flex-row items-center gap-2 rounded-full border border-outline-variant bg-surface-high/60 px-4">
             <MaterialIcons name="search" size={18} color={c.inkMuted} />
             <Text className="font-body text-base text-ink-muted" numberOfLines={1}>
-              Search MemeVerse
+              Search Mosh
             </Text>
           </Pressable>
         }

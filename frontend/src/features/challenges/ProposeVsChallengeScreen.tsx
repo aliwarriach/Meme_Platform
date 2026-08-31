@@ -1,9 +1,10 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useThemeMode } from '@/constants/ThemeMode';
 
+import { KeyboardAwareForm } from '@/components/KeyboardAvoidingScreen';
 import PillButton from '@/components/PillButton';
 import { TextField } from '@/components/TextField';
 import TopBar from '@/components/TopBar';
@@ -73,7 +74,7 @@ export default function ProposeVsChallengeScreen({ communityId }: ProposeVsChall
   return (
     <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
       <TopBar title="Challenge a Community" showBack />
-      <ScrollView className="flex-1 px-6 pt-4">
+      <KeyboardAwareForm className="flex-1 px-6 pt-4">
         <Text className="mb-4 font-body text-sm text-ink-muted">
           The other community&apos;s owner must accept before the challenge starts.
         </Text>
@@ -137,7 +138,7 @@ export default function ProposeVsChallengeScreen({ communityId }: ProposeVsChall
             loading={proposeChallenge.isPending}
           />
         </View>
-      </ScrollView>
+      </KeyboardAwareForm>
     </SafeAreaView>
   );
 }

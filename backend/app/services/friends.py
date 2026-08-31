@@ -14,10 +14,12 @@ from app.core.exceptions import (
     UserNotFoundError,
 )
 from app.models.friendship import Friendship, FriendshipStatus
+from app.models.notification import NotificationType
 from app.models.user import User
 from app.schemas.auth import PublicUserOut
 from app.schemas.friends import FriendOut, FriendRequestCreate
 from app.services import blocks as blocks_service
+from app.services import notifications as notifications_service
 from app.services import users as users_service
 
 
@@ -66,6 +68,15 @@ async def send_friend_request(
             "A friendship or pending request already exists between these users"
         ) from None
     await db.refresh(friendship)
+
+    await notifications_service.notify_one(
+        db,
+        target.id,
+        NotificationType.friend_request_received,
+        title=f"{current_user.username} sent you a friend request",
+        body="Tap to view and respond.",
+        data={"friendship_id": str(friendship.id)},
+    )
     return friendship
 
 
@@ -83,6 +94,15 @@ async def accept_friend_request(
     friendship.status = FriendshipStatus.accepted
     await db.commit()
     await db.refresh(friendship)
+
+    await notifications_service.notify_one(
+        db,
+        friendship.requester_id,
+        NotificationType.friend_request_accepted,
+        title=f"{current_user.username} accepted your friend request",
+        body="You're now friends.",
+        data={"friendship_id": str(friendship.id)},
+    )
     return friendship
 
 

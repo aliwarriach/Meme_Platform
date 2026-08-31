@@ -13,8 +13,7 @@ interface MemeDetailScreenProps {
 
 /** Full single-post view — the profile grid's "tap to open" target (also reachable for any
  * meme id, matching the backend's own visibility check). Reuses `MemeCard` as-is (vote/comment/
- * send all work identically), just inside a plain `ScrollView` instead of the feed's FlatList —
- * `MemeCard`'s `index`/`listRef` props are optional for exactly this kind of standalone usage. */
+ * send all work identically), just inside a plain `ScrollView` instead of the feed's FlatList. */
 export default function MemeDetailScreen({ memeId }: MemeDetailScreenProps) {
   const { mode } = useThemeMode();
   const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;

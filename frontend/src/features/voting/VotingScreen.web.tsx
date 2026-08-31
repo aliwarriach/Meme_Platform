@@ -1,3 +1,4 @@
+import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -37,7 +38,14 @@ const TABS: { type: CompetitionPeriodType; label: string; winnerLabel: string }[
 function VotingScreenContent() {
   const { colors, type, spacing } = useVaporwaveTheme();
   const styles = useMemo(() => createStyles(colors, spacing), [colors, spacing]);
-  const [activeTab, setActiveTab] = useState<CompetitionPeriodType>('day');
+  // `period=week|month` (set by the "You won" competition notification, NotificationsScreen.tsx)
+  // opens straight to the period the win actually happened in — same reasoning as the native
+  // sibling's identical block.
+  const { period } = useLocalSearchParams<{ period?: string }>();
+  const initialTab = TABS.some((tab) => tab.type === period)
+    ? (period as CompetitionPeriodType)
+    : 'day';
+  const [activeTab, setActiveTab] = useState<CompetitionPeriodType>(initialTab);
   const [selectedContent, setSelectedContent] = useState<StandingContent | null>(null);
 
   const standingsQuery = useCurrentStandings(activeTab);

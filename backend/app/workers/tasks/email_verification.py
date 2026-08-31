@@ -1,11 +1,11 @@
 from app.integrations.gmail_client import send_email
 
-OTP_EMAIL_SUBJECT = "Your MemeVerse verification code"
+OTP_EMAIL_SUBJECT = "Your Mosh verification code"
 
 
 async def send_email_otp_job(ctx: dict, user_id: str, to_email: str, otp: str) -> None:
     body = (
-        f"Your MemeVerse verification code is {otp}.\n\n"
+        f"Your Mosh verification code is {otp}.\n\n"
         "It expires in 10 minutes. If you didn't request this, you can ignore this email."
     )
     # `services/email_verification.py::request_email_otp` enqueues this and never awaits

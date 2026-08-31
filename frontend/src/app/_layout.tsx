@@ -14,6 +14,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { enableFreeze } from 'react-native-screens';
 import { Provider as ReduxProvider, useDispatch, useSelector } from 'react-redux';
 
@@ -165,13 +166,15 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ReduxProvider store={store}>
-        <QueryClientProvider client={queryClient}>
-          <ThemeModeProvider>
-            <AuthBoundary fontsLoaded={fontsLoaded} />
-          </ThemeModeProvider>
-        </QueryClientProvider>
-      </ReduxProvider>
+      <KeyboardProvider>
+        <ReduxProvider store={store}>
+          <QueryClientProvider client={queryClient}>
+            <ThemeModeProvider>
+              <AuthBoundary fontsLoaded={fontsLoaded} />
+            </ThemeModeProvider>
+          </QueryClientProvider>
+        </ReduxProvider>
+      </KeyboardProvider>
     </GestureHandlerRootView>
   );
 }

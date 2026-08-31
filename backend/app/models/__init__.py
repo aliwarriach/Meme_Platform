@@ -8,6 +8,7 @@ from app.models.comment import Comment
 from app.models.community import Community, CommunityPrivacy
 from app.models.community_membership import CommunityMembership, MembershipRole, MembershipStatus
 from app.models.competition_period import CompetitionPeriod
+from app.models.competition_winner_notification import CompetitionWinnerNotification
 from app.models.container_comment import ContainerComment
 from app.models.container_view import ContainerView
 from app.models.container_vote import ContainerVote
@@ -21,6 +22,7 @@ from app.models.meme_view import MemeView
 from app.models.meme_vote import MemeVote
 from app.models.message import Message, MessageKind
 from app.models.notification import Notification, NotificationType, PushToken
+from app.models.notification_cron_cursor import NotificationCronCursor
 from app.models.post_audience import AudienceType, PostAudience
 from app.models.template import Template
 from app.models.user import User
@@ -38,6 +40,7 @@ __all__ = [
     "ChallengeType",
     "Comment",
     "CompetitionPeriod",
+    "CompetitionWinnerNotification",
     "Community",
     "CommunityMembership",
     "CommunityPrivacy",
@@ -61,6 +64,7 @@ __all__ = [
     "Message",
     "MessageKind",
     "Notification",
+    "NotificationCronCursor",
     "NotificationType",
     "PostAudience",
     "PushToken",

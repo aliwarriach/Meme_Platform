@@ -1,14 +1,14 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
 import { useRouter } from 'expo-router';
-import { useState, type RefObject } from 'react';
-import { ActivityIndicator, FlatList, Pressable, Text, View } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useThemeMode } from '@/constants/ThemeMode';
 
 import VotePill from '@/components/VotePill';
 import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
-import { ContainerCommentsSection } from '@/features/instagram-companion/ContainerCommentsSection';
+import { ContainerCommentsModal } from '@/features/instagram-companion/ContainerCommentsModal';
 import type { MemeContainerResponse } from '@/services/instagram';
 import { useCastContainerVoteMutation, useRecordContainerViewMutation } from '@/services/useInstagram';
 import { timeAgo } from '@/utils/timeAgo';
@@ -16,10 +16,6 @@ import { useRecordViewOnVisible } from '@/utils/useRecordViewOnVisible';
 
 interface ContainerCardProps {
   container: MemeContainerResponse;
-  // Only meaningful inside a FlatList (the feed) — omitted when this card is reused standalone
-  // (e.g. CompetitionEntryModal's single-item preview), where there's no list to scroll.
-  index?: number;
-  listRef?: RefObject<FlatList<any> | null>;
 }
 
 // Pins the in-app WebView to Instagram only — without this, any redirect chain from the
@@ -35,7 +31,7 @@ const INSTAGRAM_HOST_RE = /^https:\/\/(www\.)?instagram\.com(\/|$)/i;
 // (integrations/instagram_oembed.py) doesn't provide yet — so the WebView renders the
 // public post page directly (read-only preview) rather than a proper oEmbed embed. Swaps
 // cleanly once real oEmbed HTML is available server-side, per the pluggable-fetcher design.
-export function ContainerCard({ container, index = 0, listRef }: ContainerCardProps) {
+export function ContainerCard({ container }: ContainerCardProps) {
   const router = useRouter();
   const { mode } = useThemeMode();
   const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
@@ -140,9 +136,11 @@ export function ContainerCard({ container, index = 0, listRef }: ContainerCardPr
         <Text className="px-4 pt-1 font-body text-xs text-error">{castVote.error?.message}</Text>
       ) : null}
 
-      {commentsOpen ? (
-        <ContainerCommentsSection containerId={container.id} index={index} listRef={listRef} />
-      ) : null}
+      <ContainerCommentsModal
+        containerId={container.id}
+        visible={commentsOpen}
+        onClose={() => setCommentsOpen(false)}
+      />
     </View>
   );
 }

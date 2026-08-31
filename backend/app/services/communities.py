@@ -20,9 +20,11 @@ from app.core.pagination import decode_cursor, encode_cursor
 from app.models.challenge import Challenge, ChallengeStatus
 from app.models.community import Community, CommunityPrivacy
 from app.models.community_membership import CommunityMembership, MembershipRole, MembershipStatus
+from app.models.notification import NotificationType
 from app.models.user import User
 from app.schemas.auth import PublicUserOut
 from app.schemas.communities import CommunityOut, CommunityPage, MembershipOut
+from app.services import notifications as notifications_service
 from app.services.media import confirm_pending_upload, delete_uploaded_image, validate_and_upload_image
 from app.services.users import ALLOWED_AVATAR_PRESETS, get_user_by_username
 
@@ -488,6 +490,18 @@ async def join_community(
         await db.rollback()
         raise AlreadyMemberOrRequestedError("Already a member or a pending request exists") from None
     await db.refresh(membership)
+
+    if status_ == MembershipStatus.pending:
+        # Only a genuine invite-only join *request* needs the owner's attention — an open
+        # community's immediate self-join isn't a moderation event worth notifying about.
+        await notifications_service.notify_one(
+            db,
+            community.owner_id,
+            NotificationType.community_join_request,
+            title=f"New join request for {community.name}",
+            body=f"{current_user.username} wants to join.",
+            data={"community_id": str(community_id)},
+        )
     return MembershipOut.model_validate(membership)
 
 
@@ -574,6 +588,18 @@ async def approve_join_request(
     membership.status = MembershipStatus.active
     await db.commit()
     await db.refresh(membership)
+
+    # `_get_pending_request_or_404` already loaded this community in the same session
+    # (via `_get_community_or_404`), so this is an identity-map hit, not a second query.
+    community = await db.get(Community, community_id)
+    await notifications_service.notify_one(
+        db,
+        membership.user_id,
+        NotificationType.community_join_approved,
+        title=f"You're in {community.name}",
+        body="Your join request was approved.",
+        data={"community_id": str(community_id)},
+    )
     return MembershipOut.model_validate(membership)
 
 
@@ -584,5 +610,18 @@ async def reject_join_request(
     membership_id: uuid.UUID,
 ) -> None:
     membership = await _get_pending_request_or_404(db, current_user, community_id, membership_id)
+    requester_id = membership.user_id
+    community = await db.get(Community, community_id)
+    community_name = community.name
+
     await db.delete(membership)
     await db.commit()
+
+    await notifications_service.notify_one(
+        db,
+        requester_id,
+        NotificationType.community_join_rejected,
+        title=f"Your request to join {community_name} was declined",
+        body="You can request to join again later.",
+        data={"community_id": str(community_id)},
+    )

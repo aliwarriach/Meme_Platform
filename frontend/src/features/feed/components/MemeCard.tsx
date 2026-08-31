@@ -2,14 +2,14 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useThemeMode } from '@/constants/ThemeMode';
-import { useState, type RefObject } from 'react';
-import { ActivityIndicator, FlatList, Pressable, Text, View } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { useSelector } from 'react-redux';
 
 import Avatar from '@/components/Avatar';
 import VotePill from '@/components/VotePill';
 import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
-import { CommentsSection } from '@/features/feed/components/CommentsSection';
+import { CommentsModal } from '@/features/feed/components/CommentsModal';
 import { PostMenuSheet } from '@/features/feed/components/PostMenuSheet';
 import { SendMemeModal } from '@/features/meme-sending/SendMemeModal';
 import { shareMemeImage } from '@/features/sharing/shareMeme';
@@ -22,14 +22,10 @@ import { useRecordViewOnVisible } from '@/utils/useRecordViewOnVisible';
 
 interface MemeCardProps {
   meme: MemeResponse;
-  // Only meaningful inside a FlatList (the feed) — omitted when this card is reused standalone
-  // (e.g. CompetitionEntryModal's single-item preview), where there's no list to scroll.
-  index?: number;
-  listRef?: RefObject<FlatList<any> | null>;
 }
 
 /** Bordered card: fixed 4:5 media ratio, avatar+username header, up/down vote control + send/share/comment action row. */
-export function MemeCard({ meme, index = 0, listRef }: MemeCardProps) {
+export function MemeCard({ meme }: MemeCardProps) {
   const router = useRouter();
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [sendModalOpen, setSendModalOpen] = useState(false);
@@ -182,7 +178,7 @@ export function MemeCard({ meme, index = 0, listRef }: MemeCardProps) {
 
       {shareError ? <Text className="px-4 pt-1 font-body text-xs text-error">{shareError}</Text> : null}
 
-      {commentsOpen ? <CommentsSection memeId={meme.id} index={index} listRef={listRef} /> : null}
+      <CommentsModal memeId={meme.id} visible={commentsOpen} onClose={() => setCommentsOpen(false)} />
 
       <SendMemeModal
         memeId={meme.id}

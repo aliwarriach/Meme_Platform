@@ -1,10 +1,11 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useRouter } from 'expo-router';
 import { Controller, useForm } from 'react-hook-form';
-import { ScrollView, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch } from 'react-redux';
 
+import { KeyboardAwareForm } from '@/components/KeyboardAvoidingScreen';
 import PillButton from '@/components/PillButton';
 import { TextField } from '@/components/TextField';
 import { GoogleSignInFlow } from '@/features/auth/GoogleSignInFlow';
@@ -43,10 +44,9 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-bg">
-      <ScrollView
+      <KeyboardAwareForm
         className="flex-1"
-        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
-        keyboardShouldPersistTaps="handled">
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}>
         <View className="px-6 py-10">
           {/* Decorative brand mark — reuses the same rounded-full + bg-primary-container +
               text-white token combo already established by PillButton/Avatar's initials
@@ -132,7 +132,7 @@ export default function LoginScreen() {
             </Link>
           </View>
         </View>
-      </ScrollView>
+      </KeyboardAwareForm>
     </SafeAreaView>
   );
 }

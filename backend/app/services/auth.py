@@ -26,14 +26,14 @@ def age_in_years(date_of_birth: datetime.date, today: datetime.date) -> int:
     return today.year - date_of_birth.year - (0 if had_birthday_this_year else 1)
 
 # Blocks impersonation of the platform's own voice/system surfaces via a user-registerable
-# username (SecurityIssues.md M-6). "memeversehq" must be kept in sync with
+# username (SecurityIssues.md M-6). "moshhq" must be kept in sync with
 # `PLATFORM_USERNAME` in services/challenges.py — not imported directly to avoid a core
 # auth module depending on a specific feature module. Matched case-insensitively;
 # `RegisterRequest.username` is already restricted to `^[a-zA-Z0-9_]+$`, so no unicode
 # confusable/normalization concern here.
 RESERVED_USERNAMES = frozenset(
     {
-        "memeversehq",
+        "moshhq",
         "admin",
         "administrator",
         "moderator",
@@ -44,7 +44,7 @@ RESERVED_USERNAMES = frozenset(
         "system",
         "root",
         "staff",
-        "memeverse",
+        "mosh",
         "security",
         "api",
         "null",

@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import Chip from '@/components/Chip';
 import FloatingBottomNav from '@/components/FloatingBottomNav';
+import { KeyboardAvoidingScreen } from '@/components/KeyboardAvoidingScreen';
 import PillButton from '@/components/PillButton';
 import TopBar from '@/components/TopBar';
 import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
@@ -50,6 +51,7 @@ export default function CommunitiesScreen() {
         }
       />
 
+      <KeyboardAvoidingScreen>
       <View className="mb-2 flex-row gap-2 px-4 pt-3">
         <Chip label="My Communities" selected={tab === 'mine'} onPress={() => setTab('mine')} />
         <Chip label="Discover" selected={tab === 'discover'} onPress={() => setTab('discover')} />
@@ -167,6 +169,7 @@ export default function CommunitiesScreen() {
           }
         />
       )}
+      </KeyboardAvoidingScreen>
 
       <FloatingBottomNav active="communities" />
     </SafeAreaView>

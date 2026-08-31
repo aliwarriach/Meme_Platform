@@ -4,6 +4,7 @@ import { Pressable, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 
+import { KeyboardAvoidingScreen } from '@/components/KeyboardAvoidingScreen';
 import TopBar from '@/components/TopBar';
 import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import { useThemeMode } from '@/constants/ThemeMode';
@@ -73,6 +74,7 @@ export default function SearchScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
+      <KeyboardAvoidingScreen>
       <TopBar
         title="Search"
         showBack
@@ -128,6 +130,7 @@ export default function SearchScreen() {
           </>
         )}
       </View>
+      </KeyboardAvoidingScreen>
     </SafeAreaView>
   );
 }

@@ -17,6 +17,17 @@ class NotificationType(str, enum.Enum):
     challenge_ending_soon = "challenge_ending_soon"
     challenge_side_overtaken = "challenge_side_overtaken"
     challenge_results = "challenge_results"
+    # 2026-08-31: second wave, extending the same infra to friends/communities/engagement/
+    # competitions — see .claude/memory/notifications.md.
+    friend_request_received = "friend_request_received"
+    friend_request_accepted = "friend_request_accepted"
+    community_join_request = "community_join_request"
+    community_join_approved = "community_join_approved"
+    community_join_rejected = "community_join_rejected"
+    community_post_removed = "community_post_removed"
+    meme_comment_received = "meme_comment_received"
+    meme_upvotes_received = "meme_upvotes_received"
+    competition_won = "competition_won"
 
 
 class Notification(UUIDPKMixin, TimestampMixin, Base):

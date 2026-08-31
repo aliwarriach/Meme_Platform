@@ -40,7 +40,7 @@ export default function WebFeedTopBar({ onShareInstagramLink, onOpenMenu }: WebF
             <MaterialIcons name="menu" size={20} color={FEED_WEB_COLORS.foreground} />
           </Pressable>
         ) : null}
-        <Text style={[FEED_WEB_TYPE.display, styles.brand]}>MemeVerse</Text>
+        <Text style={[FEED_WEB_TYPE.display, styles.brand]}>MOSH</Text>
       </View>
 
       <View style={styles.actions}>

@@ -6,9 +6,10 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { useThemeMode } from '@/constants/ThemeMode';
 import { Controller, useForm } from 'react-hook-form';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { KeyboardAwareForm } from '@/components/KeyboardAvoidingScreen';
 import PillButton from '@/components/PillButton';
 import { TextField } from '@/components/TextField';
 import TopBar from '@/components/TopBar';
@@ -79,7 +80,7 @@ export default function CreateCommunityScreen() {
   return (
     <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
       <TopBar title="New Community" showBack />
-      <ScrollView className="flex-1 px-6 py-4" keyboardShouldPersistTaps="handled">
+      <KeyboardAwareForm className="flex-1 px-6 py-4">
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Pick a community icon"
@@ -159,7 +160,7 @@ export default function CreateCommunityScreen() {
           loading={createCommunity.isPending}
           className="mb-6"
         />
-      </ScrollView>
+      </KeyboardAwareForm>
     </SafeAreaView>
   );
 }

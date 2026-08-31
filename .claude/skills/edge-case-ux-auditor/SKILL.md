@@ -165,6 +165,40 @@ Why: <1-2 lines. Name the edge case above it derives from, where it derives from
 
 Terminal-readable prose. No tables in the findings, no emoji, no praise padding.
 
+This structured block (with file:line citations, lens names, P0/P1/P2 labels) is your **working
+format** — build the audit this way, it's what keeps findings anchored and ranked honestly. It is
+not what the user sees. Always translate it per "Plain-language delivery" below before it reaches
+the conversation.
+
+---
+
+## Plain-language delivery — always, no exceptions
+
+The user reading this is **not a developer** and does not want code terms. Every time this skill's
+findings reach the user — the first report, a re-run, a "what did you find" follow-up — rewrite them
+in plain conversational English before sending. This applies regardless of how the skill was invoked
+(proactively, or asked for by name) and regardless of who triggered it (the user directly, or a hook).
+
+- **No jargon in the user-facing text**: no "P0/P1/P2", no "deep link", no "route param", no lens
+  names ("Void", "Race", "Gate"...), no `file.tsx:line` citations, no component/function names, no
+  "state", "render", "mutation", "cache", "endpoint". If a technical word is unavoidable, follow it
+  with a plain-English gloss in parentheses the first time it appears.
+- **Describe what a person would see or experience**, not what the code does. "When you tap the
+  notification, it takes you to the group page but doesn't open the actual join-request list" beats
+  "the deep link doesn't pass a tab param." Lead with the concrete moment a real person hits this,
+  not the mechanism.
+- **Say why it matters in human terms** — confusion, a dead end, wasted taps, looking broken, missing
+  something they cared about — not "avoidable confusion on a common path."
+- **Replace severity labels with plain framing**: "this one's worth fixing before anything else" /
+  "this would trip people up" / "small polish, not urgent" — sort them in that order, but say it in
+  words, not codes.
+- **Keep the technical anchor, just demoted**: end each explained finding with one short parenthetical
+  for the record — e.g. "(technical note: `NotificationsScreen.tsx`)" — so a developer could still
+  find it later, but it must never be the thing the user has to parse to understand the point.
+- **The internal Phase 1/Phase 2 structure and rigor don't change** — hunt the same way, cite the same
+  way internally, rank the same way. Only the words used to hand it to the user change, and that
+  translation is not optional.
+
 ---
 
 ## Handoff — surfacing findings without writing anything
