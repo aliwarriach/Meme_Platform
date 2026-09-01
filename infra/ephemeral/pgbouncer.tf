@@ -26,9 +26,17 @@ resource "kubernetes_secret" "pgbouncer_config" {
       # Sized for values-loadtest.yaml's ceiling (70 api + 10 realtime = 80 pods) x
       # (db_pool_size=5 + db_max_overflow=5, A2's per-pod config) = 800; 1000 leaves
       # headroom. default_pool_size (backend connections PgBouncer itself opens to
-      # RDS) stays at A7's proven 20 - well under db.t4g.micro's max_connections.
+      # RDS): raised from A7's proven-locally 20 to 60 after a real D2 finding
+      # (2026-09-01) - a live 2.5k-VU load test showed RDS CPU at 5-12% (idle) while
+      # DatabaseConnections was pegged exactly at 20, the old ceiling. Confirmed via
+      # `aws rds describe-db-parameters` that db.t4g.micro's real max_connections is
+      # ~112 (LEAST(memory/9531392, 5000) for 1GiB), so 20 was a pure PgBouncer
+      # configuration ceiling, not a real database capacity limit. 60 leaves ~50
+      # connections of headroom for migrations/admin, matching A2's own sizing math
+      # comment (pods x (pool+overflow) <= max_client_conn, default_pool_size <=
+      # Postgres max_connections minus headroom).
       max_client_conn = 1000
-      default_pool_size = 20
+      default_pool_size = 60
 
       logfile = /dev/stdout
       pidfile = /tmp/pgbouncer.pid

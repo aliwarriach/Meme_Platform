@@ -49,12 +49,21 @@ resource "kubernetes_service_account" "alb_controller" {
 }
 
 resource "helm_release" "aws_load_balancer_controller" {
-  namespace  = "kube-system"
-  name       = "aws-load-balancer-controller"
-  repository = "https://aws.github.io/eks-charts"
-  chart      = "aws-load-balancer-controller"
-  # Plain https Helm repo (index.yaml), not OCI - C1's Windows OCI-login bug doesn't
-  # apply here, no local .tgz workaround needed.
+  namespace = "kube-system"
+  name      = "aws-load-balancer-controller"
+  # Originally a plain repository/chart reference (this is a plain https index, not
+  # OCI, so C1's Windows OCI-login bug doesn't apply here) - but resuming this phase
+  # on 2026-09-01 hit a *different* Windows-network issue reaching
+  # aws.github.io/eks-charts specifically: Go's TLS client (Terraform's helm provider,
+  # and the helm CLI itself) fails deterministically with "tls: bad record MAC",
+  # while curl/schannel succeeds most of the time against the same host. Root cause
+  # not fully isolated (looks like intermittent packet corruption or DPI interference
+  # on this network that Go's stricter TLS record parser doesn't tolerate) - same
+  # symptom class as C1's OCI bug, different trigger. Same fix: pull the chart once
+  # via a path that isn't the failing Go TLS client (curl, which mostly succeeds) into
+  # a committed `charts/aws-load-balancer-controller-3.5.0.tgz` and reference it as a
+  # local chart, sidestepping the repository fetch entirely.
+  chart   = "${path.module}/charts/aws-load-balancer-controller-3.5.0.tgz"
   version = "3.5.0"
   wait    = true
   timeout = 300

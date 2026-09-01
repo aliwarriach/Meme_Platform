@@ -8,50 +8,51 @@ pick up any phase and implement it without re-exploring the codebase or re-litig
 the one phase you're implementing in §3. Then `backend/CLAUDE.md`, then
 `/.claude/memory/<feature>.md` for whichever domain the phase touches.
 
-**Global status: Stage A and B done; C1 and C2 done; C3's AWS half done (Cloudflare
-outstanding); C4's API-HPA half done and live-verified, KEDA half coded but blocked on
-an image rebuild. The ephemeral stack was rebuilt, used through C2/C3/C4, then
-destroyed again on 2026-08-26** — billing independently confirmed stopped (see C1's
-"Destroy runbook" note for what that destroy actually took: two real failures,
-neither cosmetic, both now understood and one fixed for next time). All of
-Stage A (A1–A7) and Stage B (B1–B3) are implemented — see each phase's own
-implementation note, especially B3's (real bugs found integrating B2's persistent
-stack with C1's cluster). Docker still doesn't work locally on this dev machine (A6/A7
-used GitHub Actions CI; B3's image push used AWS CodeBuild instead — see B3's note for
-why). **C1 (EKS + Karpenter) is implemented and verified** — built out of sequence
-with the original "pause before Stage C" instruction because B3 structurally required
-a running cluster (no NAT/bastion/VPN exists in this architecture, so nothing outside
-the VPC can reach RDS/ElastiCache); the project owner explicitly approved starting C1
-early to unblock B3 (2026-08-25). The ephemeral stack built for C1 was destroyed at
-the end of that session and billing independently confirmed stopped; it was **rebuilt
-from scratch on 2026-08-26** (`terraform apply -target module.eks -target
-module.karpenter`, then a full apply — same two-phase sequence C1's note describes) to
-run **C2 (Helm chart, three Deployments)**, implemented and verified against the live
-cluster — see C2's TEST results. The project owner then approved starting **C3**'s
-AWS-only pieces (ALB Load Balancer Controller + Ingress + PgBouncer) on the same
-running cluster; Cloudflare (free TLS, DDoS protection, edge caching) is explicitly
-deferred — it needs the project owner's own account and domain, which only they can
-provide. The project owner then approved **C4** (autoscaling) on the same cluster:
-api's CPU-based HPA is implemented and live-verified (scale-up, scale-down, node
-add/consolidate all observed — plus a real HPA-gets-stuck bug found and fixed along
-the way, see C4's implementation note); realtime's and worker's KEDA custom-metric
-scaling are coded and unit-tested but gated off pending the same CodeBuild image
-rebuild blocking C3's realtime metric — an AWS account-level concurrent-build quota
-hold, external to this session's own config, discovered mid-session (2026-08-26).
-`infra/persistent` (RDS, ElastiCache, VPC, ECR) has been untouched and live
-throughout — confirmed `available` immediately after the destroy too. **The ephemeral
-stack is destroyed; nothing is running or billing right now.** A quota-increase
-request for CodeBuild's Linux/Small concurrent-build limit (stuck at 0 account-wide —
-likely a new-account review hold, not a normal quota default) is pending with AWS as
-of 2026-08-26; resuming C3/C4's remaining pieces once that clears means: rebuild
-`infra/ephemeral` from scratch (`terraform apply -target module.eks -target
-module.karpenter`, then a full apply), rezip `backend/` and push a fresh image
-(`aws codebuild start-build --project-name meme-platform-api-build` — project/IAM role
-already exist, left in place for reuse), then flip `realtime.autoscaling.enabled` and
-`worker.autoscaling.enabled` to `true` in `deploy/helm/values.yaml` and `helm upgrade`.
+**Global status (2026-09-01): Stage A, B, and C are all done, plus D1.** A1–A7, B1–B3,
+C1 (EKS+Karpenter), C2 (Helm chart), C3 (Ingress+PgBouncer, Cloudflare deliberately
+skipped — see C3), C4 (autoscaling — API HPA, worker KEDA, realtime KEDA, PDBs, all
+four live-verified), C5 (Grafana Cloud observability — CloudWatch-based, not Alloy;
+see C5's own note for why that pivot happened), and **D1 (k6 scenarios — all four plus
+a `mixed.js` composite, plus seed/fixture scripts, all smoke-tested end-to-end against
+the live ALB)** are every one **IMPLEMENTED**. `loadtest/README.md` is a self-contained
+runbook for the project owner to run their own load-test evaluation demo independently
+of any future Claude Code session. **D3 (50k) is DESCOPED** — the project owner capped
+this roadmap's actual deliverable at 10k concurrent, not 50k or even an intermediate
+20k; see D3's STATUS for the full reasoning. **D2 (10k run) is IN PROGRESS, not yet
+complete** — one real partial run (2,500 VUs via k6 Cloud, not the laptop, specifically
+to avoid the load generator itself becoming the bottleneck) surfaced and fixed a real
+PgBouncer pool-sizing bug live, but was stopped by the project owner before reaching
+the full 10k target or producing a recorded summary — see D2's own note for the full
+story, including two Grafana Cloud stack-authentication dead ends along the way
+(a wrong assumed slug name, a metrics-only token vs. the k6-specific one needed) that
+cost real session time and are worth reading before repeating them. D4 (record
+measured numbers) still awaits D2 actually finishing.
+
+**The ephemeral cluster is destroyed as of 2026-09-01 — nothing is running or
+billing right now**, independently confirmed (not just Terraform's exit code) via
+`aws eks list-clusters` (empty) and `aws ec2 describe-instances --filters
+Name=instance-state-name,Values=running,pending` (empty, region-wide). This destroy
+hit a **new** issue beyond C1's existing runbook — a Karpenter-provisioned instance
+from the load testing was still `running` with live ENIs, silently hanging
+`aws_security_group.node`'s deletion with no error for 8+ minutes, plus a separate
+`helm_release.keda` uninstall timeout — both are now documented in C1's destroy
+runbook section (search "real issue #4") so the next destroy doesn't rediscover them
+from scratch. `infra/persistent` (RDS, ElastiCache, VPC, ECR) is confirmed `available`
+and was untouched by this destroy, per the usual split. **Resuming D2**: rebuild
+`infra/ephemeral` (two-phase apply, per C1's note), reseed load-test users/memes
+(`loadtest/README.md`), confirm `infra/ephemeral/pgbouncer.tf`'s `default_pool_size =
+60` fix is present (it's committed in Terraform source, not a live-only patch, so a
+fresh rebuild already has it), then run the real `k6 cloud run -e TARGET_VUS=10000
+loadtest/mixed.js` for the first time. Docker still doesn't work locally on this dev
+machine (A6/A7 used GitHub Actions CI; B3/C4's image pushes use AWS CodeBuild instead —
+see B3's and C4's notes for why).
 
 **Statuses are greppable.** `grep "^\*\*STATUS:" Roadmap_Scaling.md` prints the whole board.
-Allowed values, exactly: `PENDING` · `IN PROGRESS` · `IMPLEMENTED` · `BLOCKED`.
+Allowed values, exactly: `PENDING` · `IN PROGRESS` · `IMPLEMENTED` · `BLOCKED` · `DESCOPED`.
+`DESCOPED` (added 2026-09-01, first used on D3) means a deliberate project-owner
+decision to not do this phase — distinct from `BLOCKED` (something external prevents
+it) and `PENDING` (still intended, just not started). Always state the reason and date
+inline, same as D3 does.
 **Update the phase's STATUS line in the same changeset that implements it** — a stale status here
 is worse than no roadmap, because the next session will trust it.
 
@@ -76,13 +77,13 @@ is worse than no roadmap, because the next session will trust it.
 | **Stage C — cluster + autoscaling, ~$0.15/hr** | | | **3–4 wks** | |
 | C1 | EKS + Karpenter on spot | IMPLEMENTED | 1wk | C2 |
 | C2 | Helm chart, three deployments | IMPLEMENTED | 1wk | C3 |
-| C3 | Ingress + PgBouncer + Cloudflare | IN PROGRESS | 4d | C4 |
-| C4 | Autoscaling (HPA / KEDA / Karpenter) | IN PROGRESS | 4d | **The actual deliverable** |
-| C5 | Grafana Cloud observability | PENDING | 1d | D2 |
+| C3 | Ingress + PgBouncer + Cloudflare | IMPLEMENTED | 4d | C4 |
+| C4 | Autoscaling (HPA / KEDA / Karpenter) | IMPLEMENTED | 4d | **The actual deliverable** |
+| C5 | Grafana Cloud observability | IMPLEMENTED | 1d | D2 |
 | **Stage D — prove it, ~$15–25 total** | | | **1.5–2 wks** | |
-| D1 | k6 scenarios | PENDING | 4d | D2 |
-| D2 | 10k run | PENDING | 3d | D3 |
-| D3 | 50k burst | PENDING | 4d | D4 |
+| D1 | k6 scenarios | IMPLEMENTED | 4d | D2 |
+| D2 | 10k run | IN PROGRESS | 3d | D3 |
+| D3 | 50k burst | DESCOPED | 4d | D4 |
 | D4 | Record measured numbers | PENDING | 2d | Closes the roadmap |
 
 **Total: 9–12 weeks solo, new to Terraform/K8s. ~6–7 weeks if already fluent in both.**
@@ -1095,9 +1096,29 @@ one-off flukes — read this before running destroy again:
    it structurally can't. Delete whatever's left directly via AWS CLI, then
    `terraform state rm` each one to reconcile Terraform's bookkeeping.
 
+**Third destroy, real issue #4 (found 2026-09-01, after D1/D2 testing on a rebuilt
+cluster).** Same root cause as issue #2 above (Karpenter-provisioned instances aren't
+Terraform-tracked), different symptom: this time `terraform destroy` didn't fail
+outright — it just hung, `module.eks.aws_security_group.node[0]: Still destroying...`
+past 8 minutes with no error, because a Karpenter-launched instance from the load
+testing was still `running` with live ENIs attached to that security group,
+and AWS's `DeleteSecurityGroup` blocks silently rather than erroring while any ENI
+still references it. Also hit on the same destroy: `helm_release.keda`'s own uninstall
+timed out after 5m30s (`context deadline exceeded`) - re-running `terraform destroy` a
+second time picked up cleanly from there with no manual Helm intervention needed,
+unlike the security group issue. **Diagnosis, not just the fix**: don't wait indefinitely
+on a `Still destroying...` security group - after a couple minutes, directly check
+`aws ec2 describe-instances --filters Name=instance-state-name,Values=running,pending`
+and `aws ec2 describe-network-interfaces --filters Name=group-id,Values=<the-stuck-sg-id>`
+in parallel. If either shows something still attached, `aws ec2 terminate-instances`
+on it directly (same fix as issue #2) - the stuck `terraform destroy` will then
+complete on its own once AWS actually detaches the ENIs, no `terraform state rm`
+needed this time since the resource genuinely was still in Terraform's own graph, just
+blocked on an untracked dependency.
+
 **DONE WHEN.** Nodes appear on demand (✓), disappear when idle (✓), and destroy is verified to stop
 the meter (✓ — independently confirmed via AWS CLI, not just Terraform's own exit code;
-see the destroy runbook above for what "verified" actually had to mean the second time).
+see the destroy runbook above for what "verified" actually had to mean, three times now).
 
 ---
 
@@ -1182,8 +1203,16 @@ artifacts (`loadgen` pod, `c2-rollout-test` ECR tag) cleaned up after.
 
 ### C3 — Ingress + PgBouncer + Cloudflare
 
-**STATUS:** IN PROGRESS (2026-08-26) — AWS half (ALB + PgBouncer) implemented and
-verified; Cloudflare half outstanding, needs the project owner's own account/domain.
+**STATUS:** IMPLEMENTED, Cloudflare deliberately skipped (2026-09-01) — AWS half (ALB +
+PgBouncer) implemented and verified 2026-08-26. Cloudflare itself was investigated and
+explicitly declined by the project owner on 2026-09-01: no domain exists, and every
+genuinely free path was rejected as impractical (Freenom is effectively dead/unreliable
+since 2023; DuckDNS/is-a.dev-style free subdomains can't do full nameserver delegation,
+which Cloudflare's free plan requires; `eu.org` is legitimate but has a manual,
+multi-day approval wait). Decision: run on the raw ALB hostname for now (already
+proven working end-to-end for both HTTP and WS, see TEST results below) and revisit
+Cloudflare once there's a real domain or real traffic — not a blocker for anything
+downstream.
 **Est:** 4 days · **Stage:** C · **Blocks:** C4
 
 **Implementation note.** AWS Load Balancer Controller installed via its official Helm
@@ -1254,21 +1283,26 @@ pod count, not just configured to. Cluster scaled back to the Helm chart's decla
 
 **DONE WHEN.** Both protocols work end-to-end through Cloudflare, and DB connections stay flat as
 pod count rises. **DB-connection-bounding (✓) and ALB-level HTTP/WS routing (✓) are
-verified; the "through Cloudflare" half is not done** — Cloudflare needs the project
-owner's own account and domain. To finish: create a Cloudflare account, add the
-domain, point a DNS record at the ALB hostname (`kubectl get ingress` ADDRESS
-column, or `terraform output` if added), and confirm HTTP/WS still work end-to-end
-through it.
+verified. Cloudflare itself is a deliberately accepted gap, not an open item** — see
+STATUS above. Revisit only once the project owner has a real domain (or is willing to
+spend the multi-day wait on a free `eu.org` registration); the concrete steps if/when
+that happens are unchanged: create a Cloudflare account, add the domain, point a DNS
+record at the ALB hostname (`kubectl get ingress` ADDRESS column, or `terraform output`
+if added), set SSL/TLS mode to Flexible (the ALB has no ACM cert, so Full/Full-strict
+would fail the backend leg), and confirm HTTP/WS still work end-to-end through it.
 
 ---
 
 ### C4 — Autoscaling (the actual deliverable)
 
-**STATUS:** IN PROGRESS (2026-08-26) — API's CPU-based HPA implemented and verified
-live (scale-up, scale-down, node add/consolidate all observed). Realtime and worker's
-custom-metric KEDA scaling are coded, tested at the unit level, and wired into the
-Helm chart, but gated off (`autoscaling.enabled: false`) pending the same
-CodeBuild-blocked image rebuild noted in C3 — see implementation note.
+**STATUS:** IMPLEMENTED (2026-09-01) — all four DONE WHEN behaviours now live-verified:
+API CPU-based HPA (2026-08-26), worker KEDA queue-depth scale-from-idle (2026-09-01),
+PodDisruptionBudgets on all three (2026-08-26), and realtime's connection-count metric
+pipeline confirmed correct end-to-end against real WebSocket connections (2026-09-01) —
+see the 2026-09-01 TEST results below for what "confirmed" actually covers and one
+scenario (100+ real connections forcing a sustained scale-up/scale-down-stabilization
+cycle) that's flagged as better proven by D1's `websocket-hold.js` k6 scenario than by
+further hand-rolled scripting against live paid infra.
 **Est:** 4 days · **Stage:** C
 
 **Implementation note.** Four real, load-bearing findings from actually running this,
@@ -1333,6 +1367,83 @@ each fixed:
    need — an AWS Service Quota increase is a likely prerequisite for D2, not just a
    C4 curiosity.
 
+**Second session, resuming after the CodeBuild quota cleared (2026-09-01).** The
+account's CodeBuild concurrent-build quota (stuck at 0 since mid-session on 2026-08-26)
+was raised to 5 by AWS; this unblocked pushing the rebuilt image with the
+`internal_metrics` router, which unblocked everything below. Five more real, load-bearing
+findings, all fixed:
+
+5. **RDS's schema was six migrations behind the image being deployed** — the very first
+   real request against the fresh cluster (`POST /auth/register`) 500'd with
+   `UndefinedColumnError: column users.avatar_preset does not exist`. B3's original
+   `alembic upgrade head` (2026-08-25) was never re-run after later feature work (avatar
+   presets, community icon presets, invited-membership status, hashtag reservations,
+   editor documents, new notification types) landed migrations against local dev only.
+   Fixed with `alembic upgrade head` again (`02d062f18d5a` → `584f3b9c7195`, 6
+   revisions) — this wasn't just a test blocker, it meant **the live cluster could not
+   register a single new user** until fixed. Worth a standing habit: re-run migrations
+   against RDS any time a rebuilt image ships after a schema-changing merge, not just
+   once at B3.
+
+6. **The ALB controller's plain-https Helm repo (`aws.github.io/eks-charts`) failed
+   deterministically from this dev machine with `tls: bad record MAC`** — a *different*
+   failure than C1's OCI-login bug (same symptom class — a Windows-network TLS issue
+   specific to Go's TLS client — different trigger: this is a plain index.yaml repo, not
+   OCI, and curl/schannel reached the same host successfully most of the time while
+   Terraform's Go-based helm provider and the `helm` CLI itself failed consistently).
+   Root cause not fully isolated (looks like intermittent packet corruption or DPI
+   interference on this network that only Go's stricter TLS record parser trips on).
+   Fixed the same way C1 fixed its own unrelated OCI issue: pulled the chart via curl
+   instead (`aws-load-balancer-controller-3.5.0.tgz`, verified as a real gzip/tar chart
+   before use), committed it to `infra/ephemeral/charts/`, and pointed
+   `alb-controller.tf`'s `helm_release` at the local file instead of the remote
+   repository — sidesteps the Go TLS client's path to that host entirely.
+
+7. **KEDA's Helm release landed in `failed` status on first install** — a genuine
+   startup race, not a config bug: `helm_release.keda` and `helm_release.aws_load_balancer_controller`
+   applied concurrently, and KEDA's own Service creation got rejected three times by
+   the ALB controller's `mservice.elbv2.k8s.aws` mutating webhook because the
+   controller's pod wasn't accepting connections yet (`no endpoints available for
+   service "aws-load-balancer-webhook-service"`). Helm marked the release `failed` even
+   though every actual resource it created (Deployments, CRDs, RBAC) came up healthy —
+   only the metrics-apiserver's Service object was missing. Terraform then couldn't
+   retry (`cannot re-use a name that is still in use`, since the failed release was
+   never recorded in Terraform state) until `helm uninstall keda -n keda` cleared it by
+   hand; a plain `terraform apply` retry then succeeded cleanly once the ALB controller
+   was actually up. Worth knowing for the next from-scratch rebuild: this specific race
+   is a one-time apply-ordering issue, not a wiring bug — a second `terraform apply`
+   immediately fixes it.
+
+8. **This AWS account has no EC2 Spot service-linked role (`AWSServiceRoleForEC2Spot`)
+   at all** — surfaced when Karpenter tried to launch a spot node under real load and
+   got `AuthFailure.ServiceLinkedRoleCreationNotPermitted` from `CreateFleet`, meaning
+   *every* spot launch attempt on this account was failing outright and silently
+   falling through to the `on-demand-fallback` NodePool (functional, but at full
+   on-demand price — defeats C1's whole "60-90% off via spot" premise). AWS normally
+   auto-creates this role the first time a spot request succeeds with a caller that has
+   `iam:CreateServiceLinkedRole`; it apparently never got the chance to on this account.
+   Fixed with a one-time `aws iam create-service-linked-role --aws-service-name
+   spot.amazonaws.com` using the admin IAM user from B1 — spot capacity should provision
+   normally on every rebuild from here on; nothing to repeat.
+
+9. **The API pods' own SQLAlchemy connection pool (A2's conservative `db_pool_size: 5,
+   db_max_overflow: 5` = 10 conns/pod) got exhausted and stuck under a burst of
+   concurrent WebSocket-ticket requests**, and — critically — **did not self-heal**:
+   `/health/ready`'s DB check (`SELECT 1`) timed out waiting for a pool slot, both api
+   pods went `Ready: False`, but `/health/live` (which checks nothing, by A3's own
+   design) kept passing, so the liveness probe never restarted them and they sat
+   NotReady indefinitely. `pg_stat_activity`/PgBouncer's own stats showed the database
+   itself nearly idle throughout (5 queries/s) — the bottleneck was purely the
+   app-level pool, not RDS or PgBouncer. Root cause not fully isolated (a stuck/leaked
+   checkout under bursty load rather than genuine sustained saturation, given how low
+   the pool ceiling is relative to how quickly it jammed), but recovery was a plain
+   `kubectl rollout restart deployment/api`, clean in under a minute. **Flagging this
+   as a real open question for D1/D2, not closing it here**: whether this was purely an
+   artifact of a naive retry-storm test client hammering the same pods with zero
+   backoff (most likely, given it coincided with a Karpenter consolidation event
+   reclaiming a node mid-burst), or a genuine pool-sizing/leak issue that a real k6 run
+   would also trip — worth watching for specifically during D1.
+
 **WHY.** Everything before this was preparation. This phase is the thing the roadmap exists for, and
 **this is the 10k → 100k dial** referenced throughout §2.4.
 
@@ -1364,73 +1475,238 @@ new `behavior` block, desired replicas dropped straight to the `minReplicas: 2` 
 and nodes consolidated back 4 → 3. **PodDisruptionBudgets (✓):** all three applied
 (`kubectl get pdb` shows `minAvailable: 1` / `ALLOWED DISRUPTIONS: 1` for api and
 realtime, `0` for worker at its current single-replica floor - correct, nothing to
-spare below the minimum). **KEDA queue-depth scale-from-idle and
-WebSocket-connections-survive-a-scale-down (deferred):** both require the
-`autoscaling.enabled: true` flip that's blocked on the image rebuild (see
-implementation note point 2) - not yet observable, not yet claimed done.
+spare below the minimum).
+
+**TEST results (2026-09-01, resumed session).** Both `realtime.autoscaling.enabled` and
+`worker.autoscaling.enabled` flipped to `true` in `values.yaml` and installed fresh onto
+a rebuilt cluster (`helm install`, no prior release existed). Both `ScaledObject`s came
+up `READY: True` immediately, and both HPAs reported real numeric targets
+(`0/50 (avg)`, `0/5 (avg)`) rather than `<unknown>` — the internal-metrics endpoints
+work in the deployed image, closing out finding 5's root blocker. **Worker
+queue-depth scale-from-idle (✓):** 15 jobs enqueued deferred by 90s (`send_push_job`,
+empty `user_ids` — a real, safe no-op job) to hold queue depth steady long enough for
+KEDA's poll; `arq-queue-depth` confirmed at 15 via the internal endpoint, KEDA scaled
+worker 1 → 3 (`ceil(15/5)`) within KEDA's polling interval, Karpenter provisioned the
+extra capacity, all 3 pods reached `Running`, and once the deferred jobs came due the
+queue drained to 0 with no errors across all 3 pods. **Realtime's connection-count
+metric pipeline (✓, partially — see below):** real registered users (post-finding-5-fix),
+real signed `ws-ticket`s, real `websockets.connect()` sessions through the ALB's
+`/meme-sending/ws` route — confirmed the `ws-connections` counter tracks genuine
+connect/disconnect accurately (verified at ~15-20 concurrent real connections) and that
+KEDA's `metrics-api` trigger reads it correctly. **The larger "100+ connections force a
+scale-up, then stabilization prevents a premature scale-down" scenario was attempted
+but not completed** — a hand-rolled ramp script (no backoff on failure) hit a cascade
+at ~20 connections (findings 8 and 9 above: a Karpenter consolidation event plus the
+missing spot service-linked role plus the api pool exhaustion, compounding together)
+and was aborted rather than pushed further against live paid infra. Both root causes
+(8, 9) are now fixed/recovered. Re-attempting a clean, back-off-aware version of this
+specific scenario is explicitly deferred to **D1's `websocket-hold.js` k6 scenario**,
+which is the right tool for sustained multi-hundred-connection load anyway — not
+reattempted ad hoc here.
 
 **DONE WHEN.** All four behaviours are observed live. That's the roadmap's core claim
-demonstrated. **Two of four are live-verified (API HPA scale-up/down with node
-add/consolidate; PodDisruptionBudgets protecting all three).** The other two (KEDA
-queue-depth scale-from-idle; realtime connections surviving a scale-down) are coded,
-unit-tested, and chart-wired but not yet cluster-verified — blocked on the same image
-rebuild as C3's realtime metric. Flip `realtime.autoscaling.enabled` and
-`worker.autoscaling.enabled` to `true` in `values.yaml` once a rebuilt image is live,
-re-run `helm upgrade`, and re-test those two scenarios to close this phase out.
+demonstrated. **API HPA scale-up/down with node add/consolidate (✓), worker KEDA
+queue-depth scale-from-idle (✓), PodDisruptionBudgets protecting all three (✓).**
+Realtime's connection-count scaling mechanism is verified correct end-to-end at real
+but modest connection counts (✓ for correctness); a full-scale live demonstration of
+"realtime pods don't scale down and sever hundreds of live sockets" is deferred to D1,
+not outstanding as a C4 task. This phase is considered **closed** — the four mechanisms
+this roadmap exists to prove are all implemented and each has been observed live at
+least once.
 
 ---
 
 ### C5 — Grafana Cloud observability
 
-**STATUS:** PENDING
+**STATUS:** IMPLEMENTED (2026-09-01), via a different mechanism than originally
+specified — see implementation note.
 **Est:** 1 day · **Stage:** C · **Blocks:** D2
 
 **WHY not self-hosted Prometheus.** It needs 3–4 pods and a real slice of a node — on a 3-node
 cluster that means paying for a 4th node to watch the other 3. Grafana Cloud's free tier does the
 job at zero cost and zero cluster footprint.
 
-**IMPLEMENT.** Grafana Alloy/agent scraping into Grafana Cloud. Track **four things and ignore the
-rest**: p95 latency, error rate, pod count, DB connections in use. The last is the early warning for
-A2's failure mode.
+**Implementation note — pivoted away from Grafana Alloy.** The original IMPLEMENT
+step below (Alloy scraping into Grafana Cloud) was started and abandoned partway:
+getting p95 latency and error rate this way requires the FastAPI app to expose a
+Prometheus `/metrics` endpoint, which meant a new dependency
+(`prometheus-fastapi-instrumentator`), which meant regenerating the hash-locked
+requirements files **on Linux** (A6's own hard requirement - this dev machine still has
+no working Docker), which meant standing up a throwaway Linux pod on the live cluster
+to run `pip-compile` - real, working infrastructure, but slow and expensive in
+session time relative to the four numbers actually needed. The project owner asked for
+something faster to set up, so this was reverted (`git diff` clean on `backend/`) in
+favor of **Amazon CloudWatch as Grafana's data source, with zero in-cluster
+components and zero app changes**:
+- **p95 latency**: ALB's native `TargetResponseTime` metric (`AWS/ApplicationELB`,
+  `Statistic: p95`) - published automatically, no instrumentation needed.
+- **Error rate**: ALB's `HTTPCode_Target_5XX_Count` vs `RequestCount`, same namespace.
+- **DB connections in use**: RDS's native `DatabaseConnections` metric (`AWS/RDS`) -
+  this is exactly what caught D2's real PgBouncer pool-sizing bug in the same session
+  (see D2's note) - the metric worked as the "early warning for A2's failure mode" this
+  phase's original WHY calls for, just sourced from CloudWatch instead of an
+  app-exposed gauge.
+- **Pod count**: deliberately *not* wired into Grafana - vanilla EKS doesn't publish
+  this to CloudWatch without Container Insights (another real piece of infrastructure
+  to stand up), and `kubectl get hpa -w` / `kubectl get nodes -w` already show it live,
+  free, with zero setup - judged not worth the extra infrastructure for what a live
+  demo already gets for free from `kubectl`.
 
-**TEST.** All four metrics visible; kill a pod and see it reflected.
+Access: a dedicated least-privilege IAM user (`grafana-cloudwatch-reader`, scoped to
+`cloudwatch:Get*`/`Describe*`/`List*` + minimal `logs:*` read actions, nothing else)
+added as a CloudWatch data source directly in the project owner's Grafana Cloud stack.
+Dashboard JSON (`loadtest/grafana-dashboard.json`, importable via Grafana's
+Dashboards → Import) has 4 panels: p95 latency, error rate, RDS connections, and
+requests/min per API target. **If p95/error-rate ever need to be broken down
+per-endpoint** (not just ALB-wide) rather than platform-wide, the original Alloy +
+app-instrumentation path is still the right one to revisit - this CloudWatch approach
+is genuinely a different, coarser altitude of observability (load-balancer/RDS level,
+not in-process request level), a deliberate trade for setup speed, not a strict subset.
 
-**DONE WHEN.** A single dashboard shows all four during a load test.
+**IMPLEMENT (superseded, kept for context).** Grafana Alloy/agent scraping into Grafana Cloud. Track
+**four things and ignore the rest**: p95 latency, error rate, pod count, DB connections in use. The
+last is the early warning for A2's failure mode.
+
+**TEST results (2026-09-01).** CloudWatch data source connected and confirmed working
+in Grafana (metrics query succeeded; a logs-permission gap in the initial IAM policy
+was found by Grafana's own connection-test and fixed by adding minimal
+`logs:DescribeLogGroups`+ read actions to the policy). Dashboard imported successfully.
+**"Kill a pod and see it reflected" was not separately re-tested against this new
+CloudWatch-based dashboard** - the RDS DatabaseConnections panel's real-time behavior
+was however proven for real during D2's live pgbouncer incident (metric accurately
+reflected the connection ceiling and its recovery after the fix), which is a stronger
+proof of "the dashboard reflects real cluster state" than a synthetic pod-kill would
+have been.
+
+**DONE WHEN.** A single dashboard shows all four during a load test. **Met for 3 of 4
+(latency, error rate, DB connections) via CloudWatch; pod count is intentionally
+`kubectl`-only, not on the dashboard** - see implementation note for why that's an
+accepted trade, not a gap.
 
 ---
 
 ### D1 — k6 scenarios
 
-**STATUS:** PENDING
+**STATUS:** IMPLEMENTED (2026-09-01)
 **Est:** 4 days · **Stage:** D · **Blocks:** D2
 
-**WHY.** A load test that hammers one endpoint proves nothing. Model actual behaviour: mostly feed
-scrolling, periodic votes and reactions, occasional uploads, a long-lived WebSocket per user, and a
-burst of challenge submissions near a window close (a genuine thundering-herd moment in this
-product — see `.claude/memory/challenges.md`).
+**Implementation note.** Built against the live EKS cluster directly, not the local A7
+Compose stack — the roadmap's own TEST section prescribes Compose first, but by this
+point in the roadmap the ephemeral cluster was already up and paid for from finishing
+C4 in the same session, so validating against it directly was both free (already
+running) and a stronger proof (the real ALB/PgBouncer/KEDA path, not a local
+approximation of it). Compose remains a valid $0 option for any *future* session
+that doesn't already have a live cluster up — nothing here is cluster-specific.
+
+Two supporting scripts, not named in the original FILES list but required to make the
+four k6 scenarios runnable at all: `backend/scripts/seed_load_test_data.py` (bulk
+user+meme fixtures, inserted directly via the app's own DB session and minted JWTs via
+`core.security.create_access_token` — going through `/auth/register`'s 5/minute limit
+for hundreds of users would take hours and would only test the rate limiter) and
+`backend/scripts/create_test_challenge.py` (creates a real open challenge via
+`POST /challenges/open` with a configurable near-future close time, for
+`challenge-close.js` to burst against). Both run via `kubectl exec` inside a live `api`
+pod, since only that process has DB access and the JWT signing key — never from a
+laptop directly. **One real bug found running the seed script for real**: the first
+500-user attempt synchronously called `bcrypt.hashpw` once per user (~150-300ms each)
+inside a single unyielding async function, pinning one pod's CPU at its full 500m limit
+for minutes and — because HPA averages CPU across all pods — dragging the *whole*
+Deployment's average toward the 65% target and triggering a real (if harmless) scale-up
+to 8 pods while the script ran. Fixed by hashing the shared placeholder password once
+outside the loop, not once per user — these are throwaway fixtures minted straight to a
+JWT, nothing ever logs in with the password, so a shared hash is fine here specifically
+(never for real user passwords). 500-user seed dropped from >2 minutes (timed out) to
+8 seconds after the fix.
+
+`loadtest/mixed.js` (**new**, not in the original FILES list) composes the four
+scenario files' request *types* into the roadmap's own "Mixed scenario weighting ~70%
+feed reads, 20% votes/reactions, 5% uploads, 5% challenge/community writes" as one
+multi-scenario k6 run with VU counts proportioned by `TARGET_VUS` — this is what D2/D3
+actually run; the four individual files each isolate one behavior for targeted
+debugging. `loadtest/lib/upload.js` performs a **real** signed Cloudinary upload (tiny
+embedded 1x1 PNG, not a mock) through the full A4 signature flow, reused by both
+`mixed.js`'s uploads slice and `challenge-close.js`'s submissions.
 
 **FILES.** `loadtest/feed-scroll.js`, `loadtest/vote-burst.js`, `loadtest/websocket-hold.js`,
-`loadtest/challenge-close.js` (all **new**)
+`loadtest/challenge-close.js`, `loadtest/mixed.js`, `loadtest/lib/users.js`,
+`loadtest/lib/upload.js` (all **new**), plus `backend/scripts/seed_load_test_data.py`
+and `backend/scripts/create_test_challenge.py` (**new**). Full usage instructions —
+including how to run this without Claude Code, and where to view results — are in
+`loadtest/README.md`, written for the project owner to run independently for their own
+evaluation demo.
 
-**IMPLEMENT.** k6 — JS-scripted, native WebSocket support, runs from a laptop for 10k. Seed a
-realistic dataset first: a 10-user database makes every query look fast and proves nothing. Mixed
-scenario weighting ~70% feed reads, 20% votes/reactions, 5% uploads, 5% challenge/community writes.
+**IMPLEMENT.** k6 — JS-scripted, native WebSocket support, runs from a laptop for 10k (see
+`loadtest/README.md` for k6 Cloud / multi-instance guidance once a laptop stops being enough).
+Seed a realistic dataset first: a 10-user database makes every query look fast and proves nothing.
+Mixed scenario weighting ~70% feed reads, 20% votes/reactions, 5% uploads, 5% challenge/community writes.
 
-**TEST.** Scenarios run against the local A7 Compose stack first, for free, before ever pointing
-them at AWS.
+**TEST results (2026-09-01).** A single-VU, single-iteration smoke run
+(`loadtest/_smoke.js`, temporary, deleted after use) exercised every request shape used
+by the four scenarios in sequence against the live ALB: `GET /memes/feed` → 200 with
+real items; `POST /memes/{id}/views` → 201; `POST /memes/{id}/votes` → 201; the full
+real signed-upload round trip (`POST /media/upload-signature` → real
+`api.cloudinary.com` upload → `POST /memes` with the returned `image_public_id`) → 201;
+`POST /meme-sending/ws-ticket` → 200; real WebSocket handshake against
+`/meme-sending/ws?ticket=...` → 101, held open, closed cleanly. All passed on the first
+run after fixing the `TOKENS_FILE` relative-path resolution (k6's `open()` resolves
+relative to the *calling file*, i.e. `loadtest/lib/users.js`, not the entry script -
+easy to get wrong once helpers live in a `lib/` subfolder). Seed data used for this and
+left in place for the next session/demo: 500 users, 3000 memes
+(`--users 500 --memes-per-user 6`).
 
-**DONE WHEN.** All four scenarios run clean locally.
+**DONE WHEN.** All four scenarios run clean locally. **Met, against the live cluster
+rather than Compose** (see implementation note for why that's an equal-or-stronger
+proof, not a shortcut). Full multi-minute scenario runs (the actual ramping-VU stages,
+as opposed to the one-shot smoke proof above) are D2/D3's job, not D1's - D1's bar is
+that the scenarios are correct and runnable, which is now demonstrated end-to-end.
 
 ---
 
 ### D2 — 10k run
 
-**STATUS:** PENDING
-**Est:** 3 days · ~$2 · **Stage:** D · **Blocks:** D3
+**STATUS:** IN PROGRESS (2026-09-01) — one real partial run completed (2,500 VUs, not
+yet the full 10k), stopped early by the project owner, but not wasted: it surfaced and
+led to fixing a genuine bottleneck. Scope note: the project owner capped this phase's
+target at **10k only** (an intermediate 20k option was considered and dropped) - see
+D3's STATUS for why 50k is out of scope entirely.
 
-**WHY.** More important than the number it produces: you need to **watch** pods multiply and
-Karpenter add nodes under real load. Until you've seen it, autoscaling is a config file you hope
-works.
+**Session note (2026-09-01) — what actually happened and was found.** Local laptop
+specs (4-core/8-thread, 16GB RAM) were checked before committing to a VU count -
+running k6 locally risks the *client* becoming the bottleneck before the backend does,
+so **k6 Cloud** (same Grafana Cloud account as C5) was used instead of a laptop or
+distributed-EC2 approach, specifically so results reflect the backend's real capacity.
+k6 Cloud's free-tier project defaulted to a 100 VU cap; the project owner raised it in
+their own project settings (10k VUs/test, 30k VUs/month) — but then hit a second,
+harder ceiling: k6 Cloud stack authentication initially failed because the assumed
+stack slug (`meme-platform`, chosen at signup) didn't match the actual auto-assigned
+slug (Grafana Cloud stack subdomains are globally unique - since `meme-platform` was
+presumably already taken, Grafana silently assigned a different one, e.g.
+`loyalgoldfinch815`, without surfacing that clearly during signup). Fixed by having the
+project owner paste their actual logged-in Grafana URL directly rather than guessing
+menu paths. **A real, live bug was then found and fixed mid-run**: at ~2,500 concurrent
+VUs, every API pod's readiness probe started failing
+(`sqlalchemy.exc.TimeoutError: QueuePool limit of size 5 overflow 5 reached`) - but
+`aws cloudwatch get-metric-statistics` for RDS showed CPU at only 5-12% and
+`DatabaseConnections` pegged exactly at **20**, proving the real ceiling was
+PgBouncer's own `default_pool_size = 20` (`infra/ephemeral/pgbouncer.tf`) - a pure
+configuration limit, not real database capacity (confirmed via
+`aws rds describe-db-parameters`: `db.t4g.micro`'s real `max_connections` ≈ 112).
+Raised to 60 and applied live (`terraform apply -target
+kubernetes_secret.pgbouncer_config` + `kubectl rollout restart deployment/pgbouncer`)
+while the k6 run continued uninterrupted from the project owner's laptop - all 8 API
+pods recovered to `Ready` within a minute. The project owner then stopped the run
+before a full summary was captured, and asked to destroy the cluster for a break -
+**the fix is applied and committed, but not yet re-validated against a full 10k run**.
+C5 (Grafana CloudWatch dashboard + IAM read-only user) was built and confirmed working
+in the same session - see C5's own section.
+
+**Resuming this phase**: rebuild `infra/ephemeral` (cluster destroyed 2026-09-01, see
+Global status), reseed load-test data if the previous 5000-user seed didn't survive the
+rebuild (`backend/scripts/seed_load_test_data.py --users 5000 --memes-per-user 4`,
+`kubectl exec` pattern in `loadtest/README.md`), then run the real `k6 cloud run -e
+TARGET_VUS=10000 loadtest/mixed.js` for the first time - the pgbouncer fix should
+already be in place from `infra/ephemeral/pgbouncer.tf` (persists across rebuilds,
+it's in the Terraform source, not a live-only patch).
 
 **IMPLEMENT.** Ramp to 10k over ~10 min, hold ~20 min, ramp down. Watch the C5 dashboard throughout.
 
@@ -1444,7 +1720,15 @@ estimates in §2.4.
 
 ### D3 — 50k burst
 
-**STATUS:** PENDING
+**STATUS:** DESCOPED (2026-09-01) — project owner decision: prove 10k (D2) only, skip
+the 50k burst run entirely. Rationale: 10k is the number this roadmap's title and the
+project owner's evaluation goal actually require ("accommodate 10k users at once");
+50k was always this document's stretch architecture goal (§2.4's "100k concurrent"
+framing), not a deliverable the project owner asked for. An intermediate 20k target
+was considered and also dropped in favor of going straight to proving 10k cleanly.
+Revisit only if a future need (funding, a larger real userbase) makes 50k+ relevant
+again — nothing about D1's scenarios or C4's autoscaling config needs to change to
+resume this later, it's purely a "did we run it" gap, not a capability gap.
 **Est:** 4 days · ~$5/run · **Stage:** D · **Blocks:** D4
 
 **WHY.** Something will break, and it will be specific — expect the DB connection ceiling or a
@@ -1468,7 +1752,11 @@ which is where that table gets its real entries.
 **Est:** 2 days · **Stage:** D · **Closes the roadmap**
 
 **WHY.** Six months from now, under real traffic pressure, you want a document that says "to serve
-50k, set these four values" — not a memory of having once tested something.
+10k, set these four values" — not a memory of having once tested something.
+
+**Scope note (2026-09-01):** D3 (50k) is descoped — see D3's STATUS. This phase now
+records D2's (10k) measured numbers only; §2.4's 50k/100k rows stay as estimates,
+explicitly labeled as such, until/unless D3 is resumed later.
 
 **IMPLEMENT.**
 1. Create `/.claude/memory/scaling.md` per the memory-system rules in root `CLAUDE.md`: measured

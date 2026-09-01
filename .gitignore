@@ -38,3 +38,8 @@ crash.*.log
 # Claude Code personal/session-local settings (permission rules etc.) — not shared with
 # the team via the committed project settings.json.
 .claude/settings.local.json
+
+# Roadmap_Scaling.md D1 — real minted JWTs for seeded load-test users (throwaway test
+# accounts against an ephemeral cluster, but a live signed token regardless).
+# Regenerate per session with backend/scripts/seed_load_test_data.py; never commit it.
+loadtest/tokens.json
