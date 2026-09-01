@@ -12,7 +12,6 @@ import DesktopInboxPanel from '@/components/web/DesktopInboxPanel';
 import { DESKTOP_FRAME_MIN_WIDTH } from '@/constants/webLayout';
 import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import { MergedFeedList } from '@/features/feed/components/MemeFeedList';
-import { ShareInstagramLinkModal } from '@/features/instagram-companion/ShareInstagramLinkModal';
 import { NavDrawer } from '@/features/navigation/NavDrawer';
 import type { MergedFeedItem } from '@/services/memes';
 import { useFeed } from '@/services/useMemes';
@@ -20,7 +19,6 @@ import { useFeed } from '@/services/useMemes';
 export default function FeedScreen() {
   const router = useRouter();
   const feedQuery = useFeed();
-  const [shareModalVisible, setShareModalVisible] = useState(false);
   const [drawerVisible, setDrawerVisible] = useState(false);
   const { width } = useWindowDimensions();
   const showDesktopInbox = Platform.OS === 'web' && width >= DESKTOP_FRAME_MIN_WIDTH;
@@ -64,13 +62,6 @@ export default function FeedScreen() {
         }
         rightActions={
           <>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Share an Instagram Reel"
-              onPress={() => setShareModalVisible(true)}
-              className="h-11 w-11 items-center justify-center">
-              <MaterialIcons name="add-link" size={22} color={c.heading} />
-            </Pressable>
             <NotificationBell />
             {showDesktopInbox ? null : (
               <Pressable
@@ -105,10 +96,6 @@ export default function FeedScreen() {
 
       <FloatingBottomNav active="feed" />
 
-      <ShareInstagramLinkModal
-        visible={shareModalVisible}
-        onClose={() => setShareModalVisible(false)}
-      />
       <NavDrawer visible={drawerVisible} onClose={() => setDrawerVisible(false)} />
     </SafeAreaView>
   );

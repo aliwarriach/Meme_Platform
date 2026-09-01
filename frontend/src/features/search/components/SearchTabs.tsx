@@ -53,7 +53,8 @@ export function SearchTabs({ sections, active, onChange }: SearchTabsProps) {
       // floating in the middle of it. An inline `style` prop is merged after the component's
       // internal default style array, so it reliably wins on both web and native.
       style={{ flexGrow: 0, flexShrink: 0 }}
-      className="px-4 pb-2">
+      contentContainerStyle={{ paddingHorizontal: 16 }}
+      className="pt-3 pb-2">
       <View className="flex-row items-center gap-2">
         {SEARCH_TAB_ORDER.map((tab) => {
           const section = sections[tab];

@@ -481,6 +481,7 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
       <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
         <TopBar title={community.name} showBack rightActions={pendingRequestsBadge} />
         <FlatList
+          key="leaderboard-list"
           data={leaderboardEntries}
           keyExtractor={(item) => item.user.id}
           renderItem={({ item }) => (
@@ -557,11 +558,12 @@ export default function CommunityDetailScreen({ communityId }: CommunityDetailSc
       <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
         <TopBar title={community.name} showBack rightActions={pendingRequestsBadge} />
         <FlatList
+          key="templates-grid"
           data={templates}
           keyExtractor={(item) => item.id}
           numColumns={3}
           ListHeaderComponent={header}
-          contentContainerStyle={{ paddingHorizontal: 8, paddingBottom: 40 }}
+          contentContainerStyle={{ paddingBottom: 40 }}
           onEndReachedThreshold={0.5}
           onEndReached={() => {
             if (templatesQuery.hasNextPage && !templatesQuery.isFetchingNextPage) {
