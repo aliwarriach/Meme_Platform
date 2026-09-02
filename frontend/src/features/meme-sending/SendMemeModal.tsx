@@ -7,7 +7,6 @@ import Avatar from '@/components/Avatar';
 import { BottomSheet } from '@/components/BottomSheet';
 import PillButton from '@/components/PillButton';
 import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
-import type { FriendResponse } from '@/services/friends';
 import { useFriendsList } from '@/services/useFriends';
 import { useSendMemeMutation } from '@/services/useMemeSending';
 
@@ -146,7 +145,7 @@ export function SendMemeModal({ memeId, visible, onClose }: SendMemeModalProps) 
             Add a friend first to send memes directly.
           </Text>
         ) : filteredFriends.length === 0 ? (
-          <Text className="px-4 py-6 font-body text-ink-muted">No friends match "{query}".</Text>
+          <Text className="px-4 py-6 font-body text-ink-muted">No friends match &quot;{query}&quot;.</Text>
         ) : (
           <FlatList
             style={{ flexGrow: 0, flexShrink: 1 }}

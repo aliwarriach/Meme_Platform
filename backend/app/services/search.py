@@ -8,8 +8,6 @@ one session raises `InvalidRequestError` at runtime. These are five short indexe
 `gather`.
 """
 
-import uuid
-
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 

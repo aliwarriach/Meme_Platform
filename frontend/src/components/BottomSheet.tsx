@@ -93,6 +93,9 @@ export function BottomSheet({ visible, onClose, children, maxHeightPercent = 80 
     .onUpdate((event) => {
       // Dragging the finger down should shrink the sheet; dragging up should grow it.
       const next = dragStartHeight.value - event.translationY;
+      // react-hooks/immutability doesn't understand Reanimated's SharedValue.value setter —
+      // mutating .value from a worklet is the documented, correct API, not a bug.
+      // eslint-disable-next-line react-hooks/immutability
       revealedHeight.value = Math.max(0, Math.min(expandedHeight, next));
     })
     .onEnd((event) => {
@@ -115,6 +118,7 @@ export function BottomSheet({ visible, onClose, children, maxHeightPercent = 80 
       }
 
       if (target === 0) {
+        // eslint-disable-next-line react-hooks/immutability -- see note above
         revealedHeight.value = withTiming(0, { duration: CLOSE_DURATION }, (finished) => {
           if (finished) {
             // Reset immediately (while hidden) rather than waiting for `visible` to flip back

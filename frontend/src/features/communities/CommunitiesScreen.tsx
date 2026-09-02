@@ -159,7 +159,7 @@ export default function CommunitiesScreen() {
               <Text className="font-body text-sm text-error">{discoverQuery.error?.message}</Text>
             ) : appliedSearch ? (
               <Text className="mt-8 text-center font-body text-sm text-ink-muted">
-                No communities match "{appliedSearch}".
+                No communities match &quot;{appliedSearch}&quot;.
               </Text>
             ) : (
               <Text className="mt-8 text-center font-body text-sm text-ink-muted">

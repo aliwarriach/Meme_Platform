@@ -84,7 +84,7 @@ export default function NewChatModal({ visible, onClose }: NewChatModalProps) {
             Add a friend first — you can only message accepted friends.
           </Text>
         ) : filteredFriends.length === 0 ? (
-          <Text className="px-4 py-6 font-body text-ink-muted">No friends match "{query}".</Text>
+          <Text className="px-4 py-6 font-body text-ink-muted">No friends match &quot;{query}&quot;.</Text>
         ) : (
           <FlatList
             style={{ flexGrow: 0, flexShrink: 1 }}

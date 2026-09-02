@@ -43,8 +43,19 @@ def upgrade() -> None:
     # NOTE: autogenerate also proposed `op.drop_table('imgflip_templates')` — that table is
     # pre-existing drift unrelated to this change (not modeled in SQLAlchemy at all), left
     # untouched here rather than dropped as an accidental side effect of this migration.
+    #
+    # `competition_period_type` was dropped by ff18f4b3fc3f's upgrade() (raw `DROP TYPE`,
+    # bypassing SQLAlchemy's own state tracking) and is being reintroduced here. Explicit
+    # raw CREATE, then the column type built as `postgresql.ENUM(..., create_type=False)`
+    # (not bare `sa.Enum` - a generic `sa.Enum` doesn't reliably honor `create_type` and
+    # still tries to emit its own CREATE TYPE, colliding with the one below) - same
+    # pattern already used by 969bf629bf4c for this exact type.
+    op.execute("CREATE TYPE competition_period_type AS ENUM ('day', 'week', 'month')")
+    competition_period_type = postgresql.ENUM(
+        "day", "week", "month", name="competition_period_type", create_type=False
+    )
     op.create_table('competition_winner_notifications',
-    sa.Column('period_type', sa.Enum('day', 'week', 'month', name='competition_period_type'), nullable=False),
+    sa.Column('period_type', competition_period_type, nullable=False),
     sa.Column('period_key', sa.String(length=16), nullable=False),
     sa.Column('id', sa.Uuid(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
@@ -66,6 +77,7 @@ def downgrade() -> None:
     op.drop_table('notification_cron_cursors')
     op.drop_table('competition_winner_notifications')
     # ### end Alembic commands ###
+    op.execute('DROP TYPE IF EXISTS competition_period_type')
 
     # Postgres has no `ALTER TYPE ... DROP VALUE` — same documented limitation as
     # 9c2a5e14d7f1_add_invited_membership_status.py. No-op; rows using any of the new

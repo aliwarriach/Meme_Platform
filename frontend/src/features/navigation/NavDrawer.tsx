@@ -55,6 +55,10 @@ export function NavDrawer({ visible, onClose }: NavDrawerProps) {
   const { mode, preference, setPreference } = useThemeMode();
   const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const user = useSelector((state: RootState) => state.auth.user);
+  // react-hooks/refs flags this as "accessing a ref during render", but it's the standard RN
+  // lazy-init pattern for a stable Animated.Value ref — reading .current on the ref you just
+  // created in the same expression, never a stale one from a prior render.
+  // eslint-disable-next-line react-hooks/refs
   const translateX = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
 
   useEffect(() => {

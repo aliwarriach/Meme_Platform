@@ -93,8 +93,15 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
+      # jest-expo@~57.0.2 requires @react-native/jest-preset@^0.86.2, but
+      # react-native@0.86.0 pins an exact (optional) peer of 0.86.0 for the same
+      # package - a genuine unresolvable-by-npm peer conflict, not lockfile drift.
+      # --legacy-peer-deps is the fix already validated for this exact conflict
+      # (see .claude/memory/project_run_setup.md): bumping/regenerating the
+      # lockfile instead floats other expo/native packages upward and has
+      # previously hard-crashed the pinned dev-client APK on dependency drift.
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --legacy-peer-deps
 
       - name: Typecheck
         run: npx tsc --noEmit

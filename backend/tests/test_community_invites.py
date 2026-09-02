@@ -84,7 +84,7 @@ async def test_cannot_invite_unknown_username(client: AsyncClient):
 async def test_non_member_cannot_invite(client: AsyncClient):
     alice = await create_user(client, "alice")
     bob = await create_user(client, "bob")
-    carol = await create_user(client, "carol")
+    await create_user(client, "carol")
     community = await _create_community(client, alice)
 
     response = await client.post(
@@ -96,7 +96,7 @@ async def test_non_member_cannot_invite(client: AsyncClient):
 async def test_any_active_member_can_invite_not_just_owner(client: AsyncClient):
     alice = await create_user(client, "alice")
     bob = await create_user(client, "bob")
-    carol = await create_user(client, "carol")
+    await create_user(client, "carol")
     community = await _create_community(client, alice)
     await client.post(f"/communities/{community['id']}/join", headers=auth_header(bob))
 
