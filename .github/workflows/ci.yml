@@ -103,6 +103,24 @@ jobs:
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
 
+      # expo-env.d.ts is deliberately gitignored (Expo's own convention — it's
+      # regenerated locally as a side effect of `expo start` actually booting the dev
+      # server) and tsconfig.json's `include` names it explicitly. Without it, its one
+      # `/// <reference types="expo/types" />` line never loads — which is what
+      # augments core react-native's `PressableStateCallbackType` with the
+      # `hovered`/`focused` fields every `.web.tsx` Pressable callback destructures —
+      # so a fresh CI checkout fails Typecheck on ~50 files with "Property 'hovered'
+      # does not exist" even though the app is correct. Content is Expo's own fixed,
+      # version-independent boilerplate (@expo/cli's writeExpoEnvDTS) — recreating it
+      # here avoids booting a full dev server just for this one static file.
+      - name: Generate expo-env.d.ts
+        run: |
+          cat > expo-env.d.ts <<'EOF'
+          /// <reference types="expo/types" />
+
+          // NOTE: This file should not be edited and should be in your git ignore
+          EOF
+
       - name: Typecheck
         run: npx tsc --noEmit
 
