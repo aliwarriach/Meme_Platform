@@ -1,5 +1,34 @@
 # challenges
 
+## 2026-09-02 — batched `_build_challenge_out` (N+1 fix on the Compete tab)
+Fixed the N+1 flagged in `.claude/memory/api_issues.md`: `_build_challenge_out` (per-challenge, ~6-8
+queries — participant roster, viewer-side resolution, `_side_scores`, participant counts, up to 4
+`db.get()` calls for creator/invitee/community/opponent) was reused unbatched in every list context
+(`list_my_challenges` — `GET /challenges/mine`, the Compete tab's primary list and **still
+unbounded/unpaginated**, `list_open_challenges`, `list_community_challenges`, `search.py::_search_challenges`).
+
+- New `_build_challenge_outs(db, challenges, viewer_id)` batches all of the above across the whole
+  list: one `ChallengeParticipant` select (`.in_(challenge_ids)`), one `_side_scores_batch` query
+  (renamed from `_side_scores`, which now just calls it with a one-element list — `side_id` is a
+  globally unique PK so grouping by it alone is correct even mixed across challenges), one
+  participant-count `GROUP BY`, one batched `User` select for every referenced `creator_id`/
+  `invitee_id`, one batched `CommunityMembership` select for the viewer's own memberships (feeds a
+  new synchronous `_resolve_viewer_side_id(challenge, viewer_id, side_member_ids, viewer_community_ids)`
+  — no longer async/DB-querying itself). `_build_challenge_out` (singular) is now a one-line wrapper
+  (`(await _build_challenge_outs(db, [challenge], viewer_id))[0]`) so every single-challenge call site
+  (`get_challenge`, create/accept/submit/etc.) is unchanged and there's exactly one code path.
+- **Also stopped re-fetching `community`/`opponent_community`/`hashtag` via `db.get()`** — those are
+  `lazy="selectin"` relationships on `Challenge` (`models/challenge.py`), so SQLAlchemy already issues
+  one batched SELECT for the whole loaded list the moment `select(Challenge)` runs; the old code's
+  `db.get()` calls were a second, fully redundant round trip per challenge even in the single-item path.
+- Response shape (`ChallengeOut`) is byte-for-byte unchanged — pure data-fetching rewrite, zero
+  frontend/client impact. All 55 tests in `test_challenges.py`/`test_open_challenges.py`/
+  `test_search.py` pass unchanged.
+- **Not done**: pagination on `GET /challenges/mine`/`GET /challenges/open` — still returns every
+  challenge across the caller's full membership history with no `limit`/cursor. `api_issues.md`
+  recommends this as a separate follow-up (needs `useMyChallenges()`/`useOpenChallenges()` +
+  `CompeteScreen` frontend changes too, unlike the batching fix which was backend-only).
+
 ## 2026-08-27 — Roadmap_Search.md S1 + S4 (hashtag reservation lifecycle, `viewer_side_id`)
 
 **S1 — reservation is no longer permanent.** `create_open_challenge` (`services/challenges.py`) now

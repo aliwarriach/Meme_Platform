@@ -10,7 +10,7 @@ const IS_PRODUCTION_BUILD = process.env.EAS_BUILD_PROFILE === 'production';
 module.exports = {
   expo: {
     name: 'mosh',
-    slug: 'mosh',
+    slug: 'frontend',
     version: '1.0.0',
     orientation: 'portrait',
     icon: './assets/images/icon.png',

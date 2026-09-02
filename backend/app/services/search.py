@@ -24,7 +24,7 @@ from app.schemas.search import SearchAllOut, SearchScope, SearchSection
 from app.services import communities as communities_service
 from app.services import hashtags as hashtags_service
 from app.services import users as users_service
-from app.services.challenges import _build_challenge_out, challenge_visibility_clause
+from app.services.challenges import _build_challenge_outs, challenge_visibility_clause
 from app.services.hashtags import _NON_ALNUM
 from app.services.memes import get_hot_ranked_memes, meme_visibility_clause
 
@@ -102,7 +102,7 @@ async def _search_challenges(
     has_more = len(rows) > limit
     rows = rows[:limit]
 
-    items = [await _build_challenge_out(db, c, viewer_id=viewer.id) for c in rows]
+    items = await _build_challenge_outs(db, list(rows), viewer_id=viewer.id)
     return _section(items, has_more)
 
 

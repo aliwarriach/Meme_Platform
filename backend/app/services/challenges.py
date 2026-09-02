@@ -222,10 +222,20 @@ async def _get_challenge_or_404(db: AsyncSession, challenge_id: uuid.UUID) -> Ch
 
 
 async def _side_scores(db: AsyncSession, challenge_id: uuid.UUID) -> dict[uuid.UUID, float]:
-    """Live per-side totals via the [[scoring-engine]] atom, in one query rather than one
-    per side. Sides with no submissions are absent from the result — callers must default
-    them to 0.0 (`evaluate_challenge`'s tie detection depends on every side having a score,
-    including the all-zero case).
+    """Single-challenge convenience wrapper — see `_side_scores_batch`, which this delegates
+    to unchanged (a `side_id` is a globally unique PK, so scoping the batch query to one
+    challenge id is exactly this function's original single-challenge behavior)."""
+    return await _side_scores_batch(db, [challenge_id])
+
+
+async def _side_scores_batch(db: AsyncSession, challenge_ids: list[uuid.UUID]) -> dict[uuid.UUID, float]:
+    """Live per-side totals via the [[scoring-engine]] atom, batched across one or many
+    challenges in a single query — `ChallengeSide.id` is a globally unique PK (not scoped to
+    one challenge), so grouping by `side_id` alone still produces correct per-side results
+    even when `challenge_ids` spans many unrelated challenges at once. Sides with no
+    submissions are absent from the result — callers must default them to 0.0
+    (`evaluate_challenge`'s tie detection depends on every side having a score, including the
+    all-zero case).
 
     Two anti-gaming levers are baked in, and they are what make `open` challenges — where
     anyone can join any side — safe to run at all. A plain `SUM` means the side that posts
@@ -250,6 +260,9 @@ async def _side_scores(db: AsyncSession, challenge_id: uuid.UUID) -> dict[uuid.U
     a deleted post can never be *freshly* nominated into a challenge, see
     `submit_to_challenge`'s deleted-meme check, but one already counted stays counted).
     """
+    if not challenge_ids:
+        return {}
+
     atom = meme_score_expr()
     ranked = (
         select(
@@ -265,7 +278,7 @@ async def _side_scores(db: AsyncSession, challenge_id: uuid.UUID) -> dict[uuid.U
         )
         .select_from(ChallengeSubmission)
         .join(Meme, Meme.id == ChallengeSubmission.meme_id)
-        .where(ChallengeSubmission.challenge_id == challenge_id)
+        .where(ChallengeSubmission.challenge_id.in_(challenge_ids))
         .subquery()
     )
 
@@ -285,25 +298,32 @@ async def _side_scores(db: AsyncSession, challenge_id: uuid.UUID) -> dict[uuid.U
     }
 
 
-async def _resolve_viewer_side_id(
-    db: AsyncSession,
+def _resolve_viewer_side_id(
     challenge: Challenge,
     viewer_id: uuid.UUID | None,
     side_member_ids: dict[uuid.UUID, list[uuid.UUID]],
+    viewer_community_ids: set[uuid.UUID],
 ) -> uuid.UUID | None:
     """Which side, if any, the viewer is already on — backs `ChallengeOut.viewer_side_id`
     (Roadmap_Search.md §1.8). Read-only and silent: unlike `_resolve_caller_side` (used at
     submission time, which raises for an ineligible caller), this simply returns `None` for
     a non-participant or an ambiguous `community_vs_community` membership (both/neither
     community), so every viewer of a challenge — not just its participants — can fetch it.
+
+    Synchronous and DB-free: `viewer_community_ids` (the viewer's own active memberships
+    across every community referenced by the whole list being built) is resolved once by
+    `_build_challenge_outs` for the entire list, rather than this function querying
+    membership per challenge — the shape that made `_build_challenge_out` N+1 in a list
+    context (see `.claude/memory/api_issues.md`).
     """
     if viewer_id is None:
         return None
 
     if challenge.challenge_type == ChallengeType.community_vs_community:
-        is_home_member = await _is_active_member(db, challenge.community_id, viewer_id)
-        is_opponent_member = challenge.opponent_community_id is not None and await _is_active_member(
-            db, challenge.opponent_community_id, viewer_id
+        is_home_member = challenge.community_id in viewer_community_ids
+        is_opponent_member = (
+            challenge.opponent_community_id is not None
+            and challenge.opponent_community_id in viewer_community_ids
         )
         if is_home_member == is_opponent_member:
             # Member of both (ambiguous, same guard as submission) or of neither.
@@ -324,85 +344,144 @@ async def _resolve_viewer_side_id(
 async def _build_challenge_out(
     db: AsyncSession, challenge: Challenge, viewer_id: uuid.UUID | None = None
 ) -> ChallengeOut:
-    side_member_ids: dict[uuid.UUID, list[uuid.UUID]] = {side.id: [] for side in challenge.sides}
+    """Single-challenge convenience wrapper around `_build_challenge_outs` — see there for
+    the real logic. Kept as its own function since every detail/mutation endpoint
+    (`get_challenge`, create/accept/submit/etc.) only ever has one challenge in hand and
+    reads better calling this than wrapping a list every time."""
+    return (await _build_challenge_outs(db, [challenge], viewer_id=viewer_id))[0]
+
+
+async def _build_challenge_outs(
+    db: AsyncSession, challenges: list[Challenge], viewer_id: uuid.UUID | None = None
+) -> list[ChallengeOut]:
+    """Batched builder used by every list-producing caller (`list_my_challenges`,
+    `list_open_challenges`, `list_community_challenges`, challenge search) — and, via
+    `_build_challenge_out`, by every single-challenge caller too, so there is exactly one
+    code path to keep correct. Collapses what used to be ~6-8 queries *per challenge* down to
+    a fixed handful for the whole list (see `.claude/memory/api_issues.md`'s N+1 finding).
+
+    `community`/`opponent_community`/`hashtag` are read off the ORM relationship rather than
+    fetched via `db.get()` — those are declared `lazy="selectin"` on `Challenge`
+    (`models/challenge.py`), so SQLAlchemy already issued one batched SELECT covering every
+    challenge in `challenges` the moment they were loaded; a per-challenge `db.get()` here
+    would have been a second, redundant round trip for data already in memory.
+    """
+    if not challenges:
+        return []
+
+    challenge_ids = [c.id for c in challenges]
+
+    # Every side's roster, one query for the whole list.
+    side_member_ids: dict[uuid.UUID, list[uuid.UUID]] = {
+        side.id: [] for challenge in challenges for side in challenge.sides
+    }
     if side_member_ids:
         result = await db.execute(
-            select(ChallengeParticipant).where(
-                ChallengeParticipant.challenge_id == challenge.id
-            )
+            select(ChallengeParticipant).where(ChallengeParticipant.challenge_id.in_(challenge_ids))
         )
         for participant in result.scalars().all():
             side_member_ids.setdefault(participant.side_id, []).append(participant.user_id)
 
-    viewer_side_id = await _resolve_viewer_side_id(db, challenge, viewer_id, side_member_ids)
+    # Live scoreboard for every side across every challenge, one query. A competitor must be
+    # able to see whether their side is winning *during* the window, not only at results time.
+    scores = await _side_scores_batch(db, challenge_ids)
 
-    # Live scoreboard: a competitor must be able to see whether their side is winning
-    # *during* the window, not only at results time.
-    scores = await _side_scores(db, challenge.id)
-
+    # Participant counts per side across every challenge, one query.
     participant_counts = dict(
         (
             await db.execute(
                 select(ChallengeParticipant.side_id, func.count(ChallengeParticipant.id))
-                .where(ChallengeParticipant.challenge_id == challenge.id)
+                .where(ChallengeParticipant.challenge_id.in_(challenge_ids))
                 .group_by(ChallengeParticipant.side_id)
             )
         ).all()
     )
 
-    creator = await db.get(User, challenge.creator_id)
-    invitee = (
-        await db.get(User, challenge.invitee_id) if challenge.invitee_id is not None else None
-    )
-    community = (
-        await db.get(Community, challenge.community_id)
-        if challenge.community_id is not None
-        else None
-    )
-    opponent = (
-        await db.get(Community, challenge.opponent_community_id)
-        if challenge.opponent_community_id is not None
-        else None
-    )
-    hashtag = (
-        await db.get(Hashtag, challenge.hashtag_id) if challenge.hashtag_id is not None else None
+    # Every referenced creator/invitee, fetched once instead of via `db.get()` per challenge —
+    # there's no ORM relationship for these (plain `creator_id`/`invitee_id` FK columns).
+    user_ids = {c.creator_id for c in challenges} | {
+        c.invitee_id for c in challenges if c.invitee_id is not None
+    }
+    users_by_id = (
+        {u.id: u for u in (await db.execute(select(User).where(User.id.in_(user_ids)))).scalars().all()}
+        if user_ids
+        else {}
     )
 
-    return ChallengeOut(
-        id=challenge.id,
-        community_id=challenge.community_id,
-        community_name=community.name if community else None,
-        opponent_community_id=challenge.opponent_community_id,
-        opponent_community_name=opponent.name if opponent else None,
-        hashtag=hashtag.slug if hashtag else None,
-        creator=PublicUserOut.model_validate(creator),
-        invitee_id=challenge.invitee_id,
-        invitee=PublicUserOut.model_validate(invitee) if invitee else None,
-        title=challenge.title,
-        challenge_type=challenge.challenge_type,
-        status=challenge.status,
-        start_time=challenge.start_time,
-        end_time=challenge.end_time,
-        winning_side_id=challenge.winning_side_id,
-        viewer_side_id=viewer_side_id,
-        sides=[
-            ChallengeSideOut(
-                id=side.id,
-                name=side.name,
-                community_id=side.community_id,
-                # An open challenge's roster is unbounded — send the count, not thousands
-                # of ids. Community shapes keep the explicit roster the UI already uses.
-                member_ids=(
-                    []
-                    if challenge.challenge_type == ChallengeType.open
-                    else side_member_ids.get(side.id, [])
-                ),
-                participant_count=participant_counts.get(side.id, 0),
-                score=scores.get(side.id, 0.0),
+    # Viewer's own active memberships across every referenced community, one query, so
+    # per-challenge `community_vs_community` viewer-side resolution (below) doesn't re-query
+    # membership once per challenge.
+    viewer_community_ids: set[uuid.UUID] = set()
+    if viewer_id is not None:
+        referenced_community_ids = {
+            c.community_id for c in challenges if c.community_id is not None
+        } | {c.opponent_community_id for c in challenges if c.opponent_community_id is not None}
+        if referenced_community_ids:
+            viewer_community_ids = set(
+                (
+                    await db.execute(
+                        select(CommunityMembership.community_id).where(
+                            CommunityMembership.community_id.in_(referenced_community_ids),
+                            CommunityMembership.user_id == viewer_id,
+                            CommunityMembership.status == MembershipStatus.active,
+                        )
+                    )
+                )
+                .scalars()
+                .all()
             )
-            for side in challenge.sides
-        ],
-    )
+
+    outs = []
+    for challenge in challenges:
+        viewer_side_id = _resolve_viewer_side_id(
+            challenge, viewer_id, side_member_ids, viewer_community_ids
+        )
+        creator = users_by_id.get(challenge.creator_id)
+        invitee = (
+            users_by_id.get(challenge.invitee_id) if challenge.invitee_id is not None else None
+        )
+
+        outs.append(
+            ChallengeOut(
+                id=challenge.id,
+                community_id=challenge.community_id,
+                community_name=challenge.community.name if challenge.community else None,
+                opponent_community_id=challenge.opponent_community_id,
+                opponent_community_name=(
+                    challenge.opponent_community.name if challenge.opponent_community else None
+                ),
+                hashtag=challenge.hashtag.slug if challenge.hashtag else None,
+                creator=PublicUserOut.model_validate(creator),
+                invitee_id=challenge.invitee_id,
+                invitee=PublicUserOut.model_validate(invitee) if invitee else None,
+                title=challenge.title,
+                challenge_type=challenge.challenge_type,
+                status=challenge.status,
+                start_time=challenge.start_time,
+                end_time=challenge.end_time,
+                winning_side_id=challenge.winning_side_id,
+                viewer_side_id=viewer_side_id,
+                sides=[
+                    ChallengeSideOut(
+                        id=side.id,
+                        name=side.name,
+                        community_id=side.community_id,
+                        # An open challenge's roster is unbounded — send the count, not
+                        # thousands of ids. Community shapes keep the explicit roster the UI
+                        # already uses.
+                        member_ids=(
+                            []
+                            if challenge.challenge_type == ChallengeType.open
+                            else side_member_ids.get(side.id, [])
+                        ),
+                        participant_count=participant_counts.get(side.id, 0),
+                        score=scores.get(side.id, 0.0),
+                    )
+                    for side in challenge.sides
+                ],
+            )
+        )
+    return outs
 
 
 async def create_challenge(
@@ -701,10 +780,7 @@ async def list_open_challenges(db: AsyncSession, current_user: User) -> list[Cha
         )
         .order_by(Challenge.end_time.asc())
     )
-    return [
-        await _build_challenge_out(db, challenge, viewer_id=current_user.id)
-        for challenge in result.scalars().all()
-    ]
+    return await _build_challenge_outs(db, list(result.scalars().all()), viewer_id=current_user.id)
 
 
 async def _get_pending_proposal_for_opponent_owner(
@@ -977,10 +1053,7 @@ async def list_community_challenges(
             and c.status in (ChallengeStatus.active, ChallengeStatus.evaluated)
         ]
 
-    return [
-        await _build_challenge_out(db, challenge, viewer_id=current_user.id)
-        for challenge in challenges
-    ]
+    return await _build_challenge_outs(db, challenges, viewer_id=current_user.id)
 
 
 async def _get_caller_side_intra_community(
@@ -1308,10 +1381,7 @@ async def list_my_challenges(db: AsyncSession, current_user: User) -> list[Chall
         )
         .order_by(status_rank, sort_time)
     )
-    return [
-        await _build_challenge_out(db, challenge, viewer_id=current_user.id)
-        for challenge in result.scalars().all()
-    ]
+    return await _build_challenge_outs(db, list(result.scalars().all()), viewer_id=current_user.id)
 
 
 async def evaluate_challenge(db: AsyncSession, challenge_id: uuid.UUID) -> Challenge:
