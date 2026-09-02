@@ -27,12 +27,15 @@ from app.routers import (
     hashtags,
     health,
     instagram,
+    internal_metrics,
     leaderboards,
     media,
     meme_sending,
     memes,
     messaging,
     notifications,
+    profiles,
+    search,
     templates,
 )
 from app.websockets.connection_manager import connection_manager
@@ -187,9 +190,12 @@ app.include_router(competitions.router)
 app.include_router(challenges.router)
 app.include_router(challenges.flat_router)
 app.include_router(hashtags.router)
+app.include_router(search.router)
 app.include_router(meme_sending.router)
 app.include_router(messaging.router)
 app.include_router(notifications.router)
 app.include_router(ai_caption.router)
 app.include_router(instagram.router)
+app.include_router(profiles.router)
 app.include_router(health.router)
+app.include_router(internal_metrics.router)

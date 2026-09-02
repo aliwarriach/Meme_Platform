@@ -37,17 +37,15 @@ const STATUS_STYLES: Record<string, string> = {
  * flat hooks instead of threading an optional communityId through the community-scoped flow.
  *
  * `open` challenges have an unbounded roster — `ChallengeSideOut.member_ids` is always `[]`
- * for them (see hashtags.md/challenges.md), so there's no server signal for "which side is
- * the viewer already on." Join state is tracked locally after a successful join instead —
- * honest for this session, resets on remount, and a re-join attempt is treated as
- * informational (not an error) rather than guessing which side the 400 refers to.
+ * for them (see hashtags.md/challenges.md) — but `ChallengeOut.viewer_side_id` (Roadmap_Search.md
+ * S4) now gives a real server signal for "which side is the viewer already on," so this
+ * survives an app restart instead of resetting on remount like the old local-state version.
  */
 export default function DuelDetailScreen({ challengeId }: FlatChallengeDetailScreenProps) {
   const { mode } = useThemeMode();
   const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const router = useRouter();
   const currentUser = useSelector((state: RootState) => state.auth.user);
-  const [locallyJoinedSideId, setLocallyJoinedSideId] = useState<string | null>(null);
   const [joinNotice, setJoinNotice] = useState<string | null>(null);
 
   const challengeQuery = useChallengeFlat(challengeId);
@@ -77,10 +75,7 @@ export default function DuelDetailScreen({ challengeId }: FlatChallengeDetailScr
 
   const isOpenChallenge = challenge.challenge_type === 'open';
   const isInvitee = challenge.invitee_id === currentUser?.id;
-  const mySideId =
-    challenge.sides.find((side) => side.member_ids.includes(currentUser?.id ?? ''))?.id ??
-    locallyJoinedSideId ??
-    undefined;
+  const mySideId = challenge.viewer_side_id ?? undefined;
   const winningSide = challenge.sides.find((side) => side.id === challenge.winning_side_id);
   const submissions = resultsQuery.data?.submissions ?? [];
 
@@ -88,10 +83,7 @@ export default function DuelDetailScreen({ challengeId }: FlatChallengeDetailScr
     setJoinNotice(null);
     joinChallenge.mutate(
       { challengeId, sideId },
-      {
-        onSuccess: () => setLocallyJoinedSideId(sideId),
-        onError: () => setJoinNotice("You've already picked a side in this challenge."),
-      }
+      { onError: () => setJoinNotice("You've already picked a side in this challenge.") }
     );
   };
 

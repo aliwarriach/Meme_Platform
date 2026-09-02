@@ -1,0 +1,122 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_CLOUDWATCH",
+      "label": "CloudWatch",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "cloudwatch",
+      "pluginName": "CloudWatch"
+    }
+  ],
+  "title": "Meme Platform - Load Test",
+  "uid": "meme-platform-loadtest",
+  "timezone": "browser",
+  "refresh": "10s",
+  "time": { "from": "now-30m", "to": "now" },
+  "schemaVersion": 39,
+  "panels": [
+    {
+      "id": 1,
+      "title": "ALB p95 Latency (TargetResponseTime)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "cloudwatch", "uid": "${DS_CLOUDWATCH}" },
+      "fieldConfig": {
+        "defaults": { "unit": "s" },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "cloudwatch", "uid": "${DS_CLOUDWATCH}" },
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "TargetResponseTime",
+          "statistic": "p95",
+          "period": "60",
+          "dimensions": {
+            "LoadBalancer": "app/k8s-memeplatformalb-04bb02ce0f/86017e0afd73dbd9"
+          },
+          "region": "us-east-1",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Error Rate (5XX vs total requests)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "cloudwatch", "uid": "${DS_CLOUDWATCH}" },
+      "targets": [
+        {
+          "datasource": { "type": "cloudwatch", "uid": "${DS_CLOUDWATCH}" },
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "HTTPCode_Target_5XX_Count",
+          "statistic": "Sum",
+          "period": "60",
+          "dimensions": {
+            "LoadBalancer": "app/k8s-memeplatformalb-04bb02ce0f/86017e0afd73dbd9"
+          },
+          "region": "us-east-1",
+          "refId": "A",
+          "label": "5XX errors"
+        },
+        {
+          "datasource": { "type": "cloudwatch", "uid": "${DS_CLOUDWATCH}" },
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "RequestCount",
+          "statistic": "Sum",
+          "period": "60",
+          "dimensions": {
+            "LoadBalancer": "app/k8s-memeplatformalb-04bb02ce0f/86017e0afd73dbd9"
+          },
+          "region": "us-east-1",
+          "refId": "B",
+          "label": "Total requests"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "RDS DB Connections In Use",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "cloudwatch", "uid": "${DS_CLOUDWATCH}" },
+      "targets": [
+        {
+          "datasource": { "type": "cloudwatch", "uid": "${DS_CLOUDWATCH}" },
+          "namespace": "AWS/RDS",
+          "metricName": "DatabaseConnections",
+          "statistic": "Average",
+          "period": "60",
+          "dimensions": {
+            "DBInstanceIdentifier": "meme-platform-postgres"
+          },
+          "region": "us-east-1",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "ALB Requests/min (api target group)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "cloudwatch", "uid": "${DS_CLOUDWATCH}" },
+      "targets": [
+        {
+          "datasource": { "type": "cloudwatch", "uid": "${DS_CLOUDWATCH}" },
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "RequestCountPerTarget",
+          "statistic": "Sum",
+          "period": "60",
+          "dimensions": {
+            "TargetGroup": "targetgroup/k8s-default-api-2c33f51791/368a9422fef240b5"
+          },
+          "region": "us-east-1",
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}

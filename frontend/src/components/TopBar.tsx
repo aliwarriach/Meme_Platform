@@ -8,13 +8,29 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 
 type TopBarProps = {
-  title: string;
+  title?: string;
   showBack?: boolean;
+  /** Rendered in the same left slot as the back arrow — mutually exclusive with `showBack`
+   * (a screen that needs a back arrow never also needs a hamburger, and vice versa). */
+  leftActions?: ReactNode;
   rightActions?: ReactNode;
+  /** Optional element (e.g. an avatar) rendered immediately before the title text, in the
+   * centered title slot. Ignored when `titleContent` is given. */
+  titleAdornment?: ReactNode;
+  /** Replaces the centered title slot entirely (adornment + text) with arbitrary content
+   * that fills the available width — e.g. an inline search bar. `title` is then unused. */
+  titleContent?: ReactNode;
 };
 
-/** Shared top app bar: back arrow (optional) + pure-white title + right-aligned action icons. */
-export default function TopBar({ title, showBack = false, rightActions }: TopBarProps) {
+/** Shared top app bar: back arrow/left action (optional) + pure-white title + right-aligned action icons. */
+export default function TopBar({
+  title,
+  showBack = false,
+  leftActions,
+  rightActions,
+  titleAdornment,
+  titleContent,
+}: TopBarProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { mode } = useThemeMode();
@@ -33,11 +49,22 @@ export default function TopBar({ title, showBack = false, rightActions }: TopBar
             className="h-11 w-11 items-center justify-center">
             <MaterialIcons name="arrow-back" size={24} color={c.heading} />
           </Pressable>
-        ) : null}
+        ) : (
+          leftActions ?? null
+        )}
       </View>
-      <Text className="font-heading text-lg text-heading" numberOfLines={1}>
-        {title}
-      </Text>
+      <View className="flex-1 flex-row items-center justify-center gap-2">
+        {titleContent ?? (
+          <>
+            {titleAdornment}
+            {title ? (
+              <Text className="font-heading text-lg text-heading" numberOfLines={1}>
+                {title}
+              </Text>
+            ) : null}
+          </>
+        )}
+      </View>
       <View className="min-w-[44px] flex-row items-center justify-end gap-1">{rightActions}</View>
     </View>
   );

@@ -23,6 +23,26 @@ function isAtLeast13(dateOfBirth: string): boolean {
   return age >= MINIMUM_AGE_YEARS;
 }
 
+export const forgotPasswordRequestSchema = z.object({
+  email: z.string().email('Enter a valid email address'),
+});
+export type ForgotPasswordRequestFormValues = z.infer<typeof forgotPasswordRequestSchema>;
+
+// Mirrors registerSchema's password rule (min 8) so the two "set a password" flows in this
+// app enforce the same strength requirement — see registerSchema's own MINIMUM_AGE_YEARS
+// comment above for why client-side checks here still defer to the server as the real gate.
+export const resetPasswordConfirmSchema = z
+  .object({
+    code: z.string().length(6, 'Enter the 6-digit code'),
+    newPassword: z.string().min(8, 'At least 8 characters'),
+    confirmPassword: z.string().min(1, 'Re-enter your new password'),
+  })
+  .refine((values) => values.newPassword === values.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword'],
+  });
+export type ResetPasswordConfirmFormValues = z.infer<typeof resetPasswordConfirmSchema>;
+
 export const registerSchema = z.object({
   email: z.string().email('Enter a valid email address'),
   username: z

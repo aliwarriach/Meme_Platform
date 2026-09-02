@@ -198,10 +198,15 @@ export function useCreateAndSubmitToChallengeMutation() {
   return useMutation<
     ChallengeSubmissionResponse,
     Error,
-    { challengeId: string; image: { uri: string; name: string; type: string }; caption?: string }
+    {
+      challengeId: string;
+      image: { uri: string; name: string; type: string };
+      caption?: string;
+      editorDocumentJson?: string;
+    }
   >({
-    mutationFn: async ({ challengeId, image, caption }) => {
-      const response = await createAndSubmitToChallengeRequest(challengeId, image, caption);
+    mutationFn: async ({ challengeId, image, caption, editorDocumentJson }) => {
+      const response = await createAndSubmitToChallengeRequest(challengeId, image, caption, editorDocumentJson);
       if (!response.ok || !response.data) throwApiError(response, 'submit to challenge');
       return response.data;
     },

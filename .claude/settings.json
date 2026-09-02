@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/ux-audit-stop.js",
+            "timeout": 15,
+            "statusMessage": "Checking whether UI changes need an edge-case UX audit..."
+          }
+        ]
+      }
+    ]
+  }
+}

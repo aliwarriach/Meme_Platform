@@ -1,5 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
@@ -7,7 +8,7 @@ import { useThemeMode } from '@/constants/ThemeMode';
 
 import VotePill from '@/components/VotePill';
 import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
-import { ContainerCommentsSection } from '@/features/instagram-companion/ContainerCommentsSection';
+import { ContainerCommentsModal } from '@/features/instagram-companion/ContainerCommentsModal';
 import type { MemeContainerResponse } from '@/services/instagram';
 import { useCastContainerVoteMutation, useRecordContainerViewMutation } from '@/services/useInstagram';
 import { timeAgo } from '@/utils/timeAgo';
@@ -31,6 +32,7 @@ const INSTAGRAM_HOST_RE = /^https:\/\/(www\.)?instagram\.com(\/|$)/i;
 // public post page directly (read-only preview) rather than a proper oEmbed embed. Swaps
 // cleanly once real oEmbed HTML is available server-side, per the pluggable-fetcher design.
 export function ContainerCard({ container }: ContainerCardProps) {
+  const router = useRouter();
   const { mode } = useThemeMode();
   const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const [commentsOpen, setCommentsOpen] = useState(false);
@@ -47,16 +49,20 @@ export function ContainerCard({ container }: ContainerCardProps) {
       ref={cardRef}
       className="mx-3 mb-4 overflow-hidden rounded-card border border-outline-variant/30 bg-surface pb-3">
       <View className="flex-row items-center px-4 py-3">
-        <View className="mr-3 h-8 w-8 items-center justify-center rounded-full bg-secondary-container">
-          <MaterialIcons name="camera-alt" size={16} color={c.white} />
-        </View>
-        <View className="flex-1 flex-row items-center justify-between">
-          <View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Open ${container.submitter.username}'s profile`}
+          onPress={() => router.push({ pathname: '/users/[id]', params: { id: container.submitter.id } })}
+          className="flex-1 flex-row items-center">
+          <View className="mr-3 h-8 w-8 items-center justify-center rounded-full bg-secondary-container">
+            <MaterialIcons name="camera-alt" size={16} color={c.white} />
+          </View>
+          <View className="flex-1">
             <Text className="font-title text-sm text-heading">{container.submitter.username}</Text>
             <Text className="font-body text-xs text-ink-muted">shared from Instagram</Text>
           </View>
-          <Text className="font-body text-xs text-ink-muted">{timeAgo(container.created_at)}</Text>
-        </View>
+        </Pressable>
+        <Text className="font-body text-xs text-ink-muted">{timeAgo(container.created_at)}</Text>
       </View>
 
       <View style={{ width: '100%', aspectRatio: 4 / 5 }} className="bg-black">
@@ -130,7 +136,11 @@ export function ContainerCard({ container }: ContainerCardProps) {
         <Text className="px-4 pt-1 font-body text-xs text-error">{castVote.error?.message}</Text>
       ) : null}
 
-      {commentsOpen ? <ContainerCommentsSection containerId={container.id} /> : null}
+      <ContainerCommentsModal
+        containerId={container.id}
+        visible={commentsOpen}
+        onClose={() => setCommentsOpen(false)}
+      />
     </View>
   );
 }

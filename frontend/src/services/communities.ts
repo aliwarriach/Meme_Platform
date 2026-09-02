@@ -1,10 +1,10 @@
 import { api } from '@/services/api';
 import type { PublicUserResponse } from '@/services/auth';
-import { appendImageToFormData } from '@/utils/multipartImage';
+import { uploadImageDirect } from '@/services/media';
 
 export type CommunityPrivacy = 'open' | 'invite_only';
 export type MembershipRole = 'owner' | 'member';
-export type MembershipStatus = 'pending' | 'active';
+export type MembershipStatus = 'pending' | 'active' | 'invited';
 
 export interface CommunityResponse {
   id: string;
@@ -12,6 +12,7 @@ export interface CommunityResponse {
   name: string;
   description: string | null;
   icon_url: string | null;
+  icon_preset: string | null;
   banner_url: string | null;
   privacy: CommunityPrivacy;
   member_count: number;
@@ -33,12 +34,16 @@ export interface MembershipResponse {
   created_at: string;
 }
 
-export function getCommunitiesRequest(params: { cursor?: string; limit?: number }) {
+export function getCommunitiesRequest(params: { cursor?: string; limit?: number; q?: string }) {
   return api.get<CommunityPageResponse>('/communities', params);
 }
 
 export function getMyCommunitiesRequest() {
   return api.get<CommunityResponse[]>('/communities/mine');
+}
+
+export function getInvitedCommunitiesRequest() {
+  return api.get<CommunityResponse[]>('/communities/invited');
 }
 
 export function getCommunityRequest(communityId: string) {
@@ -52,14 +57,58 @@ export async function createCommunityRequest(payload: {
   icon?: { uri: string; name: string; type: string };
   banner?: { uri: string; name: string; type: string };
 }) {
+  // Roadmap_Scaling.md A4 — image bytes go straight to Cloudinary; only the confirmed
+  // public_id is sent to our own backend. Icon/banner are each independently optional.
+  const [iconPublicId, bannerPublicId] = await Promise.all([
+    payload.icon ? uploadImageDirect(payload.icon, 'communities') : Promise.resolve(undefined),
+    payload.banner ? uploadImageDirect(payload.banner, 'communities') : Promise.resolve(undefined),
+  ]);
+
   const form = new FormData();
   form.append('name', payload.name);
   form.append('privacy', payload.privacy);
   if (payload.description) form.append('description', payload.description);
-  if (payload.icon) await appendImageToFormData(form, 'icon', payload.icon);
-  if (payload.banner) await appendImageToFormData(form, 'banner', payload.banner);
+  if (iconPublicId) form.append('icon_public_id', iconPublicId);
+  if (bannerPublicId) form.append('banner_public_id', bannerPublicId);
 
   return api.post<CommunityResponse>('/communities', form, {
+    headers: { 'Content-Type': undefined },
+  });
+}
+
+/** Icon has four mutually exclusive moves (upload, direct-upload public_id, a built-in preset,
+ * or clear); banner has two (upload/public_id, or clear) — no preset system, see
+ * `services/communities.py::update_community_media`. Owner-only server-side. */
+export type UpdateCommunityIconPayload =
+  | { kind: 'public_id'; icon_public_id: string }
+  | { kind: 'preset'; icon_preset: string }
+  | { kind: 'clear' };
+
+export type UpdateCommunityBannerPayload = { kind: 'public_id'; banner_public_id: string } | { kind: 'clear' };
+
+export function updateCommunityIconRequest(communityId: string, payload: UpdateCommunityIconPayload) {
+  const form = new FormData();
+  if (payload.kind === 'public_id') form.append('icon_public_id', payload.icon_public_id);
+  else if (payload.kind === 'preset') form.append('icon_preset', payload.icon_preset);
+  else form.append('clear_icon', 'true');
+  return api.patch<CommunityResponse>(`/communities/${communityId}`, form, {
+    headers: { 'Content-Type': undefined },
+  });
+}
+
+export function updateCommunityBannerRequest(communityId: string, payload: UpdateCommunityBannerPayload) {
+  const form = new FormData();
+  if (payload.kind === 'public_id') form.append('banner_public_id', payload.banner_public_id);
+  else form.append('clear_banner', 'true');
+  return api.patch<CommunityResponse>(`/communities/${communityId}`, form, {
+    headers: { 'Content-Type': undefined },
+  });
+}
+
+export function inviteToCommunityRequest(communityId: string, username: string) {
+  const form = new FormData();
+  form.append('username', username);
+  return api.post<MembershipResponse>(`/communities/${communityId}/invites`, form, {
     headers: { 'Content-Type': undefined },
   });
 }

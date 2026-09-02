@@ -22,6 +22,15 @@ const ICON_BY_TYPE: Record<NotificationType, keyof typeof MaterialIcons.glyphMap
   challenge_ending_soon: 'timer',
   challenge_side_overtaken: 'trending-up',
   challenge_results: 'emoji-events',
+  friend_request_received: 'person-add',
+  friend_request_accepted: 'how-to-reg',
+  community_join_request: 'group-add',
+  community_join_approved: 'check-circle-outline',
+  community_join_rejected: 'cancel',
+  community_post_removed: 'delete-outline',
+  meme_comment_received: 'chat-bubble-outline',
+  meme_upvotes_received: 'thumb-up',
+  competition_won: 'emoji-events',
 };
 
 function NotificationRow({ notification }: { notification: NotificationResponse }) {
@@ -46,6 +55,28 @@ function NotificationRow({ notification }: { notification: NotificationResponse 
           router.push({
             pathname: '/inbox/[conversationId]',
             params: { conversationId: notification.data.conversation_id },
+          });
+        } else if (notification.data.meme_id) {
+          router.push({ pathname: '/memes/[id]', params: { id: notification.data.meme_id } });
+        } else if (notification.data.community_id) {
+          router.push({
+            pathname: '/communities/[id]',
+            params: {
+              id: notification.data.community_id,
+              // A new join request needs the owner looking at the requests list, not the
+              // community's default Feed tab — everything else community-related (approved/
+              // rejected/post-removed) is purely informational and the default tab is fine.
+              ...(notification.type === 'community_join_request'
+                ? { tab: 'members', openRequests: '1' }
+                : {}),
+            },
+          });
+        } else if (notification.data.friendship_id) {
+          router.push('/friends');
+        } else if (notification.data.period_type) {
+          router.push({
+            pathname: '/voting',
+            params: { period: notification.data.period_type },
           });
         }
       }}
@@ -104,7 +135,8 @@ export default function NotificationsScreen() {
         <Text className="px-4 pt-4 font-body text-error">{notificationsQuery.error?.message}</Text>
       ) : items.length === 0 ? (
         <Text className="px-4 pt-4 font-body text-ink-muted">
-          Nothing yet — challenge invites, results, and updates will show up here.
+          Nothing yet — friend requests, community activity, comments, and challenge/contest
+          updates will show up here.
         </Text>
       ) : (
         <FlatList

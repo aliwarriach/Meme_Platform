@@ -1,14 +1,22 @@
 import datetime
 import enum
 import uuid
+from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, ForeignKeyConstraint, String
+from sqlalchemy import DateTime, ForeignKey, ForeignKeyConstraint, Index, String, text
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, UUIDPKMixin
 from app.models.community import Community
 from app.models.hashtag import Hashtag
+
+if TYPE_CHECKING:
+    # Genuine circular reference at the model level (ChallengeSide.challenge points back
+    # here) — SQLAlchemy resolves the "ChallengeSide" string below via its own mapper
+    # registry at configure time, not via this import, so this exists purely so
+    # ruff/type-checkers can see what the forward reference refers to.
+    from app.models.challenge_side import ChallengeSide
 
 
 class ChallengeType(str, enum.Enum):
@@ -61,10 +69,12 @@ class Challenge(UUIDPKMixin, TimestampMixin, Base):
     # needing a single unresolvable table-creation/drop order (matches the migration's
     # create_foreign_key done after both tables exist).
     winning_side_id: Mapped[uuid.UUID | None] = mapped_column(default=None)
-    # `open` challenges only: the tag that enters a meme into this challenge. Unique, so a
-    # tag can only ever be reserved by one challenge — no squatting an active competition.
+    # `open` challenges only: the tag that enters a meme into this challenge. Uniqueness is
+    # enforced by the partial index below (`uq_challenge_live_hashtag`), not a plain unique
+    # column — a reservation only holds while the challenge is `setup`/`active`; once
+    # `evaluated` the tag is free for the next challenge to reserve (Roadmap_Search.md S1).
     hashtag_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("hashtags.id", ondelete="RESTRICT"), unique=True, index=True, default=None
+        ForeignKey("hashtags.id", ondelete="RESTRICT"), index=True, default=None
     )
     # `duel` only: the challenged friend, set at proposal time. Needed because a duel has no
     # `ChallengeParticipant` row for the invitee until they accept — without this column
@@ -108,5 +118,14 @@ class Challenge(UUIDPKMixin, TimestampMixin, Base):
             ondelete="SET NULL",
             use_alter=True,
             name="fk_challenges_leading_side_id_challenge_sides",
+        ),
+        # A tag reservation only holds while the challenge is live — once evaluated, the
+        # tag is free. Mirrors the partial index created by hand in the migration so
+        # Base.metadata.create_all (used by the test suite) produces the same constraint.
+        Index(
+            "uq_challenge_live_hashtag",
+            "hashtag_id",
+            unique=True,
+            postgresql_where=text("hashtag_id IS NOT NULL AND status <> 'evaluated'"),
         ),
     )

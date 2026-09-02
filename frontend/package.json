@@ -1,5 +1,5 @@
 {
-  "name": "frontend",
+  "name": "mosh",
   "main": "expo-router/entry",
   "version": "1.0.0",
   "dependencies": {
@@ -12,6 +12,7 @@
     "@expo/ui": "57.0.7",
     "@expo/vector-icons": "^15.0.2",
     "@hookform/resolvers": "^5.4.0",
+    "@react-native-community/datetimepicker": "9.1.0",
     "@reduxjs/toolkit": "^2.12.0",
     "@shopify/react-native-skia": "2.6.2",
     "@tanstack/react-query": "^5.101.3",
@@ -47,6 +48,7 @@
     "react-hook-form": "^7.82.0",
     "react-native": "0.86.0",
     "react-native-gesture-handler": "~2.32.0",
+    "react-native-keyboard-controller": "^1.21.9",
     "react-native-reanimated": "4.5.0",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "4.25.2",

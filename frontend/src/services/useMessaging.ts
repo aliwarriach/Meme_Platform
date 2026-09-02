@@ -91,6 +91,7 @@ function pendingMessage(
       username: sender.username,
       bio: sender.bio,
       avatar_url: sender.avatarUrl,
+      avatar_preset: sender.avatarPreset,
     },
     kind: payload.kind,
     body: payload.kind === 'text' ? payload.body : null,

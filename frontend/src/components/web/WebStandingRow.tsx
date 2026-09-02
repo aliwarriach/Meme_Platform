@@ -39,9 +39,11 @@ export function WebStandingRow({ entry, onPress }: WebStandingRowProps) {
 
   const { content } = entry;
   const isContainer = content.kind === 'container';
-  const imageUrl = isContainer ? content.container.thumbnail_url : content.meme.image_url;
-  const authorName = isContainer ? content.container.submitter.username : content.meme.author.username;
-  const caption = isContainer ? content.container.title : content.meme.caption;
+  // A live standings entry never carries a deleted (meme: null) placeholder — see
+  // StandingRow.tsx's identical comment.
+  const imageUrl = isContainer ? content.container.thumbnail_url : content.meme!.image_url;
+  const authorName = isContainer ? content.container.submitter.username : content.meme!.author.username;
+  const caption = isContainer ? content.container.title : content.meme!.caption;
   const tierFill =
     entry.rank === 1 ? colors.accentGold : entry.rank === 2 ? colors.rankSilver : entry.rank === 3 ? colors.rankBronze : undefined;
   const tierText = entry.rank === 1 || entry.rank === 2 ? colors.onAccentInk : colors.onAccent;

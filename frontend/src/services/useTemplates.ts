@@ -3,6 +3,7 @@ import { useInfiniteQuery, useMutation, useQueryClient, type InfiniteData } from
 import { throwApiError } from '@/services/api';
 import {
   createTemplateRequest,
+  deleteCommunityTemplateRequest,
   getCommunityTemplatesRequest,
   getTemplatesRequest,
   type TemplatePageResponse,
@@ -31,7 +32,7 @@ export function useTemplates() {
   });
 }
 
-export function useCommunityTemplates(communityId: string) {
+export function useCommunityTemplates(communityId: string, enabled = true) {
   const queryKey = communityTemplatesKey(communityId);
   return useInfiniteQuery<
     TemplatePageResponse,
@@ -51,6 +52,7 @@ export function useCommunityTemplates(communityId: string) {
       return response.data;
     },
     getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
+    enabled: enabled && !!communityId,
   });
 }
 
@@ -72,6 +74,20 @@ export function useCreateTemplateMutation() {
       } else {
         queryClient.invalidateQueries({ queryKey: templatesKey });
       }
+    },
+  });
+}
+
+// Owner-only — see `deleteCommunityTemplateRequest`.
+export function useDeleteCommunityTemplateMutation(communityId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, string>({
+    mutationFn: async (templateId) => {
+      const response = await deleteCommunityTemplateRequest(communityId, templateId);
+      if (!response.ok) throwApiError(response, 'delete template');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: communityTemplatesKey(communityId) });
     },
   });
 }

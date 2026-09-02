@@ -1,0 +1,9 @@
+# Local/dev scale profile — matches A7's docker-compose.scale.yml proportions.
+# Since C4, api/worker's replicaCount below only sets the *initial* count at first
+# install — HPA/KEDA own live scaling from there (see values.yaml).
+api:
+  replicaCount: 2
+realtime:
+  replicaCount: 2
+worker:
+  replicaCount: 1

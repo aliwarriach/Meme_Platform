@@ -14,10 +14,12 @@ from app.core.exceptions import (
     UserNotFoundError,
 )
 from app.models.friendship import Friendship, FriendshipStatus
+from app.models.notification import NotificationType
 from app.models.user import User
 from app.schemas.auth import PublicUserOut
 from app.schemas.friends import FriendOut, FriendRequestCreate
 from app.services import blocks as blocks_service
+from app.services import notifications as notifications_service
 from app.services import users as users_service
 
 
@@ -66,6 +68,15 @@ async def send_friend_request(
             "A friendship or pending request already exists between these users"
         ) from None
     await db.refresh(friendship)
+
+    await notifications_service.notify_one(
+        db,
+        target.id,
+        NotificationType.friend_request_received,
+        title=f"{current_user.username} sent you a friend request",
+        body="Tap to view and respond.",
+        data={"friendship_id": str(friendship.id)},
+    )
     return friendship
 
 
@@ -83,6 +94,15 @@ async def accept_friend_request(
     friendship.status = FriendshipStatus.accepted
     await db.commit()
     await db.refresh(friendship)
+
+    await notifications_service.notify_one(
+        db,
+        friendship.requester_id,
+        NotificationType.friend_request_accepted,
+        title=f"{current_user.username} accepted your friend request",
+        body="You're now friends.",
+        data={"friendship_id": str(friendship.id)},
+    )
     return friendship
 
 
@@ -127,6 +147,20 @@ async def are_friends(db: AsyncSession, user_a_id: uuid.UUID, user_b_id: uuid.UU
         return False
     friendship = await _get_friendship_between(db, user_a_id, user_b_id)
     return friendship is not None and friendship.status == FriendshipStatus.accepted
+
+
+async def has_pending_outgoing_request(
+    db: AsyncSession, requester_id: uuid.UUID, addressee_id: uuid.UUID
+) -> bool:
+    """True only if `requester_id` is the one who sent a still-pending request to
+    `addressee_id` — direction matters (an incoming request the viewer hasn't acted on
+    yet is a different UI state, handled by `list_incoming_requests`, not this)."""
+    friendship = await _get_friendship_between(db, requester_id, addressee_id)
+    return (
+        friendship is not None
+        and friendship.status == FriendshipStatus.pending
+        and friendship.requester_id == requester_id
+    )
 
 
 async def list_incoming_requests(db: AsyncSession, current_user: User) -> list[Friendship]:

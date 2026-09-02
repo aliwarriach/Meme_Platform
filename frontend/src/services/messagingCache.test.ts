@@ -23,6 +23,7 @@ const alice: PublicUserResponse = {
   username: 'alice',
   bio: null,
   avatar_url: null,
+  avatar_preset: null,
 };
 
 const bob: PublicUserResponse = { ...alice, id: 'user-2', username: 'bob' };

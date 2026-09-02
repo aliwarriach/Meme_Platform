@@ -20,3 +20,26 @@
 
 .DS_Store
 Thumbs.db
+
+# Terraform (Roadmap_Scaling.md B2) — state can contain resource attributes that are
+# effectively secrets (RDS/ElastiCache endpoints, etc.), and .tfvars often carries
+# environment-specific values not meant for git. Remote state lives in S3; nothing
+# Terraform-related belongs in this repo's history.
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+*.tfplan
+crash.log
+crash.*.log
+
+# Claude Code personal/session-local settings (permission rules etc.) — not shared with
+# the team via the committed project settings.json.
+.claude/settings.local.json
+
+# Roadmap_Scaling.md D1 — real minted JWTs for seeded load-test users (throwaway test
+# accounts against an ephemeral cluster, but a live signed token regardless).
+# Regenerate per session with backend/scripts/seed_load_test_data.py; never commit it.
+loadtest/tokens.json

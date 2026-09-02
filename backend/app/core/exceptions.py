@@ -72,6 +72,21 @@ class InvalidImageSourceError(DomainError):
     status_code = status.HTTP_400_BAD_REQUEST
 
 
+class InvalidAvatarPresetError(DomainError):
+    """`avatar_preset` must be one of the server's fixed preset ids — never trust a
+    client-supplied id used as-is, even though it's just a display token today."""
+
+    status_code = status.HTTP_400_BAD_REQUEST
+
+
+class InvalidBioError(DomainError):
+    """A bio may have at most 6 newlines (7 lines) — the frontend's editor enforces this
+    interactively, but the API is the real boundary, so it's re-checked here regardless
+    of what a given client build actually sent."""
+
+    status_code = status.HTTP_400_BAD_REQUEST
+
+
 class UploadSignatureNotFoundError(DomainError):
     """The `public_id` was never issued by `POST /media/upload-signature`, or its
     15-minute pending window already expired (Roadmap_Scaling.md A4)."""
@@ -93,6 +108,18 @@ class MemeNotFoundError(DomainError):
 
 class NotMemeAuthorError(DomainError):
     status_code = status.HTTP_403_FORBIDDEN
+
+
+class TemplateNotFoundError(DomainError):
+    status_code = status.HTTP_404_NOT_FOUND
+
+
+class InvalidEditorDocumentError(DomainError):
+    """`editor_document_json` didn't parse as a JSON object, or exceeded the size cap —
+    never trust client-supplied JSON blindly, even for an opaque, backend-uninspected
+    payload (Roadmap_UX_Overhaul.md, meme edit)."""
+
+    status_code = status.HTTP_400_BAD_REQUEST
 
 
 class CommentNotFoundError(DomainError):
@@ -181,6 +208,22 @@ class HashtagNotFoundError(DomainError):
 
 class HashtagAlreadyReservedError(DomainError):
     """A challenge already owns this tag — reserving it twice would make entry ambiguous."""
+
+    status_code = status.HTTP_409_CONFLICT
+
+
+class TooManyActiveReservationsError(DomainError):
+    """One active hashtag reservation per user at a time (Roadmap_Search.md S1) — stops one
+    account bulk-reserving every valuable tag on the platform. The platform system account
+    is exempt (its weekly auto-challenge always needs a fresh reservation)."""
+
+    status_code = status.HTTP_409_CONFLICT
+
+
+class HashtagTooPopularToReserveError(DomainError):
+    """The tag already has enough organic activity that it belongs to the community, not to
+    one challenge (Roadmap_Search.md S1). Not retroactive — a tag that becomes popular
+    *during* a challenge is unaffected."""
 
     status_code = status.HTTP_409_CONFLICT
 

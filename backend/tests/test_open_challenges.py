@@ -6,10 +6,19 @@ posting with the challenge's reserved tag. Also covers the two anti-gaming lever
 """
 
 import datetime
+import uuid
 
 from httpx import AsyncClient
+from sqlalchemy import select
 
-from tests.conftest import auth_header, create_user
+from app.core.security import hash_password
+from app.models.challenge import Challenge
+from app.models.hashtag import Hashtag, MemeHashtag
+from app.models.meme import Meme
+from app.models.user import User
+from app.services.challenges import evaluate_challenge
+from app.workers.tasks.notifications import create_weekly_open_challenge as weekly_cron_job
+from tests.conftest import TestSessionFactory, auth_header, create_user
 
 FUTURE = lambda minutes=10: (  # noqa: E731
     datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=minutes)
@@ -268,7 +277,7 @@ async def test_hashtag_detail_reports_its_challenge(client: AsyncClient):
     body = (await client.get("/hashtags/DogsVsCats", headers=auth_header(alice))).json()
 
     assert body["slug"] == "dogsvscats"
-    assert body["challenge_id"] == challenge["id"]
+    assert body["active_challenge"]["id"] == challenge["id"]
 
 
 async def test_unknown_hashtag_is_404(client: AsyncClient):
@@ -320,3 +329,215 @@ async def test_many_contributors_beat_one_prolific_poster(client: AsyncClient):
     assert dogs == 75
     assert cats > dogs
     assert round(cats, 2) == round(75 * (1 + 0.47712125471966244), 2)
+
+
+# --- S1: reservation lifecycle + anti-squatting -------------------------------------
+
+
+async def test_tag_reservation_releases_once_the_challenge_is_evaluated(client: AsyncClient):
+    alice = await create_user(client, "alice")
+    bob = await create_user(client, "bob")
+    challenge = (await _create_open(client, alice, hashtag="release")).json()
+
+    # Still active — a second challenge on the same tag is rejected.
+    assert (await _create_open(client, bob, hashtag="release")).status_code == 409
+
+    async with TestSessionFactory() as session:
+        await evaluate_challenge(session, uuid.UUID(challenge["id"]))
+
+    # Evaluated — the tag is free again.
+    response = await _create_open(client, bob, hashtag="release")
+    assert response.status_code == 201
+
+
+async def test_open_challenge_rejects_windows_over_14_days_accepts_exactly_14(
+    client: AsyncClient,
+):
+    alice = await create_user(client, "alice")
+    # Derived from one `now` reference rather than PAST()/FUTURE() (which each sample
+    # datetime.now() independently) — the exactly-14-days case has zero slack, and two
+    # separate now() calls even a few milliseconds apart would push the real duration a
+    # hair over the boundary and flip the assertion.
+    now = datetime.datetime.now(datetime.timezone.utc)
+
+    too_long = await _create_open(
+        client,
+        alice,
+        hashtag="toolong",
+        start_time=now.isoformat(),
+        end_time=(now + datetime.timedelta(days=15)).isoformat(),
+    )
+    assert too_long.status_code == 400
+
+    exactly_14_days = await _create_open(
+        client,
+        alice,
+        hashtag="exact14",
+        start_time=now.isoformat(),
+        end_time=(now + datetime.timedelta(days=14)).isoformat(),
+    )
+    assert exactly_14_days.status_code == 201
+
+
+async def test_user_limited_to_one_active_reservation_at_a_time(client: AsyncClient):
+    alice = await create_user(client, "alice")
+
+    first = await _create_open(client, alice, hashtag="first")
+    assert first.status_code == 201
+
+    second = await _create_open(client, alice, hashtag="second")
+    assert second.status_code == 409
+
+    async with TestSessionFactory() as session:
+        await evaluate_challenge(session, uuid.UUID(first.json()["id"]))
+
+    third = await _create_open(client, alice, hashtag="third")
+    assert third.status_code == 201
+
+
+async def test_platform_account_is_exempt_from_the_per_user_reservation_cap(client: AsyncClient):
+    # The weekly cron reuses the same platform account across runs; the per-user cap would
+    # otherwise permanently block every week after the first.
+    assert (await weekly_cron_job({})) is True
+
+    async with TestSessionFactory() as session:
+        slugs = (await session.execute(select(Hashtag.slug))).scalars().all()
+    assert any(slug.startswith("weekly") for slug in slugs)
+
+
+async def test_popular_tag_cannot_be_newly_reserved(client: AsyncClient):
+    """50 memes from 20 distinct authors — both the authors and the meme rows are inserted
+    directly rather than through the HTTP API, since the popularity check only counts rows
+    (`MemeHashtag`/`Meme.author_id`, needing real `User` rows only for the FK) and 20 real
+    `POST /auth/register` calls would trip its `5/minute` rate limit.
+    """
+    alice = await create_user(client, "alice")
+
+    async with TestSessionFactory() as session:
+        author_ids = []
+        for i in range(20):
+            user = User(
+                email=f"popuser{i}@test.com",
+                username=f"popuser{i}",
+                hashed_password=hash_password("password123"),
+            )
+            session.add(user)
+            await session.flush()
+            author_ids.append(user.id)
+
+        hashtag = Hashtag(slug="popular", display_text="popular")
+        session.add(hashtag)
+        await session.flush()
+        for author_id in author_ids:
+            for _ in range(3):
+                meme = Meme(
+                    author_id=author_id, image_url="https://example.com/x.png", image_public_id="x"
+                )
+                session.add(meme)
+                await session.flush()
+                session.add(MemeHashtag(meme_id=meme.id, hashtag_id=hashtag.id))
+        await session.commit()
+
+    response = await _create_open(client, alice, hashtag="popular")
+    assert response.status_code == 409
+
+
+async def test_popular_tag_below_author_threshold_can_be_reserved(client: AsyncClient):
+    alice = await create_user(client, "alice")
+
+    async with TestSessionFactory() as session:
+        hashtag = Hashtag(slug="nichebutbusy", display_text="nichebutbusy")
+        session.add(hashtag)
+        await session.flush()
+        author_id = uuid.UUID(alice["user"]["id"])
+        for _ in range(50):
+            meme = Meme(
+                author_id=author_id, image_url="https://example.com/x.png", image_public_id="x"
+            )
+            session.add(meme)
+            await session.flush()
+            session.add(MemeHashtag(meme_id=meme.id, hashtag_id=hashtag.id))
+        await session.commit()
+
+    # 50 memes but only 1 distinct author — both thresholds are required, so this is
+    # still reservable.
+    response = await _create_open(client, alice, hashtag="nichebutbusy")
+    assert response.status_code == 201
+
+
+async def test_hashtag_detail_reports_both_active_and_recent_result_challenge(
+    client: AsyncClient,
+):
+    alice = await create_user(client, "alice")
+    challenge = (await _create_open(client, alice, hashtag="doubleheader")).json()
+
+    body = (await client.get("/hashtags/doubleheader", headers=auth_header(alice))).json()
+    assert body["active_challenge"]["id"] == challenge["id"]
+    assert body["recent_result_challenge"] is None
+
+    async with TestSessionFactory() as session:
+        await evaluate_challenge(session, uuid.UUID(challenge["id"]))
+
+    after_eval = (await client.get("/hashtags/doubleheader", headers=auth_header(alice))).json()
+    assert after_eval["active_challenge"] is None
+    assert after_eval["recent_result_challenge"]["id"] == challenge["id"]
+
+
+async def test_hashtag_detail_drops_result_card_after_24h(client: AsyncClient):
+    alice = await create_user(client, "alice")
+    challenge = (
+        await _create_open(
+            client, alice, hashtag="stale", start_time=PAST(60 * 30), end_time=PAST(60 * 25)
+        )
+    ).json()
+
+    async with TestSessionFactory() as session:
+        await evaluate_challenge(session, uuid.UUID(challenge["id"]))
+
+    body = (await client.get("/hashtags/stale", headers=auth_header(alice))).json()
+    assert body["recent_result_challenge"] is None
+
+
+async def test_weekly_cron_idempotent_even_after_evaluation(client: AsyncClient):
+    assert (await weekly_cron_job({})) is True
+
+    iso_year, iso_week, _ = datetime.datetime.now(datetime.timezone.utc).isocalendar()
+    slug = f"weekly{iso_year}w{iso_week:02d}"
+
+    async with TestSessionFactory() as session:
+        hashtag = (await session.execute(select(Hashtag).where(Hashtag.slug == slug))).scalar_one()
+        challenge = (
+            await session.execute(select(Challenge).where(Challenge.hashtag_id == hashtag.id))
+        ).scalar_one()
+        await evaluate_challenge(session, challenge.id)
+
+    # Re-running within the same ISO week must still be a no-op, even though the
+    # reservation itself has been released by evaluation.
+    assert (await weekly_cron_job({})) is False
+
+
+# --- S4: viewer_side_id --------------------------------------------------------------
+
+
+async def test_viewer_side_id_reflects_the_callers_own_join_and_survives_a_refetch(
+    client: AsyncClient,
+):
+    alice = await create_user(client, "alice")
+    bob = await create_user(client, "bob")
+    challenge = (await _create_open(client, alice)).json()
+    # Not joined yet.
+    assert challenge["viewer_side_id"] is None
+
+    await _join(client, bob, challenge, "Cats")
+
+    # A fresh fetch (simulating an app restart, not local component state) still reports it.
+    refetched = (
+        await client.get(f"/challenges/{challenge['id']}", headers=auth_header(bob))
+    ).json()
+    assert refetched["viewer_side_id"] == _side(challenge, "Cats")["id"]
+
+    # A non-participant viewing the same challenge sees None, not bob's side.
+    alice_view = (
+        await client.get(f"/challenges/{challenge['id']}", headers=auth_header(alice))
+    ).json()
+    assert alice_view["viewer_side_id"] is None

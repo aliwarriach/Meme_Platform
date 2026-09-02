@@ -1,7 +1,8 @@
 import { format } from 'date-fns';
 import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { VaporwaveTheme } from '@/constants/webFeedThemeVapor';
 import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
@@ -25,6 +26,7 @@ interface WebMessageBubbleProps {
  * the system's pink-heavy chrome.
  */
 export default function WebMessageBubble({ message, isOwn, isPending }: WebMessageBubbleProps) {
+  const router = useRouter();
   const { colors, type, radius, spacing } = useVaporwaveTheme();
   const styles = useMemo(() => createStyles(colors, radius, spacing), [colors, radius, spacing]);
 
@@ -33,12 +35,16 @@ export default function WebMessageBubble({ message, isOwn, isPending }: WebMessa
       <View style={[styles.bubble, isOwn ? styles.bubbleOwn : styles.bubbleOther, isPending && styles.pending]}>
         {message.kind === 'meme' ? (
           message.meme ? (
-            <View accessibilityLabel={`Meme from ${message.sender.username}`}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Open meme from ${message.sender.username}`}
+              disabled={isPending}
+              onPress={() => router.push({ pathname: '/memes/[id]', params: { id: message.meme!.id } })}>
               <Image source={{ uri: message.meme.image_url }} style={styles.memeImage} contentFit="cover" />
               {message.meme.caption ? (
                 <Text style={[type.body, styles.memeCaption]}>{message.meme.caption}</Text>
               ) : null}
-            </View>
+            </Pressable>
           ) : (
             <Text style={[type.body, styles.unavailableText]}>
               {isPending ? 'Sending meme…' : 'This meme is no longer available'}

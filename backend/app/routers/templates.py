@@ -12,13 +12,19 @@ router = APIRouter(prefix="/templates", tags=["templates"])
 
 @router.post("", response_model=TemplateOut, status_code=201)
 async def create_template(
-    image: UploadFile,
     current_user: CurrentUser,
     db: DbSession,
     name: Annotated[str, Form(min_length=1, max_length=100)],
+    image: UploadFile | None = None,
+    image_public_id: Annotated[str | None, Form()] = None,
     community_id: Annotated[uuid.UUID | None, Form()] = None,
 ) -> TemplateOut:
-    return await templates_service.create_template(db, current_user, name, image, community_id)
+    """`image` (legacy multipart upload) and `image_public_id` (Roadmap_Scaling.md A4's
+    direct-to-Cloudinary flow — confirm the `public_id` from
+    `POST /media/upload-signature`) are mutually exclusive; exactly one is required."""
+    return await templates_service.create_template(
+        db, current_user, name, image, community_id, image_public_id=image_public_id
+    )
 
 
 @router.get("", response_model=TemplatePage)

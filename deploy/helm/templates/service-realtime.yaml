@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: realtime
+  labels:
+    {{- include "meme-platform.labels" . | nindent 4 }}
+    app: realtime
+spec:
+  # Sticky sessions + the ALB `/ws` route are C3's job (Ingress annotations need the
+  # AWS Load Balancer Controller, not installed yet) — this Service just gives C3
+  # something stable to route to.
+  selector:
+    app: realtime
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

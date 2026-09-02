@@ -2,6 +2,8 @@ import uuid
 
 from pydantic import BaseModel, ConfigDict
 
+from app.schemas.challenges import ChallengeOut
+
 
 class HashtagOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -10,8 +12,12 @@ class HashtagOut(BaseModel):
     slug: str
     display_text: str
     meme_count: int
-    # Set when an open challenge has reserved this tag — posting with it is how you enter.
-    challenge_id: uuid.UUID | None = None
+    # The currently-active challenge reserving this tag, if any (at most one, guaranteed by
+    # the partial unique index on `challenges.hashtag_id`).
+    active_challenge: ChallengeOut | None = None
+    # A challenge on this tag that finished within the last 24h — the tag screen's "Final
+    # results" card. Disappears once >24h old.
+    recent_result_challenge: ChallengeOut | None = None
 
 
 class HashtagSuggestion(BaseModel):

@@ -5,25 +5,37 @@ from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import Select
 
+from app.core.exceptions import InvalidImageSourceError, TemplateNotFoundError
 from app.core.pagination import decode_cursor, encode_cursor
 from app.models.template import Template
 from app.models.user import User
 from app.schemas.templates import TemplateOut, TemplatePage
-from app.services.communities import require_active_membership
-from app.services.media import validate_and_upload_image
+from app.services.communities import _get_community_or_404, _require_owner, require_active_membership
+from app.services.media import confirm_pending_upload, delete_uploaded_image, validate_and_upload_image
 
 
 async def create_template(
     db: AsyncSession,
     current_user: User,
     name: str,
-    image: UploadFile,
+    image: UploadFile | None,
     community_id: uuid.UUID | None = None,
+    image_public_id: str | None = None,
 ) -> TemplateOut:
+    """`image` (legacy multipart upload) and `image_public_id` (Roadmap_Scaling.md A4's
+    direct-to-Cloudinary flow — confirm the `public_id` from
+    `POST /media/upload-signature`) are mutually exclusive; exactly one is required."""
     if community_id is not None:
         await require_active_membership(db, community_id, current_user.id)
 
-    image_url, image_public_id = await validate_and_upload_image(image, folder="templates")
+    if image_public_id is not None:
+        if image is not None:
+            raise InvalidImageSourceError("Provide either an image file or image_public_id, not both")
+        image_url, image_public_id = await confirm_pending_upload(current_user.id, image_public_id)
+    elif image is not None:
+        image_url, image_public_id = await validate_and_upload_image(image, folder="templates")
+    else:
+        raise InvalidImageSourceError("An image file or image_public_id is required")
 
     template = Template(
         uploader_id=current_user.id,
@@ -81,3 +93,25 @@ async def list_community_templates(
     await require_active_membership(db, community_id, current_user.id)
     base_stmt = select(Template).where(Template.community_id == community_id)
     return await _paginate_templates(db, base_stmt, cursor, limit)
+
+
+async def delete_community_template(
+    db: AsyncSession, current_user: User, community_id: uuid.UUID, template_id: uuid.UUID
+) -> None:
+    """Owner-only — a community owner can remove **any** template from their own
+    community's private library, regardless of who uploaded it (the same "owner manages
+    everything in their own community" precedent as challenges/members/join-requests).
+    Templates have no soft-delete mixin (nothing else references a template by id, unlike
+    a `Meme` whose score/challenge history must survive deletion) — this is a real row
+    delete plus best-effort Cloudinary cleanup, same pattern as `services/memes.py::delete_meme`.
+    """
+    community = await _get_community_or_404(db, community_id)
+    _require_owner(community, current_user)
+
+    template = await db.get(Template, template_id)
+    if template is None or template.community_id != community_id:
+        raise TemplateNotFoundError("Template not found")
+
+    await db.delete(template)
+    await db.commit()
+    await delete_uploaded_image(template.image_public_id)

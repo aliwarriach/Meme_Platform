@@ -1,4 +1,5 @@
 import { MaterialIcons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -7,6 +8,9 @@ import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 
 interface WebProfileTopBarProps {
   title: string;
+  /** Set when viewing another user's profile (drill-in from Friends) — the own-profile route
+   * still has no back affordance, matching the doc comment below. */
+  showBack?: boolean;
 }
 
 /** react-native-web extends Pressable's style-callback state with `hovered`/`focused` at
@@ -33,7 +37,8 @@ interface WebPressableState {
  * later Vaporwave topbar — `WebVotingTopBar`, `WebLeaderboardsTopBar` — standardized on, after
  * `WebFriendsTopBar`/`WebFeedTopBar` shipped without one).
  */
-export default function WebProfileTopBar({ title }: WebProfileTopBarProps) {
+export default function WebProfileTopBar({ title, showBack = false }: WebProfileTopBarProps) {
+  const router = useRouter();
   const { colors, type, radius, spacing, mode, toggleMode } = useVaporwaveTheme();
   const styles = useMemo(() => createStyles(colors, radius, spacing), [colors, radius, spacing]);
   // Focus-ring color must be mode-conditional, not a fixed token: indigoPrimary (bright cyan)
@@ -44,21 +49,38 @@ export default function WebProfileTopBar({ title }: WebProfileTopBarProps) {
 
   return (
     <View style={styles.root}>
-      <Text style={[type.h2, styles.title]} numberOfLines={1}>
-        {title}
-      </Text>
+      <View style={styles.leftGroup}>
+        {showBack ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            onPress={() => router.back()}
+            style={({ hovered, focused }: WebPressableState) => [
+              styles.iconButton,
+              hovered && styles.iconButtonHovered,
+              focused && { outlineColor: ringColor, outlineWidth: 2, outlineOffset: 1 },
+            ]}>
+            <MaterialIcons name="arrow-back" size={20} color={colors.foreground} />
+          </Pressable>
+        ) : null}
+        <Text style={[type.h2, styles.title]} numberOfLines={1}>
+          {title}
+        </Text>
+      </View>
 
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-        onPress={toggleMode}
-        style={({ hovered, focused }: WebPressableState) => [
-          styles.iconButton,
-          hovered && styles.iconButtonHovered,
-          focused && { outlineColor: ringColor, outlineWidth: 2, outlineOffset: 1 },
-        ]}>
-        <MaterialIcons name={mode === 'dark' ? 'light-mode' : 'dark-mode'} size={20} color={colors.foreground} />
-      </Pressable>
+      <View style={styles.rightGroup}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          onPress={toggleMode}
+          style={({ hovered, focused }: WebPressableState) => [
+            styles.iconButton,
+            hovered && styles.iconButtonHovered,
+            focused && { outlineColor: ringColor, outlineWidth: 2, outlineOffset: 1 },
+          ]}>
+          <MaterialIcons name={mode === 'dark' ? 'light-mode' : 'dark-mode'} size={20} color={colors.foreground} />
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -80,6 +102,17 @@ const createStyles = (
     },
     title: {
       color: colors.foreground,
+    },
+    leftGroup: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      flexShrink: 1,
+    },
+    rightGroup: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
     },
     iconButton: {
       height: 40,

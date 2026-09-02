@@ -5,6 +5,8 @@ import {
   aspectRatio,
   canvasPixels,
   clamp01,
+  clampBoxHeight,
+  clampBoxWidth,
   clampScale,
   cloneLayer,
   createEmojiLayer,
@@ -15,6 +17,10 @@ import {
   FONT_OPTIONS,
   getSelectedLayer,
   isTextLayer,
+  MAX_BOX_HEIGHT_FRACTION,
+  MAX_BOX_WIDTH_FRACTION,
+  MIN_BOX_HEIGHT_FRACTION,
+  MIN_BOX_WIDTH_FRACTION,
   resolveFontFamilies,
   SCALE_MAX,
   SCALE_MIN,
@@ -136,6 +142,15 @@ describe('document — geometry & clamps', () => {
     expect(alignedCenterX('center', size, line)).toBe(500);
     expect(alignedCenterX('left', size, line)).toBe(200);
     expect(alignedCenterX('right', size, line)).toBe(800);
+  });
+
+  test('clampBoxWidth/Height bound a resize-handle box to its allowed fractions', () => {
+    expect(clampBoxWidth(0)).toBe(MIN_BOX_WIDTH_FRACTION);
+    expect(clampBoxWidth(0.5)).toBe(0.5);
+    expect(clampBoxWidth(10)).toBe(MAX_BOX_WIDTH_FRACTION);
+    expect(clampBoxHeight(0)).toBe(MIN_BOX_HEIGHT_FRACTION);
+    expect(clampBoxHeight(0.3)).toBe(0.3);
+    expect(clampBoxHeight(10)).toBe(MAX_BOX_HEIGHT_FRACTION);
   });
 });
 

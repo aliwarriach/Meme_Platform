@@ -30,6 +30,17 @@ export interface TextStyleSpec {
   shadow: boolean;
 }
 
+// A text layer's independent wrap-width / wrap-height box, in fractions of canvas w/h,
+// centered on the layer's `pos`. Undefined until the user drags a resize handle — before
+// that, text lays out exactly as it always has (full canvas width, no height cap besides
+// `maxLines`), so existing/persisted layers render unchanged until touched. Once set, both
+// dimensions are always written together (see `setSelectedBox`): width controls the wrap
+// width directly, height caps it — text shrinks (see `MIN_AUTOFIT_SCALE`) to fit inside it.
+export interface TextBox {
+  width: number;
+  height: number;
+}
+
 // Fields common to every layer kind — the transform the gesture/selection system
 // operates on generically, regardless of what the layer draws.
 interface BaseLayer {
@@ -43,6 +54,7 @@ export interface TextLayer extends BaseLayer {
   kind: 'text';
   text: string; // an emoji sticker is just a text layer whose text is an emoji
   style: TextStyleSpec;
+  box?: TextBox; // explicit wrap box, set the first time a resize handle is dragged
 }
 
 export interface ImageLayer extends BaseLayer {
@@ -125,6 +137,26 @@ export const BASE_FONT_FRACTION = 0.09;
 export const SCALE_MIN = 0.3;
 export const SCALE_MAX = 6;
 export const SCALE_STEP = 1.15; // A-/A+ stepper factor
+
+// Bounds for a text layer's explicit resize-handle box, as fractions of canvas w/h.
+export const MIN_BOX_WIDTH_FRACTION = 0.12;
+export const MAX_BOX_WIDTH_FRACTION = 2;
+export const MIN_BOX_HEIGHT_FRACTION = 0.05;
+export const MAX_BOX_HEIGHT_FRACTION = 2;
+
+// When a box's height can't fit the text at the layer's normal (scale-derived) font size,
+// the renderer shrinks the font — never below this fraction of that normal size — so
+// closing the vertical gap between the top/bottom handles packs words back onto the lines
+// above instead of just clipping.
+export const MIN_AUTOFIT_SCALE = 0.25;
+
+export function clampBoxWidth(value: number): number {
+  return value < MIN_BOX_WIDTH_FRACTION ? MIN_BOX_WIDTH_FRACTION : value > MAX_BOX_WIDTH_FRACTION ? MAX_BOX_WIDTH_FRACTION : value;
+}
+
+export function clampBoxHeight(value: number): number {
+  return value < MIN_BOX_HEIGHT_FRACTION ? MIN_BOX_HEIGHT_FRACTION : value > MAX_BOX_HEIGHT_FRACTION ? MAX_BOX_HEIGHT_FRACTION : value;
+}
 
 // Android-first system font families (this app ships an Android APK first; iOS-specific
 // families / bundled display fonts like Impact are a later refinement). Each maps to a

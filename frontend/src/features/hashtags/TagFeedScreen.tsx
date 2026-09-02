@@ -1,43 +1,37 @@
-import { useRouter } from 'expo-router';
-import { Pressable, Text, View } from 'react-native';
+import { useState } from 'react';
+import { View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { SegmentedControl } from '@/components/SegmentedControl';
 import TopBar from '@/components/TopBar';
 import { MemeFeedList } from '@/features/feed/components/MemeFeedList';
+import { ChallengeRaceHeader } from '@/features/hashtags/components/ChallengeRaceHeader';
+import { ChallengeResultCard } from '@/features/hashtags/components/ChallengeResultCard';
 import { useHashtag, useHashtagFeed } from '@/services/useHashtags';
 
 interface TagFeedScreenProps {
   slug: string;
 }
 
+type SortMode = 'hot' | 'latest';
+
+const SORT_OPTIONS = [
+  { key: 'hot' as const, label: 'Hot' },
+  { key: 'latest' as const, label: 'Latest' },
+];
+
 export default function TagFeedScreen({ slug }: TagFeedScreenProps) {
-  const router = useRouter();
+  const [sort, setSort] = useState<SortMode>('hot');
   const hashtagQuery = useHashtag(slug);
-  const feedQuery = useHashtagFeed(slug);
+  const feedQuery = useHashtagFeed(slug, sort);
 
   const memes = feedQuery.data?.pages.flatMap((page) => page.items) ?? [];
+  const activeChallenge = hashtagQuery.data?.active_challenge;
+  const recentResultChallenge = hashtagQuery.data?.recent_result_challenge;
 
   return (
     <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
       <TopBar title={`#${slug}`} showBack />
-
-      {hashtagQuery.data?.challenge_id ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Open the challenge this tag enters"
-          onPress={() =>
-            router.push({
-              pathname: '/challenges/[challengeId]',
-              params: { challengeId: hashtagQuery.data!.challenge_id! },
-            })
-          }
-          className="mx-6 mb-2 mt-3 min-h-[44px] flex-row items-center justify-between rounded-card border border-primary/40 bg-primary/10 px-4 py-3">
-          <Text className="flex-1 font-body text-sm text-ink">
-            🏆 Posting with #{slug} enters this challenge
-          </Text>
-          <Text className="font-label text-xs uppercase text-primary-dim">View</Text>
-        </Pressable>
-      ) : null}
 
       <View className="flex-1">
         <MemeFeedList
@@ -51,6 +45,21 @@ export default function TagFeedScreen({ slug }: TagFeedScreenProps) {
           isRefetching={feedQuery.isRefetching}
           onRefresh={() => feedQuery.refetch()}
           emptyMessage={`No memes tagged #${slug} yet`}
+          ListHeaderComponent={
+            <View>
+              {/* Live race always renders above the result card — explicit product
+                  decision (Roadmap_Search.md §1.4): reservations release on evaluation, so
+                  a new challenge can claim this tag while its predecessor is still inside
+                  its 24h result window. */}
+              {activeChallenge ? <ChallengeRaceHeader challenge={activeChallenge} /> : null}
+              {recentResultChallenge ? (
+                <ChallengeResultCard challenge={recentResultChallenge} />
+              ) : null}
+              <View className="mx-4 mt-3">
+                <SegmentedControl options={SORT_OPTIONS} value={sort} onChange={setSort} />
+              </View>
+            </View>
+          }
         />
       </View>
     </SafeAreaView>

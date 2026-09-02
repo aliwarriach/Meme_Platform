@@ -107,10 +107,14 @@ def test_database_read_url_builds_a_genuinely_separate_engine_when_configured():
     correct."""
     backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     env = os.environ.copy()
-    # `.env` (not the process environment) is where DATABASE_URL/TEST_DATABASE_URL
-    # actually live — pydantic-settings reads the file directly, so pull the "replica"
-    # DSN from `settings`, not `os.environ`.
-    env["DATABASE_READ_URL"] = settings.test_database_url or settings.database_url
+    # A synthetic, deliberately-fake DSN rather than `settings.test_database_url` — this
+    # subprocess never actually connects with `read_engine` (engine construction is lazy),
+    # so it doesn't need to resolve. Using a real-but-different DSN here was a bug: in
+    # this dev environment TEST_DATABASE_URL and DATABASE_URL point at different
+    # databases, but CI's own workflow env sets them to the *same* value (one ephemeral
+    # Postgres service, one database) — coincidentally passing locally and failing in CI
+    # for a reason that had nothing to do with app/db/session.py actually being wrong.
+    env["DATABASE_READ_URL"] = "postgresql+asyncpg://readonly:readonly@replica-proof-host:5432/replica_db"
     script = (
         "from app.db import session as db_session\n"
         "assert db_session.read_engine is not db_session.engine\n"

@@ -71,7 +71,12 @@ export function SideMemberPicker({
                 className={`mb-1 min-h-[44px] flex-row items-center gap-2 rounded-full px-2 ${
                   selected ? 'bg-primary-container' : ''
                 } ${disabledByOtherSide ? 'opacity-30' : ''}`}>
-                <Avatar username={member.user.username} size="sm" />
+                <Avatar
+                  username={member.user.username}
+                  avatarUrl={member.user.avatar_url}
+                  avatarPreset={member.user.avatar_preset}
+                  size="sm"
+                />
                 <Text
                   className={`flex-1 font-body text-sm ${selected ? 'font-title text-white' : 'text-heading'}`}
                   numberOfLines={1}>

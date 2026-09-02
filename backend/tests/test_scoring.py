@@ -269,3 +269,24 @@ async def test_profile_score_unknown_user_404(client: AsyncClient):
         f"/leaderboards/profile/{uuid.uuid4()}", headers=auth_header(alice)
     )
     assert response.status_code == 404
+
+
+async def test_profile_score_keeps_counting_a_deleted_meme(client: AsyncClient):
+    """Deletion is deliberately deletion-agnostic for the lifetime profile score (confirmed
+    product decision, see services/leaderboards.py's header comment) — only competition
+    standings (test_competitions.py) and fresh challenge nomination
+    (test_open_challenges.py) actually exclude a deleted post."""
+    alice = await create_user(client, "alice")
+    bob = await create_user(client, "bob")
+
+    meme = await _post_meme(client, alice)
+    await _upvote(client, bob, meme["id"])  # 1 up -> atom 25
+
+    delete_response = await client.delete(f"/memes/{meme['id']}", headers=auth_header(alice))
+    assert delete_response.status_code == 204
+
+    response = await client.get(
+        f"/leaderboards/profile/{alice['user']['id']}", headers=auth_header(alice)
+    )
+    assert response.status_code == 200
+    assert response.json()["score"] == 25

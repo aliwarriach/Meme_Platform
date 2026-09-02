@@ -1,9 +1,10 @@
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useThemeMode } from '@/constants/ThemeMode';
 
+import { KeyboardAwareForm } from '@/components/KeyboardAvoidingScreen';
 import PillButton from '@/components/PillButton';
 import { TextField } from '@/components/TextField';
 import TopBar from '@/components/TopBar';
@@ -85,7 +86,7 @@ export default function CreateOpenChallengeScreen() {
   return (
     <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
       <TopBar title="Start an Open Challenge" showBack />
-      <ScrollView className="flex-1 px-6 pt-4">
+      <KeyboardAwareForm className="flex-1 px-6 pt-4">
         <Text className="mb-4 font-body text-sm text-ink-muted">
           Anyone can join — no community required. Entry is by posting with your reserved tag.
         </Text>
@@ -134,7 +135,7 @@ export default function CreateOpenChallengeScreen() {
             loading={createOpenChallenge.isPending}
           />
         </View>
-      </ScrollView>
+      </KeyboardAwareForm>
     </SafeAreaView>
   );
 }

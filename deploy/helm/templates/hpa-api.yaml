@@ -1,0 +1,48 @@
+{{- if .Values.api.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: api
+  labels:
+    {{- include "meme-platform.labels" . | nindent 4 }}
+    app: api
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: api
+  minReplicas: {{ .Values.api.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.api.autoscaling.maxReplicas }}
+  # Found by testing (2026-08-26), not speculative: an unbounded default scale-up let
+  # a burst push desired replicas to 16 while real schedulable capacity (bounded by
+  # this account's own EC2 vCPU quota, a hard external ceiling Karpenter can't fulfill
+  # past) only fit 10 - the other 6 sat permanently Pending with no metrics. Kubernetes'
+  # HPA algorithm is documented to treat a scale-down recommendation conservatively
+  # whenever any desired replica has no metrics at all, so the desired count stayed
+  # frozen at 16 for 20+ minutes even after real CPU usage dropped to ~4%. Rate-limiting
+  # scale-up keeps desired replica count from ever racing that far ahead of what the
+  # cluster can actually schedule, in production too (there it'd be the NodePool's own
+  # `limits.cpu` ceiling, not an AWS account quota, but the same failure shape).
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Pods
+          value: 4
+          periodSeconds: 60
+      selectPolicy: Max
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 60
+      selectPolicy: Max
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.api.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}

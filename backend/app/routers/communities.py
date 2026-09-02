@@ -26,9 +26,16 @@ async def create_community(
     description: Annotated[str | None, Form(max_length=500)] = None,
     icon: UploadFile | None = None,
     banner: UploadFile | None = None,
+    icon_public_id: Annotated[str | None, Form()] = None,
+    banner_public_id: Annotated[str | None, Form()] = None,
 ) -> CommunityOut:
+    """`icon`/`banner` (legacy multipart upload) and `icon_public_id`/`banner_public_id`
+    (Roadmap_Scaling.md A4's direct-to-Cloudinary flow — confirm the `public_id` from
+    `POST /media/upload-signature`) are each independently optional, mutually exclusive
+    with their own file when given."""
     return await communities_service.create_community(
-        db, current_user, name, description, privacy, icon, banner
+        db, current_user, name, description, privacy, icon, banner,
+        icon_public_id=icon_public_id, banner_public_id=banner_public_id,
     )
 
 
@@ -38,8 +45,9 @@ async def list_communities(
     db: DbSession,
     cursor: str | None = None,
     limit: Annotated[int, Query(ge=1, le=50)] = 20,
+    q: str | None = None,
 ) -> CommunityPage:
-    return await communities_service.list_communities(db, current_user, cursor, limit)
+    return await communities_service.list_communities(db, current_user, cursor, limit, query=q)
 
 
 @router.get("/mine", response_model=list[CommunityOut])
@@ -47,11 +55,55 @@ async def list_my_communities(current_user: CurrentUser, db: DbSession) -> list[
     return await communities_service.list_my_communities(db, current_user)
 
 
+@router.get("/invited", response_model=list[CommunityOut])
+async def list_invited_communities(current_user: CurrentUser, db: DbSession) -> list[CommunityOut]:
+    return await communities_service.list_invited_communities(db, current_user)
+
+
 @router.get("/{community_id}", response_model=CommunityOut)
 async def get_community(
     community_id: uuid.UUID, current_user: CurrentUser, db: DbSession
 ) -> CommunityOut:
     return await communities_service.get_community(db, current_user, community_id)
+
+
+@router.patch("/{community_id}", response_model=CommunityOut)
+async def update_community(
+    community_id: uuid.UUID,
+    current_user: CurrentUser,
+    db: DbSession,
+    icon: UploadFile | None = None,
+    icon_public_id: Annotated[str | None, Form()] = None,
+    icon_preset: Annotated[str | None, Form()] = None,
+    clear_icon: Annotated[bool, Form()] = False,
+    banner: UploadFile | None = None,
+    banner_public_id: Annotated[str | None, Form()] = None,
+    clear_banner: Annotated[bool, Form()] = False,
+) -> CommunityOut:
+    """Owner-only. See `services/communities.py::update_community_media` for the mutually
+    exclusive icon/banner input rules."""
+    return await communities_service.update_community_media(
+        db,
+        current_user,
+        community_id,
+        icon=icon,
+        icon_public_id=icon_public_id,
+        icon_preset=icon_preset,
+        clear_icon=clear_icon,
+        banner=banner,
+        banner_public_id=banner_public_id,
+        clear_banner=clear_banner,
+    )
+
+
+@router.post("/{community_id}/invites", response_model=MembershipOut, status_code=201)
+async def invite_to_community(
+    community_id: uuid.UUID,
+    current_user: CurrentUser,
+    db: DbSession,
+    username: Annotated[str, Form(min_length=1, max_length=32)],
+) -> MembershipOut:
+    return await communities_service.invite_to_community(db, current_user, community_id, username)
 
 
 @router.post("/{community_id}/join", response_model=MembershipOut, status_code=201)
@@ -88,16 +140,32 @@ async def list_community_templates(
     )
 
 
+@router.delete("/{community_id}/templates/{template_id}", status_code=204)
+async def delete_community_template(
+    community_id: uuid.UUID, template_id: uuid.UUID, current_user: CurrentUser, db: DbSession
+) -> None:
+    """Owner-only — removes any template from this community's private library,
+    regardless of who uploaded it."""
+    await templates_service.delete_community_template(db, current_user, community_id, template_id)
+
+
 @router.post("/{community_id}/memes", response_model=MemeOut, status_code=201)
 async def create_community_meme(
     community_id: uuid.UUID,
-    image: UploadFile,
     current_user: CurrentUser,
     db: DbSession,
+    image: UploadFile | None = None,
+    image_public_id: Annotated[str | None, Form()] = None,
     caption: Annotated[str | None, Form(max_length=500)] = None,
+    editor_document_json: Annotated[str | None, Form()] = None,
 ) -> MemeOut:
+    """`image` (legacy multipart upload) and `image_public_id` (Roadmap_Scaling.md A4's
+    direct-to-Cloudinary flow — confirm the `public_id` from
+    `POST /media/upload-signature`) are mutually exclusive; exactly one is required.
+    `editor_document_json` (optional) mirrors `POST /memes`'s — see there."""
     return await memes_service.create_community_meme(
-        db, current_user, community_id, caption, image
+        db, current_user, community_id, caption, image,
+        image_public_id=image_public_id, editor_document_json=editor_document_json,
     )
 
 

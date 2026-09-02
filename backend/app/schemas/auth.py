@@ -44,6 +44,7 @@ class PublicUserOut(BaseModel):
     username: str
     bio: str | None
     avatar_url: str | None
+    avatar_preset: str | None
 
 
 class UserOut(PublicUserOut):

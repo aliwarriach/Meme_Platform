@@ -1,18 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ActivityIndicator, FlatList, Pressable, Text, TextInput, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
 import { useThemeMode } from '@/constants/ThemeMode';
 
+import Avatar from '@/components/Avatar';
+import { StickyKeyboardFooter } from '@/components/KeyboardAvoidingScreen';
 import TopBar from '@/components/TopBar';
 import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import MessageBubble from '@/features/messaging/MessageBubble';
@@ -27,7 +20,7 @@ import type { RootState } from '@/store/store';
 
 const MAX_MESSAGE_LENGTH = 2000;
 
-function Composer({ conversationId }: { conversationId: string }) {
+function Composer({ conversationId, bottomInset }: { conversationId: string; bottomInset: number }) {
   const { mode } = useThemeMode();
   const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const [draft, setDraft] = useState('');
@@ -43,7 +36,9 @@ function Composer({ conversationId }: { conversationId: string }) {
   };
 
   return (
-    <View className="border-t border-outline-variant/30 bg-bg px-3 py-2">
+    <View
+      className="border-t border-outline-variant/30 bg-bg px-3 py-2"
+      style={{ paddingBottom: bottomInset + 8 }}>
       {sendMessage.isError ? (
         <Text className="px-1 pb-1 font-body text-xs text-error">
           {sendMessage.error.message}
@@ -96,14 +91,26 @@ export default function ThreadScreen({ conversationId }: { conversationId: strin
   }, [conversationId]);
 
   const messages: MessageResponse[] = data?.pages.flatMap((page) => page.items) ?? [];
+  const insets = useSafeAreaInsets();
 
   return (
     <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
-      <TopBar title={conversation?.other_user.username ?? 'Conversation'} showBack />
+      <TopBar
+        title={conversation?.other_user.username ?? 'Conversation'}
+        showBack
+        titleAdornment={
+          conversation ? (
+            <Avatar
+              username={conversation.other_user.username}
+              avatarUrl={conversation.other_user.avatar_url}
+              avatarPreset={conversation.other_user.avatar_preset}
+              size="sm"
+            />
+          ) : null
+        }
+      />
 
-      <KeyboardAvoidingView
-        className="flex-1"
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <View className="flex-1">
         {isLoading ? (
           <ActivityIndicator className="mt-8" color={c.inkMuted} />
         ) : isError ? (
@@ -138,9 +145,11 @@ export default function ThreadScreen({ conversationId }: { conversationId: strin
             }
           />
         )}
+      </View>
 
-        <Composer conversationId={conversationId} />
-      </KeyboardAvoidingView>
+      <StickyKeyboardFooter>
+        <Composer conversationId={conversationId} bottomInset={insets.bottom} />
+      </StickyKeyboardFooter>
     </SafeAreaView>
   );
 }

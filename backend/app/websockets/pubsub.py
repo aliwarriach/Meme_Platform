@@ -40,6 +40,18 @@ def _presence_key(user_id: uuid.UUID) -> str:
     return f"ws:online:{user_id}"
 
 
+# Roadmap_Scaling.md C4 — aggregate cluster-wide connection count, for KEDA's realtime
+# ScaledObject (per-pod local counts aren't enough; a Service request lands on one
+# random pod). A plain INCR/DECR counter, not a Set: presence itself deliberately stays
+# per-user TTL keys (self-healing on unclean pod death, see module docstring) rather
+# than a Set specifically to avoid exactly this kind of "must stay perfectly in sync"
+# bookkeeping. This counter can drift on an unclean pod kill (INCR fires, the matching
+# DECR never does) - acceptable because it only feeds an autoscaling *signal*, and only
+# fails in the safe direction (realtime scales down less eagerly than strictly needed,
+# never more).
+_CONNECTIONS_COUNTER_KEY = "ws:connections:total"
+
+
 class RedisPubSubBus:
     """One instance per pod. Owns the pod's single long-lived pub/sub connection —
     separate from `app/core/redis.py`'s arq enqueue pool, since a connection in subscribe
@@ -137,6 +149,7 @@ class RedisPubSubBus:
     async def mark_online(self, user_id: uuid.UUID) -> None:
         redis = self._get_redis()
         await redis.set(_presence_key(user_id), POD_ID, ex=PRESENCE_TTL_SECONDS)
+        await redis.incr(_CONNECTIONS_COUNTER_KEY)
         existing = self._heartbeats.pop(user_id, None)
         if existing is not None:
             existing.cancel()
@@ -148,6 +161,15 @@ class RedisPubSubBus:
             task.cancel()
         redis = self._get_redis()
         await redis.delete(_presence_key(user_id))
+        # floor at 0 - a decr matching an increment from before this counter existed
+        # (or a rare double-disconnect race) must never push the signal negative.
+        if await redis.decr(_CONNECTIONS_COUNTER_KEY) < 0:
+            await redis.set(_CONNECTIONS_COUNTER_KEY, 0)
+
+    async def connection_count(self) -> int:
+        redis = self._get_redis()
+        value = await redis.get(_CONNECTIONS_COUNTER_KEY)
+        return max(0, int(value)) if value is not None else 0
 
     async def _heartbeat(self, user_id: uuid.UUID) -> None:
         redis = self._get_redis()

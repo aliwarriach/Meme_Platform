@@ -17,6 +17,12 @@ class User(UUIDPKMixin, TimestampMixin, Base):
     # Tracked so a replaced avatar's old Cloudinary asset can actually be cleaned up
     # (services/users.py::update_profile) — symmetric with Meme.image_public_id.
     avatar_public_id: Mapped[str | None] = mapped_column(String(255), default=None)
+    # One of `services/users.py::ALLOWED_AVATAR_PRESETS`, set when the user picks a built-in
+    # avatar instead of uploading a photo. Mutually exclusive with `avatar_url`/
+    # `avatar_public_id` — picking a preset clears any uploaded photo and vice versa
+    # (services/users.py::update_profile). Rendered client-side only (constants/
+    # avatarPresets.ts); the server never resolves it to an image.
+    avatar_preset: Mapped[str | None] = mapped_column(String(32), default=None)
     # Embedded in every issued JWT and checked in `get_current_user`; bumping this
     # invalidates every outstanding token for the user ("log out everywhere") without
     # needing a denylist or a shared JWT secret rotation.

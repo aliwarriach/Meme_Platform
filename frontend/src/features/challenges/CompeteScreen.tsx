@@ -67,7 +67,7 @@ export default function CompeteScreen() {
             accessibilityLabel="Start an open challenge"
             onPress={() => router.push('/compete/open/new')}
             className="h-11 w-11 items-center justify-center">
-            <MaterialIcons name="add" size={22} color={c.white} />
+            <MaterialIcons name="add-circle-outline" size={24} color={c.heading} />
           </Pressable>
         }
       />

@@ -17,6 +17,11 @@ class MembershipRole(str, enum.Enum):
 class MembershipStatus(str, enum.Enum):
     pending = "pending"
     active = "active"
+    # Owner/member-initiated: someone in the community invited this user to join, distinct
+    # from `pending` (that user requesting to join themself). The invitee accepts via the same
+    # `join_community` call a self-initiated joiner would use (flips invited -> active) or
+    # declines via the same `leave_community` call a member would use to leave.
+    invited = "invited"
 
 
 class CommunityMembership(UUIDPKMixin, TimestampMixin, Base):

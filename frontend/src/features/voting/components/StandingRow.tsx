@@ -17,9 +17,12 @@ export function StandingRow({ entry, onPress }: StandingRowProps) {
   const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
   const { content } = entry;
   const isContainer = content.kind === 'container';
-  const imageUrl = isContainer ? content.container.thumbnail_url : content.meme.image_url;
-  const authorName = isContainer ? content.container.submitter.username : content.meme.author.username;
-  const caption = isContainer ? content.container.title : content.meme.caption;
+  // A live standings entry never carries a deleted (meme: null) placeholder — that only
+  // ever appears in a closed period's winner (see services/competitions.py), rendered
+  // separately by WinnerBanner. The assertions below are a real structural invariant.
+  const imageUrl = isContainer ? content.container.thumbnail_url : content.meme!.image_url;
+  const authorName = isContainer ? content.container.submitter.username : content.meme!.author.username;
+  const caption = isContainer ? content.container.title : content.meme!.caption;
 
   return (
     <Pressable

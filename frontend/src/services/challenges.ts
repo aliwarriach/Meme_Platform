@@ -1,7 +1,7 @@
 import { api } from '@/services/api';
 import type { PublicUserResponse } from '@/services/auth';
+import { uploadImageDirect } from '@/services/media';
 import type { MemeResponse } from '@/services/memes';
-import { appendImageToFormData } from '@/utils/multipartImage';
 
 export type ChallengeType = 'intra_community' | 'community_vs_community' | 'open' | 'duel';
 export type ChallengeStatus = 'setup' | 'active' | 'evaluated';
@@ -31,6 +31,9 @@ export interface ChallengeResponse {
   start_time: string;
   end_time: string;
   winning_side_id: string | null;
+  // Which side the requesting viewer is on, if any — null for a non-participant. Survives
+  // an app restart, unlike the old local-component-state workaround (Roadmap_Search.md S4).
+  viewer_side_id: string | null;
   sides: ChallengeSideResponse[];
 }
 
@@ -120,11 +123,17 @@ export function getChallengeResultsFlatRequest(challengeId: string) {
 export async function createAndSubmitToChallengeRequest(
   challengeId: string,
   image: { uri: string; name: string; type: string },
-  caption?: string
+  caption?: string,
+  editorDocumentJson?: string
 ) {
+  // Roadmap_Scaling.md A4 — image bytes go straight to Cloudinary; only the confirmed
+  // public_id is sent to our own backend.
+  const imagePublicId = await uploadImageDirect(image, 'challenges');
+
   const form = new FormData();
-  await appendImageToFormData(form, 'image', image);
+  form.append('image_public_id', imagePublicId);
   if (caption) form.append('caption', caption);
+  if (editorDocumentJson) form.append('editor_document_json', editorDocumentJson);
 
   return api.post<ChallengeSubmissionResponse>(
     `/challenges/${challengeId}/submissions`,

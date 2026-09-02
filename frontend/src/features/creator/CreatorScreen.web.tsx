@@ -5,13 +5,14 @@ import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 
 import WebCompeteButton from '@/components/web/WebCompeteButton';
 import { WebCompeteTextField } from '@/components/web/WebCompeteTextField';
 import { WebCanvasBar } from '@/components/web/WebCanvasBar';
+import { WebEditTagsEditor } from '@/components/web/WebEditTagsEditor';
 import { WebHashtagInput, type ChallengeTagEntry } from '@/components/web/WebHashtagInput';
 import { WebLayerInspector } from '@/components/web/WebLayerInspector';
 import { WebStickerPickerModal } from '@/components/web/WebStickerPickerModal';
@@ -20,18 +21,25 @@ import type { VaporwaveTheme } from '@/constants/webFeedThemeVapor';
 import { injectFeedWebFont } from '@/constants/webFeedThemeVapor';
 import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 import { EditorCanvas, type EditorCanvasHandle } from '@/features/creator/components/EditorCanvas';
-import { aspectRatio } from '@/features/creator/document';
+import { aspectRatio, type MemeDocument } from '@/features/creator/document';
+import { resolveDocumentForPersistence } from '@/features/creator/persistDocument';
 import { buildCreatorSchema, type CreatorFormValues } from '@/features/creator/schemas';
 import { joinOpenChallengeRequest } from '@/services/challenges';
 import type { AudienceType } from '@/services/memes';
 import type { TemplateResponse } from '@/services/templates';
 import { useGenerateCaptionMutation } from '@/services/useAiCaption';
 import { useChallengeFlat, useCreateAndSubmitToChallengeMutation } from '@/services/useChallenges';
-import { useCreateCommunityMemeMutation, useCreateMemeMutation } from '@/services/useMemes';
+import {
+  useCreateCommunityMemeMutation,
+  useCreateMemeMutation,
+  useMemeEditData,
+  useUpdateMemeMutation,
+} from '@/services/useMemes';
 import {
   addEmojiLayer,
   addImageLayer,
   addTextLayer,
+  loadDocument,
   redo,
   resetDraft,
   selectCanRedo,
@@ -69,13 +77,15 @@ interface WebPressableState {
 export default function CreatorScreen() {
   const router = useRouter();
   const dispatch = useDispatch<AppDispatch>();
-  const { communityId, communityName, challengeId } = useLocalSearchParams<{
+  const { communityId, communityName, challengeId, editMemeId } = useLocalSearchParams<{
     communityId?: string;
     communityName?: string;
     challengeId?: string;
+    editMemeId?: string;
   }>();
   const isCommunityPost = !!communityId;
   const isChallengeMode = !!challengeId;
+  const isEditMode = !!editMemeId;
 
   const { colors, type, radius, spacing, mode, toggleMode } = useVaporwaveTheme();
   const styles = useMemo(() => createStyles(colors, radius, spacing), [colors, radius, spacing]);
@@ -88,13 +98,17 @@ export default function CreatorScreen() {
   const createMeme = useCreateMemeMutation();
   const createCommunityMeme = useCreateCommunityMemeMutation();
   const createAndSubmitToChallenge = useCreateAndSubmitToChallengeMutation();
-  const activeMutation = isChallengeMode
-    ? createAndSubmitToChallenge
-    : isCommunityPost
-      ? createCommunityMeme
-      : createMeme;
+  const updateMeme = useUpdateMemeMutation();
+  const activeMutation = isEditMode
+    ? updateMeme
+    : isChallengeMode
+      ? createAndSubmitToChallenge
+      : isCommunityPost
+        ? createCommunityMeme
+        : createMeme;
   const generateCaption = useGenerateCaptionMutation();
   const challengeQuery = useChallengeFlat(challengeId ?? '');
+  const editDataQuery = useMemeEditData(editMemeId ?? '', isEditMode);
 
   const [tags, setTags] = useState<string[]>([]);
   const [challengeEntry, setChallengeEntry] = useState<ChallengeTagEntry | null>(null);
@@ -115,12 +129,13 @@ export default function CreatorScreen() {
   const [captureError, setCaptureError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (isEditMode) return;
     dispatch(resetDraft());
-  }, [dispatch]);
+  }, [dispatch, isEditMode]);
 
   const schema = useMemo(
-    () => buildCreatorSchema(!isCommunityPost && !isChallengeMode),
-    [isCommunityPost, isChallengeMode]
+    () => buildCreatorSchema(!isCommunityPost && !isChallengeMode && !isEditMode),
+    [isCommunityPost, isChallengeMode, isEditMode]
   );
 
   const {
@@ -137,6 +152,20 @@ export default function CreatorScreen() {
 
   const caption = watch('caption') ?? '';
   const selectedAudiences = watch('audiences');
+
+  const editDocLoadedRef = useRef(false);
+  useEffect(() => {
+    if (!isEditMode || !editDataQuery.data || editDocLoadedRef.current) return;
+    editDocLoadedRef.current = true;
+    const fetched = editDataQuery.data;
+    if (fetched.editor_document) {
+      dispatch(loadDocument(fetched.editor_document as unknown as MemeDocument));
+    } else {
+      dispatch(setBaseImage(fetched.image_url));
+    }
+    reset({ caption: fetched.caption ?? '', audiences: [] });
+    setTags(fetched.hashtags);
+  }, [isEditMode, editDataQuery.data, dispatch, reset]);
 
   const onPickOwnImage = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -219,11 +248,23 @@ export default function CreatorScreen() {
     if (!capturedUri) return;
     setJoinError(null);
     try {
-      if (isChallengeMode && challengeId) {
+      const resolvedDoc = await resolveDocumentForPersistence(doc);
+      const editorDocumentJson = JSON.stringify(resolvedDoc);
+
+      if (isEditMode && editMemeId) {
+        await updateMeme.mutateAsync({
+          memeId: editMemeId,
+          caption: values.caption || null,
+          hashtags: tags,
+          image: { uri: capturedUri, name: 'meme.png', type: 'image/png' },
+          editorDocumentJson,
+        });
+      } else if (isChallengeMode && challengeId) {
         await createAndSubmitToChallenge.mutateAsync({
           challengeId,
           image: { uri: capturedUri, name: 'meme.png', type: 'image/png' },
           caption: values.caption || undefined,
+          editorDocumentJson,
         });
       } else if (challengeEntry) {
         const joinResponse = await joinOpenChallengeRequest(challengeEntry.challengeId, challengeEntry.sideId);
@@ -235,6 +276,7 @@ export default function CreatorScreen() {
           challengeId: challengeEntry.challengeId,
           image: { uri: capturedUri, name: 'meme.png', type: 'image/png' },
           caption: values.caption || undefined,
+          editorDocumentJson,
         });
       } else if (isCommunityPost) {
         await createCommunityMeme.mutateAsync({
@@ -243,6 +285,7 @@ export default function CreatorScreen() {
           imageName: 'meme.png',
           imageType: 'image/png',
           caption: values.caption || undefined,
+          editorDocumentJson,
         });
       } else {
         await createMeme.mutateAsync({
@@ -252,6 +295,7 @@ export default function CreatorScreen() {
           caption: values.caption || undefined,
           audiences: values.audiences,
           hashtags: tags,
+          editorDocumentJson,
         });
       }
       dispatch(resetDraft());
@@ -265,11 +309,13 @@ export default function CreatorScreen() {
     }
   });
 
-  const screenTitle = isChallengeMode
-    ? (challengeQuery.data?.title ?? 'Challenge Entry')
-    : isCommunityPost
-      ? `New Post to ${communityName}`
-      : 'New Meme';
+  const screenTitle = isEditMode
+    ? 'Edit Meme'
+    : isChallengeMode
+      ? (challengeQuery.data?.title ?? 'Challenge Entry')
+      : isCommunityPost
+        ? `New Post to ${communityName}`
+        : 'New Meme';
 
   const ModeToggle = (
     <Pressable
@@ -286,6 +332,43 @@ export default function CreatorScreen() {
   );
 
   if (!baseImageUri) {
+    if (isEditMode) {
+      return (
+        <View style={styles.root}>
+          <SafeAreaView style={styles.safe} edges={['top']}>
+            <View style={styles.header}>
+              <View style={styles.headerSide}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Go back"
+                  onPress={() => router.back()}
+                  style={({ hovered, focused }: WebPressableState) => [
+                    styles.iconButton,
+                    hovered && { backgroundColor: colors.hoverTint },
+                    focused && { outlineColor: ringColor, outlineWidth: 2, outlineOffset: 1 },
+                  ]}>
+                  <MaterialIcons name="arrow-back" size={22} color={colors.foreground} />
+                </Pressable>
+              </View>
+              <Text style={[type.h2, styles.headerTitle]} numberOfLines={1}>
+                Edit Meme
+              </Text>
+              <View style={[styles.headerSide, styles.headerSideRight]}>{ModeToggle}</View>
+            </View>
+            <View style={styles.emptyBody}>
+              {editDataQuery.isError ? (
+                <Text style={[type.body, { color: colors.error, textAlign: 'center' }]}>
+                  {editDataQuery.error.message}
+                </Text>
+              ) : (
+                <ActivityIndicator color={colors.foregroundMuted} />
+              )}
+            </View>
+          </SafeAreaView>
+        </View>
+      );
+    }
+
     return (
       <View style={styles.root}>
         <SafeAreaView style={styles.safe} edges={['top']}>
@@ -341,14 +424,24 @@ export default function CreatorScreen() {
           <View style={styles.headerSide}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={capturedUri ? 'Edit meme' : 'Start over'}
-              onPress={() => (capturedUri ? setCapturedUri(null) : onStartOver())}
+              accessibilityLabel={capturedUri ? 'Edit meme' : isEditMode ? 'Cancel' : 'Start over'}
+              onPress={() => {
+                if (capturedUri) {
+                  setCapturedUri(null);
+                } else if (isEditMode) {
+                  router.back();
+                } else {
+                  onStartOver();
+                }
+              }}
               style={({ hovered, focused }: WebPressableState) => [
                 styles.textButton,
                 hovered && { backgroundColor: colors.hoverTint },
                 focused && { outlineColor: ringColor, outlineWidth: 2, outlineOffset: 1 },
               ]}>
-              <Text style={[type.title, { color: colors.foreground }]}>{capturedUri ? '‹ Edit' : '‹ Start over'}</Text>
+              <Text style={[type.title, { color: colors.foreground }]}>
+                {capturedUri ? '‹ Edit' : isEditMode ? '‹ Cancel' : '‹ Start over'}
+              </Text>
             </Pressable>
           </View>
           <Text style={[type.h2, styles.headerTitle]} numberOfLines={1}>
@@ -376,6 +469,12 @@ export default function CreatorScreen() {
 
           {!capturedUri ? (
             <>
+              {isEditMode ? (
+                <View style={{ marginTop: spacing.md }}>
+                  <WebCompeteButton label="🖼 Change Photo" variant="outline" onPress={onPickOwnImage} fullWidth />
+                </View>
+              ) : null}
+
               <View style={styles.addRow}>
                 <View style={styles.addRowItem}>
                   <WebCompeteButton label="＋ Text" onPress={() => dispatch(addTextLayer())} fullWidth />
@@ -471,7 +570,20 @@ export default function CreatorScreen() {
                 <View style={{ height: spacing.md }} />
               )}
 
-              {isChallengeMode ? (
+              {isEditMode ? (
+                <>
+                  {editDataQuery.data && !editDataQuery.data.editor_document ? (
+                    <View style={[styles.infoCard, { borderColor: colors.border, backgroundColor: colors.surfaceElevated }]}>
+                      <Text style={[type.meta, { color: colors.foregroundMuted }]}>
+                        This post was created before per-layer editing was saved — you can still
+                        update the photo, caption, and tags, but any old text is now part of the
+                        image itself.
+                      </Text>
+                    </View>
+                  ) : null}
+                  <WebEditTagsEditor tags={tags} onTagsChange={setTags} />
+                </>
+              ) : isChallengeMode ? (
                 <View style={[styles.infoCard, { borderColor: colors.indigoSecondary, backgroundColor: colors.surfaceElevated }]}>
                   <Text style={[type.body, { color: colors.foreground }]}>
                     Competing in{' '}
@@ -544,7 +656,15 @@ export default function CreatorScreen() {
               ) : null}
 
               <WebCompeteButton
-                label={activeMutation.isPending ? 'Publishing…' : 'Publish'}
+                label={
+                  activeMutation.isPending
+                    ? isEditMode
+                      ? 'Saving…'
+                      : 'Publishing…'
+                    : isEditMode
+                      ? 'Save Changes'
+                      : 'Publish'
+                }
                 onPress={onSubmit}
                 loading={activeMutation.isPending}
                 fullWidth

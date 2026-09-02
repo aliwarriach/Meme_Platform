@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  labels:
+    {{- include "meme-platform.labels" . | nindent 4 }}
+    app: worker
+spec:
+  {{- if not .Values.worker.autoscaling.enabled }}
+  replicas: {{ .Values.worker.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        {{- include "meme-platform.labels" . | nindent 8 }}
+        app: worker
+    spec:
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      containers:
+        - name: worker
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - arq
+            - app.workers.arq_worker.WorkerSettings
+          envFrom:
+            - secretRef:
+                name: {{ .Values.secretName }}
+          resources:
+            {{- toYaml .Values.worker.resources | nindent 12 }}
+          # No HTTP server in this role (arq has no health endpoint) — restartPolicy
+          # Always on the Deployment already restarts on crash, which is the only
+          # failure mode a liveness probe would add here.

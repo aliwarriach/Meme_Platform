@@ -22,13 +22,18 @@ import {
   castVoteRequest,
   createCommunityMemeRequest,
   createMemeRequest,
+  deleteMemeRequest,
   getCommunityFeedRequest,
   getFeedRequest,
+  getMemeEditDataRequest,
+  getMemeRequest,
   listCommentsRequest,
   recordMemeViewRequest,
+  updateMemeRequest,
   type AudienceType,
   type CommentResponse,
   type FeedPageResponse,
+  type MemeEditDataResponse,
   type MemeResponse,
   type MemeViewResponse,
   type MergedFeedPageResponse,
@@ -38,6 +43,8 @@ import {
 const memesRootKey = ['memes'] as const;
 const feedKey = ['memes', 'feed'] as const;
 const communityFeedKey = (communityId: string) => ['memes', 'community', communityId] as const;
+const memeKey = (memeId: string) => ['memes', memeId] as const;
+const memeEditKey = (memeId: string) => ['memes', memeId, 'edit'] as const;
 const commentsKey = (memeId: string) => ['memes', memeId, 'comments'] as const;
 
 const FEED_PAGE_SIZE = 20;
@@ -82,6 +89,7 @@ export function useCreateMemeMutation() {
       caption?: string;
       audiences: AudienceType[];
       hashtags?: string[];
+      editorDocumentJson?: string;
     }
   >({
     mutationFn: async (payload) => {
@@ -104,6 +112,7 @@ export function useCreateCommunityMemeMutation() {
       imageName: string;
       imageType: string;
       caption?: string;
+      editorDocumentJson?: string;
     }
   >({
     mutationFn: async (payload) => {
@@ -134,6 +143,76 @@ export function useCommunityFeed(communityId: string, enabled: boolean) {
     },
     getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
     enabled,
+  });
+}
+
+export function useMeme(memeId: string, enabled = true) {
+  return useQuery<MemeResponse, Error>({
+    queryKey: memeKey(memeId),
+    queryFn: async () => {
+      const response = await getMemeRequest(memeId);
+      if (!response.ok || !response.data) throwApiError(response, 'load post');
+      return response.data;
+    },
+    enabled: enabled && !!memeId,
+  });
+}
+
+// Author-only edit-screen data. Not shared with the plain `useMeme`/feed caches — deliberately
+// its own query key, since `editor_document` is sizable JSON nothing but an edit session needs.
+export function useMemeEditData(memeId: string, enabled = true) {
+  return useQuery<MemeEditDataResponse, Error>({
+    queryKey: memeEditKey(memeId),
+    queryFn: async () => {
+      const response = await getMemeEditDataRequest(memeId);
+      if (!response.ok || !response.data) throwApiError(response, 'load meme for editing');
+      return response.data;
+    },
+    enabled: enabled && !!memeId,
+  });
+}
+
+export function useUpdateMemeMutation() {
+  const queryClient = useQueryClient();
+  return useMutation<
+    MemeResponse,
+    Error,
+    {
+      memeId: string;
+      caption?: string | null;
+      hashtags?: string[];
+      image?: { uri: string; name: string; type: string };
+      editorDocumentJson?: string;
+    }
+  >({
+    mutationFn: async ({ memeId, ...payload }) => {
+      const response = await updateMemeRequest(memeId, payload);
+      if (!response.ok || !response.data) throwApiError(response, 'update meme');
+      return response.data;
+    },
+    onSuccess: (updated, { memeId }) => {
+      // Patch every cached copy in place with the server's fresh `MemeOut`, same precedent
+      // as vote/comment mutations — never invalidate the main feed key here. It's Hot-ranked
+      // and offset-paginated, so a refetch can reorder/duplicate cards mid-scroll (see
+      // [[optimistic-cache]]); the full server response already has everything a feed card
+      // renders (image_url/caption), so there's no cheaper-but-incomplete patch to reach for.
+      patchMemeInCaches(queryClient, memeId, () => updated);
+      queryClient.invalidateQueries({ queryKey: memeEditKey(memeId) });
+    },
+  });
+}
+
+export function useDeleteMemeMutation() {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, string>({
+    mutationFn: async (memeId) => {
+      const response = await deleteMemeRequest(memeId);
+      if (!response.ok) throwApiError(response, 'delete meme');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: feedKey });
+      queryClient.invalidateQueries({ queryKey: memesRootKey });
+    },
   });
 }
 

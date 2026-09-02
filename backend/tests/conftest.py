@@ -22,11 +22,13 @@ import app.services.memes as memes_service
 import app.services.messaging as messaging_service
 import app.services.notifications as notifications_service
 import app.services.password_reset as password_reset_service
+import app.services.templates as templates_service
 import app.services.users as users_service
 import app.workers.tasks.email_verification as email_verification_worker_tasks
 import app.workers.tasks.instagram as instagram_worker_tasks
 import app.workers.tasks.notifications as notifications_worker_tasks
 import app.workers.tasks.password_reset as password_reset_worker_tasks
+import app.workers.tasks.trending as trending_worker_tasks
 from app.core.config import settings
 from app.core.leaderboard_cache import _get_redis as get_leaderboard_redis
 from app.core.rate_limit import limiter
@@ -174,6 +176,7 @@ def use_test_session_factory_for_background_tasks(monkeypatch):
     """
     monkeypatch.setattr(instagram_worker_tasks, "async_session_factory", TestSessionFactory)
     monkeypatch.setattr(notifications_worker_tasks, "async_session_factory", TestSessionFactory)
+    monkeypatch.setattr(trending_worker_tasks, "async_session_factory", TestSessionFactory)
 
 
 @pytest.fixture(autouse=True)
@@ -286,6 +289,7 @@ def mock_media_delete(monkeypatch):
 
     monkeypatch.setattr(memes_service, "delete_uploaded_image", _fake_delete)
     monkeypatch.setattr(users_service, "delete_uploaded_image", _fake_delete)
+    monkeypatch.setattr(templates_service, "delete_uploaded_image", _fake_delete)
     return calls
 
 

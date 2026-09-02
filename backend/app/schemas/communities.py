@@ -16,6 +16,7 @@ class CommunityOut(BaseModel):
     name: str
     description: str | None
     icon_url: str | None
+    icon_preset: str | None
     banner_url: str | None
     privacy: CommunityPrivacy
     member_count: int

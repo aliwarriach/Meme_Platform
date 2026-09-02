@@ -1,17 +1,22 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
 import { useThemeMode } from '@/constants/ThemeMode';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { useSelector } from 'react-redux';
 
 import Avatar from '@/components/Avatar';
 import VotePill from '@/components/VotePill';
 import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
-import { CommentsSection } from '@/features/feed/components/CommentsSection';
+import { CommentsModal } from '@/features/feed/components/CommentsModal';
+import { PostMenuSheet } from '@/features/feed/components/PostMenuSheet';
 import { SendMemeModal } from '@/features/meme-sending/SendMemeModal';
 import { shareMemeImage } from '@/features/sharing/shareMeme';
 import type { MemeResponse } from '@/services/memes';
+import { useMyCommunities } from '@/services/useCommunities';
 import { useRecordMemeViewMutation, useCastVoteMutation } from '@/services/useMemes';
+import type { RootState } from '@/store/store';
 import { timeAgo } from '@/utils/timeAgo';
 import { useRecordViewOnVisible } from '@/utils/useRecordViewOnVisible';
 
@@ -21,8 +26,10 @@ interface MemeCardProps {
 
 /** Bordered card: fixed 4:5 media ratio, avatar+username header, up/down vote control + send/share/comment action row. */
 export function MemeCard({ meme }: MemeCardProps) {
+  const router = useRouter();
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [sendModalOpen, setSendModalOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
   const castVote = useCastVoteMutation();
@@ -30,6 +37,18 @@ export function MemeCard({ meme }: MemeCardProps) {
   const cardRef = useRecordViewOnVisible(() => recordView.mutate(meme.id));
   const { mode } = useThemeMode();
   const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  const currentUserId = useSelector((state: RootState) => state.auth.user?.id);
+  const isOwnPost = !!currentUserId && meme.author.id === currentUserId;
+  // A community's owner can remove (but never edit) a member's post from their own
+  // community's feed — moderation, not authorship. `useMyCommunities` is already a shared,
+  // cached query (used elsewhere for the same "am I this community's owner" check), so this
+  // adds no extra network calls beyond the first card that mounts.
+  const myCommunities = useMyCommunities();
+  const isCommunityOwner =
+    !isOwnPost &&
+    !!meme.community &&
+    !!myCommunities.data?.some((c) => c.id === meme.community!.id && c.owner.id === currentUserId);
+  const canManagePost = isOwnPost || isCommunityOwner;
 
   const isVoting = castVote.isPending;
 
@@ -52,18 +71,36 @@ export function MemeCard({ meme }: MemeCardProps) {
       ref={cardRef}
       className="mx-3 mb-4 overflow-hidden rounded-card border border-outline-variant/30 bg-surface pb-3">
       <View className="flex-row items-center px-4 py-3">
-        <View className="mr-3">
-          <Avatar username={meme.author.username} size="sm" />
-        </View>
-        <View className="flex-1 flex-row items-center justify-between">
-          <View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Open ${meme.author.username}'s profile`}
+          onPress={() => router.push({ pathname: '/users/[id]', params: { id: meme.author.id } })}
+          className="flex-1 flex-row items-center">
+          <View className="mr-3">
+            <Avatar
+              username={meme.author.username}
+              avatarUrl={meme.author.avatar_url}
+              avatarPreset={meme.author.avatar_preset}
+              size="sm"
+            />
+          </View>
+          <View className="flex-1">
             <Text className="font-title text-sm text-heading">{meme.author.username}</Text>
             {meme.community ? (
               <Text className="font-body text-xs text-ink-muted">in {meme.community.name}</Text>
             ) : null}
           </View>
-          <Text className="font-body text-xs text-ink-muted">{timeAgo(meme.created_at)}</Text>
-        </View>
+        </Pressable>
+        <Text className="font-body text-xs text-ink-muted">{timeAgo(meme.created_at)}</Text>
+        {canManagePost ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Post options"
+            onPress={() => setMenuOpen(true)}
+            className="ml-1 h-11 w-11 items-center justify-center">
+            <MaterialIcons name="more-vert" size={20} color={c.inkMuted} />
+          </Pressable>
+        ) : null}
       </View>
 
       <Image
@@ -141,13 +178,23 @@ export function MemeCard({ meme }: MemeCardProps) {
 
       {shareError ? <Text className="px-4 pt-1 font-body text-xs text-error">{shareError}</Text> : null}
 
-      {commentsOpen ? <CommentsSection memeId={meme.id} /> : null}
+      <CommentsModal memeId={meme.id} visible={commentsOpen} onClose={() => setCommentsOpen(false)} />
 
       <SendMemeModal
         memeId={meme.id}
         visible={sendModalOpen}
         onClose={() => setSendModalOpen(false)}
       />
+
+      {canManagePost ? (
+        <PostMenuSheet
+          memeId={meme.id}
+          visible={menuOpen}
+          onClose={() => setMenuOpen(false)}
+          onEdit={() => router.push({ pathname: '/new-post', params: { editMemeId: meme.id } })}
+          canEdit={isOwnPost}
+        />
+      ) : null}
     </View>
   );
 }

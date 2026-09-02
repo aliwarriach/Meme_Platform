@@ -14,6 +14,8 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
+import { enableFreeze } from 'react-native-screens';
 import { Provider as ReduxProvider, useDispatch, useSelector } from 'react-redux';
 
 import DesktopShell from '@/components/web/DesktopShell';
@@ -26,6 +28,15 @@ import { useNotificationsSocketSync, useRegisterPushTokenMutation, useUnregister
 import { currentPushPlatform, getExpoPushTokenAsync } from '@/services/pushNotifications';
 
 SplashScreen.preventAutoHideAsync();
+
+// Every screen pushed onto the Stack stays fully mounted (not unmounted) so back-navigation
+// preserves scroll position/state — but that means a root-level state change (e.g. the light/dark
+// toggle, which re-renders through `ThemeModeProvider`'s app-wide `vars()` wrapper) forces every
+// currently-mounted screen to re-resolve its styles at once, not just the one on screen. Freezing
+// blurred screens (via `freezeOnBlur` below) skips their re-render entirely while off-screen — they
+// silently catch up next time they're focused, invisible to the user, so a toggle only has to
+// redraw the one screen actually visible. No-ops on unsupported platforms (web) on its own.
+enableFreeze(true);
 
 const queryClient = new QueryClient();
 
@@ -110,13 +121,17 @@ function AuthBoundary({ fontsLoaded }: { fontsLoaded: boolean }) {
     <ThemeProvider value={mode === 'dark' ? NEON_PLUM_NAV_DARK : NEON_PLUM_NAV_LIGHT}>
       <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
       <DesktopShell>
-        <Stack screenOptions={{ headerShown: false }}>
+        <Stack screenOptions={{ headerShown: false, freezeOnBlur: true }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="login" />
         <Stack.Screen name="register" />
+        <Stack.Screen name="forgot-password" />
+        <Stack.Screen name="oauthredirect" />
         <Stack.Screen name="profile" />
+        <Stack.Screen name="users/[id]" />
         <Stack.Screen name="friends" />
         <Stack.Screen name="feed" />
+        <Stack.Screen name="memes/[id]" />
         <Stack.Screen name="new-post" />
         <Stack.Screen name="communities" />
         <Stack.Screen name="communities/new" />
@@ -133,6 +148,7 @@ function AuthBoundary({ fontsLoaded }: { fontsLoaded: boolean }) {
         <Stack.Screen name="compete" />
         <Stack.Screen name="compete/open/new" />
         <Stack.Screen name="tag/[slug]" />
+        <Stack.Screen name="search" />
         </Stack>
       </DesktopShell>
     </ThemeProvider>
@@ -150,13 +166,15 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ReduxProvider store={store}>
-        <QueryClientProvider client={queryClient}>
-          <ThemeModeProvider>
-            <AuthBoundary fontsLoaded={fontsLoaded} />
-          </ThemeModeProvider>
-        </QueryClientProvider>
-      </ReduxProvider>
+      <KeyboardProvider>
+        <ReduxProvider store={store}>
+          <QueryClientProvider client={queryClient}>
+            <ThemeModeProvider>
+              <AuthBoundary fontsLoaded={fontsLoaded} />
+            </ThemeModeProvider>
+          </QueryClientProvider>
+        </ReduxProvider>
+      </KeyboardProvider>
     </GestureHandlerRootView>
   );
 }

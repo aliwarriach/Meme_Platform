@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: realtime
+  labels:
+    {{- include "meme-platform.labels" . | nindent 4 }}
+    app: realtime
+spec:
+  {{- if not .Values.realtime.autoscaling.enabled }}
+  replicas: {{ .Values.realtime.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app: realtime
+  template:
+    metadata:
+      labels:
+        {{- include "meme-platform.labels" . | nindent 8 }}
+        app: realtime
+    spec:
+      # Longer than api/worker's baseline — open WebSockets take longer to drain
+      # than an in-flight HTTP request (A3 IMPLEMENT step 5).
+      terminationGracePeriodSeconds: {{ .Values.realtime.terminationGracePeriodSeconds }}
+      containers:
+        - name: realtime
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # Same app as api, tuned worker count + raised fd limit (A6 IMPLEMENT
+          # step 4). No native Pod-spec ulimits field, so the container's own shell
+          # sets it before exec'ing gunicorn — same effect as docker-compose.scale.yml's
+          # realtime-1/2 `ulimits.nofile`.
+          command:
+            - sh
+            - -c
+            - >-
+              ulimit -n {{ .Values.realtime.nofileLimit }} &&
+              exec gunicorn app.main:app -k uvicorn.workers.UvicornWorker
+              --bind 0.0.0.0:8000 --workers {{ .Values.realtime.gunicornWorkers }}
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: {{ .Values.secretName }}
+          resources:
+            {{- toYaml .Values.realtime.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sh", "-c", "sleep {{ .Values.preStopSleepSeconds }}"]

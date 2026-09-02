@@ -16,6 +16,7 @@ type NavItem = {
 
 const NAV_ITEMS: NavItem[] = [
   { label: 'Feed', href: '/feed', icon: 'home' },
+  { label: 'Search', href: '/search', icon: 'search' },
   { label: 'Communities', href: '/communities', icon: 'groups' },
   { label: 'Inbox', href: '/inbox', icon: 'mail' },
   { label: 'Friends', href: '/friends', icon: 'people' },
@@ -76,10 +77,10 @@ export default function DesktopSidebarNav() {
     <View style={[styles.root, { width: DESKTOP_SIDEBAR_WIDTH }]}>
       <Pressable
         accessibilityRole="link"
-        accessibilityLabel="MemeVerse, go to feed"
+        accessibilityLabel="Mosh, go to feed"
         onPress={() => router.push('/feed' as never)}
         style={styles.brandButton}>
-        <Text style={styles.brand}>MemeVerse</Text>
+        <Text style={styles.brand}>MOSH</Text>
       </Pressable>
 
       <View style={styles.items}>

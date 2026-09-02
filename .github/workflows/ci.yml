@@ -93,8 +93,33 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
+      # jest-expo@~57.0.2 requires @react-native/jest-preset@^0.86.2, but
+      # react-native@0.86.0 pins an exact (optional) peer of 0.86.0 for the same
+      # package - a genuine unresolvable-by-npm peer conflict, not lockfile drift.
+      # --legacy-peer-deps is the fix already validated for this exact conflict
+      # (see .claude/memory/project_run_setup.md): bumping/regenerating the
+      # lockfile instead floats other expo/native packages upward and has
+      # previously hard-crashed the pinned dev-client APK on dependency drift.
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --legacy-peer-deps
+
+      # expo-env.d.ts is deliberately gitignored (Expo's own convention — it's
+      # regenerated locally as a side effect of `expo start` actually booting the dev
+      # server) and tsconfig.json's `include` names it explicitly. Without it, its one
+      # `/// <reference types="expo/types" />` line never loads — which is what
+      # augments core react-native's `PressableStateCallbackType` with the
+      # `hovered`/`focused` fields every `.web.tsx` Pressable callback destructures —
+      # so a fresh CI checkout fails Typecheck on ~50 files with "Property 'hovered'
+      # does not exist" even though the app is correct. Content is Expo's own fixed,
+      # version-independent boilerplate (@expo/cli's writeExpoEnvDTS) — recreating it
+      # here avoids booting a full dev server just for this one static file.
+      - name: Generate expo-env.d.ts
+        run: |
+          cat > expo-env.d.ts <<'EOF'
+          /// <reference types="expo/types" />
+
+          // NOTE: This file should not be edited and should be in your git ignore
+          EOF
 
       - name: Typecheck
         run: npx tsc --noEmit
@@ -109,6 +134,183 @@ jobs:
       # the already-known, already-triaged residue.
       - name: Dependency audit (advisory)
         run: npm audit --audit-level=high || true
+
+  docker:
+    # Roadmap_Scaling.md A6 — builds and verifies the api/realtime/worker image the way
+    # the phase's own TEST section asks for, on a runner that has Docker preinstalled.
+    # This dev machine has no local Docker (WSL2 unavailable, no admin rights to install
+    # it) — CI stands in for `docker build`/`docker run` until that's resolved, same $0
+    # cost, just a slower feedback loop than truly local.
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: meme_platform
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      # --network host (used on every `docker run` below) puts the container on the
+      # runner's own network namespace, so these service containers are reachable at
+      # plain localhost — same as any other step in this job.
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/meme_platform
+      REDIS_URL: redis://localhost:6379/0
+      JWT_SECRET: ci-docker-verify-secret-not-for-production-use
+      CLOUDINARY_CLOUD_NAME: test
+      CLOUDINARY_API_KEY: test
+      CLOUDINARY_API_SECRET: test
+      GROQ_API_KEY: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t meme-platform-api:ci .
+
+      - name: No secrets baked into the image itself
+        # Deliberately zero -e flags — this is about what the Dockerfile's own ENV
+        # instructions define, not what a caller injects at runtime (that's how
+        # JWT_SECRET etc. are *supposed* to arrive, via K8s Secrets later).
+        run: |
+          set -e
+          if docker run --rm meme-platform-api:ci printenv | grep -i secret; then
+            echo "::error::a secret-named env var is baked into the image"; exit 1
+          fi
+          if docker run --rm meme-platform-api:ci sh -c 'test -f /app/.env'; then
+            echo "::error::.env made it into the image filesystem"; exit 1
+          fi
+          echo "clean: no baked-in secrets, no .env in the image"
+
+      - name: No build toolchain in the final image
+        run: |
+          set -e
+          if docker run --rm meme-platform-api:ci sh -c 'command -v gcc || command -v cc'; then
+            echo "::error::a C compiler is present in the final image — multi-stage build leaked the builder stage"
+            exit 1
+          fi
+          docker history --no-trunc meme-platform-api:ci
+
+      - name: Run migrations from the image (api command's DB actually reachable)
+        run: |
+          docker run --rm --network host \
+            -e DATABASE_URL -e REDIS_URL -e JWT_SECRET \
+            -e CLOUDINARY_CLOUD_NAME -e CLOUDINARY_API_KEY -e CLOUDINARY_API_SECRET -e GROQ_API_KEY \
+            meme-platform-api:ci alembic upgrade head
+
+      - name: Start the api command, verify non-root + /health/live
+        run: |
+          set -e
+          docker run -d --name api-smoke --network host \
+            -e DATABASE_URL -e REDIS_URL -e JWT_SECRET \
+            -e CLOUDINARY_CLOUD_NAME -e CLOUDINARY_API_KEY -e CLOUDINARY_API_SECRET -e GROQ_API_KEY \
+            meme-platform-api:ci
+          user=$(docker exec api-smoke whoami)
+          echo "running as: $user"
+          if [ "$user" = "root" ]; then echo "::error::container runs as root"; exit 1; fi
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8000/health/live; then echo; echo "live"; exit 0; fi
+            sleep 1
+          done
+          echo "::error::/health/live never came up"
+          docker logs api-smoke
+          exit 1
+
+      - name: Verify the worker command also runs from the same image
+        run: |
+          set -e
+          docker run -d --name worker-smoke --network host \
+            -e DATABASE_URL -e REDIS_URL -e JWT_SECRET \
+            -e CLOUDINARY_CLOUD_NAME -e CLOUDINARY_API_KEY -e CLOUDINARY_API_SECRET -e GROQ_API_KEY \
+            meme-platform-api:ci arq app.workers.arq_worker.WorkerSettings
+          sleep 5
+          if [ "$(docker inspect -f '{{.State.Running}}' worker-smoke)" != "true" ]; then
+            echo "::error::worker command exited early"; docker logs worker-smoke; exit 1
+          fi
+          docker logs worker-smoke
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker rm -f api-smoke worker-smoke 2>/dev/null || true
+
+  scale-proof:
+    # Roadmap_Scaling.md A7 — local multi-instance proof, run on this Linux CI runner
+    # since local Docker is unavailable on the dev machine (see the `docker` job's own
+    # note). "Local, $0" either way — this is $0 CI compute, just a slower feedback loop
+    # than truly local would be.
+    needs: [docker]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install proof script dependencies
+        run: pip install httpx websockets
+
+      - name: Bring up the multi-instance stack (postgres, redis, pgbouncer, 3x api, 2x realtime, worker, nginx)
+        run: docker compose -f docker-compose.scale.yml up -d --build
+
+      - name: Wait for nginx to serve a healthy api
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:8080/health/live; then echo; echo "up"; exit 0; fi
+            sleep 2
+          done
+          echo "::error::stack never became ready"
+          docker compose -f docker-compose.scale.yml logs
+          exit 1
+
+      - name: Connection count is bounded with all 6 app containers running (A2 + PgBouncer)
+        run: |
+          count=$(docker compose -f docker-compose.scale.yml exec -T postgres \
+            psql -U postgres -d meme_platform -t -c \
+            "SELECT count(*) FROM pg_stat_activity WHERE datname = 'meme_platform'")
+          echo "connections: $count"
+          # 6 app containers x (db_pool_size=5 + db_max_overflow=5) = 60 is the
+          # configured ceiling (app/core/config.py) — well below PgBouncer's
+          # max_client_conn=200 and Postgres's own default max_connections=100. A live
+          # count anywhere near 60 (not climbing unbounded) proves the pool is real.
+          if [ "$(echo "$count" | tr -d '[:space:]')" -gt 70 ]; then
+            echo "::error::connection count $count is not bounded as expected"
+            exit 1
+          fi
+
+      - name: Proofs 1 + 2 + 3 (core flow, cross-pod WebSocket delivery, no dropped requests killing api-1)
+        # One invocation, not two: /auth/register is rate-limited (5/minute/IP,
+        # app/routers/auth.py) — every request in this job comes from the same runner
+        # IP, so a *second* separate `python scale_proof.py` call would redundantly
+        # re-run proofs 1+2 (registering 4 more users within the same rate-limit
+        # window as the first 4) and 429 outright. `main()` only runs each proof once
+        # per invocation regardless, so passing the kill-service argument here covers
+        # all three proofs in a single pass.
+        run: python backend/scripts/scale_proof.py api-1
+
+      - name: Dump stack logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.scale.yml logs --tail=200
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.scale.yml down -v
 
   secrets-scan:
     runs-on: ubuntu-latest

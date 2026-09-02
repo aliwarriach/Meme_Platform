@@ -27,6 +27,7 @@ import {
   canvasPixels,
   EXPORT_MAX_SIDE,
   IMAGE_BASE_FRACTION,
+  MIN_AUTOFIT_SCALE,
   resolveFontFamilies,
   type Layer,
   type MemeDocument,
@@ -64,8 +65,10 @@ export interface BuiltLayer {
 }
 
 // Text sizing is based on canvas WIDTH so a layer keeps its look across aspect ratios.
-function buildParagraph(layer: TextLayer, width: number, stroke: boolean): SkParagraph {
-  const fontSize = width * BASE_FONT_FRACTION * layer.scale;
+// `fontSize` is always resolved by the caller (see `fitTextToBox`) rather than derived here
+// from `width`, since `width` is now the layer's independent wrap width (its box, or the
+// full canvas as a fallback) and must vary separately from font size.
+function buildParagraph(layer: TextLayer, width: number, stroke: boolean, fontSize: number): SkParagraph {
   const { style } = layer;
 
   // CanvasKit (web) has no OS font manager — it only knows the families registered on the
@@ -116,6 +119,54 @@ function buildParagraph(layer: TextLayer, width: number, stroke: boolean): SkPar
   return paragraph;
 }
 
+// Resolves a text layer's fill (+ optional stroke) paragraph at `layoutWidthPx`, shrinking
+// the font from its normal scale-derived size (never below `MIN_AUTOFIT_SCALE` of it) when
+// `boxHeightPx` is set and the text would otherwise overflow it — this is what makes
+// closing the gap between the top/bottom resize handles pack words back onto the lines
+// above instead of just clipping. `boxHeightPx` null (no explicit box yet) skips the fit
+// entirely, matching the old, unconstrained-height behavior exactly.
+function fitTextToBox(
+  layer: TextLayer,
+  layoutWidthPx: number,
+  boxHeightPx: number | null,
+  canvasWidthPx: number
+): { fill: SkParagraph; stroke: SkParagraph | null; fontSize: number } {
+  const targetFontSize = canvasWidthPx * BASE_FONT_FRACTION * layer.scale;
+  let fontSize = targetFontSize;
+  let fill = buildParagraph(layer, layoutWidthPx, false, fontSize);
+
+  if (boxHeightPx != null && fill.getHeight() > boxHeightPx) {
+    const minFont = targetFontSize * MIN_AUTOFIT_SCALE;
+    let lo = minFont;
+    let hi = targetFontSize;
+    let best = minFont;
+    let bestFill = buildParagraph(layer, layoutWidthPx, false, minFont);
+    if (bestFill.getHeight() <= boxHeightPx) {
+      // Binary search for the largest font size (down from target, above the floor) whose
+      // wrapped height still fits — a handful of paragraph rebuilds, only paid when the box
+      // actually constrains this layer.
+      for (let i = 0; i < 6; i += 1) {
+        const mid = (lo + hi) / 2;
+        const candidate = buildParagraph(layer, layoutWidthPx, false, mid);
+        if (candidate.getHeight() <= boxHeightPx) {
+          lo = mid;
+          best = mid;
+          bestFill = candidate;
+        } else {
+          hi = mid;
+        }
+      }
+    }
+    // If even the floor size overflows, fall back to it anyway (the box is too small for
+    // this text) rather than leaving the font at its untouched, worse-overflowing target size.
+    fontSize = best;
+    fill = bestFill;
+  }
+
+  const stroke = layer.style.strokeWidthFraction > 0 ? buildParagraph(layer, layoutWidthPx, true, fontSize) : null;
+  return { fill, stroke, fontSize };
+}
+
 // Builds the drawable + measured geometry for every renderable layer at the given canvas
 // size. Text layers with no content and image layers whose image isn't decoded yet are
 // skipped. Widths/fonts are based on canvas.w; canvas.h only matters for y-placement.
@@ -123,8 +174,9 @@ export function buildMemeLayers(doc: MemeDocument, canvas: CanvasPx, images: Ima
   return doc.layers.flatMap<BuiltLayer>((layer) => {
     if (layer.kind === 'text') {
       if (layer.text.trim().length === 0) return [];
-      const fill = buildParagraph(layer, canvas.w, false);
-      const stroke = layer.style.strokeWidthFraction > 0 ? buildParagraph(layer, canvas.w, true) : null;
+      const layoutWidthPx = (layer.box?.width ?? 1) * canvas.w;
+      const boxHeightPx = layer.box ? layer.box.height * canvas.h : null;
+      const { fill, stroke } = fitTextToBox(layer, layoutWidthPx, boxHeightPx, canvas.w);
       const longestLine = fill.getLongestLine();
       return [
         {
@@ -133,8 +185,8 @@ export function buildMemeLayers(doc: MemeDocument, canvas: CanvasPx, images: Ima
           fill,
           stroke,
           image: null,
-          drawWidth: canvas.w,
-          anchorX: alignedCenterX(layer.style.align, canvas.w, longestLine),
+          drawWidth: layoutWidthPx,
+          anchorX: alignedCenterX(layer.style.align, layoutWidthPx, longestLine),
           contentWidth: longestLine,
           height: fill.getHeight(),
         },
@@ -175,19 +227,23 @@ export function staticLayerTransform(built: BuiltLayer, canvas: CanvasPx): Trans
   ];
 }
 
-// Oriented bounding box of a layer in canvas pixels — used for tap hit-testing.
+// Oriented bounding box of a layer in canvas pixels — used for tap hit-testing. A text
+// layer with an explicit resize box hit-tests against the box (so tapping anywhere inside
+// it, not just on glyph pixels, selects it) rather than the tighter content-hugging bounds.
 export function layerBBox(built: BuiltLayer, canvas: CanvasPx) {
+  const box = built.layer.kind === 'text' ? built.layer.box : undefined;
   return {
     cx: built.layer.pos.x * canvas.w,
     cy: built.layer.pos.y * canvas.h,
-    hw: built.contentWidth / 2,
-    hh: built.height / 2,
+    hw: box ? (box.width * canvas.w) / 2 : built.contentWidth / 2,
+    hh: box ? (box.height * canvas.h) / 2 : built.height / 2,
     rot: built.layer.rotation,
   };
 }
 
 export interface SceneLayer {
   id: string;
+  kind: Layer['kind'];
   fill: SkParagraph | null;
   stroke: SkParagraph | null;
   image: SkImage | null;
@@ -235,7 +291,9 @@ export function MemeScene({ image, canvas, fit, bg, layers, selectedId }: MemeSc
               ) : null}
             </>
           )}
-          {layer.id === selectedId ? (
+          {/* Text layers get the box + resize-handle overlay drawn by EditorCanvas instead —
+              this content-hugging rect stays only for image layers, which have no box. */}
+          {layer.id === selectedId && layer.kind !== 'text' ? (
             <Rect
               x={layer.anchorX - layer.contentWidth / 2}
               y={-4}
@@ -255,6 +313,7 @@ export function MemeScene({ image, canvas, fit, bg, layers, selectedId }: MemeSc
 function toSceneLayers(built: BuiltLayer[], canvas: CanvasPx): SceneLayer[] {
   return built.map((b) => ({
     id: b.id,
+    kind: b.layer.kind,
     fill: b.fill,
     stroke: b.stroke,
     image: b.image,

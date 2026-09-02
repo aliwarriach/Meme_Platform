@@ -94,9 +94,13 @@ async def create_upload_signature(user_id: uuid.UUID, context: UploadContext) ->
     }
     signature = sign_upload_params(params_to_sign)
 
+    # `folder` rides along with `user_id` in the stored value — `confirm_pending_upload`
+    # needs it to reconstruct Cloudinary's *real* identifier for this asset (see there).
     redis = await get_arq_pool()
     await redis.set(
-        f"{MEDIA_PENDING_KEY_PREFIX}{public_id}", str(user_id), ex=MEDIA_PENDING_TTL_SECONDS
+        f"{MEDIA_PENDING_KEY_PREFIX}{public_id}",
+        f"{user_id}:{folder}",
+        ex=MEDIA_PENDING_TTL_SECONDS,
     )
 
     return UploadSignatureOut(
@@ -118,6 +122,15 @@ async def confirm_pending_upload(user_id: uuid.UUID, public_id: str) -> tuple[st
 
     `GETDEL` makes every signature single-use: a second confirm with the same
     `public_id` always finds nothing and 400s, same as one that was never issued.
+
+    **2026-08-27 fix**: Cloudinary prefixes `folder` onto an asset's real identifier at
+    upload time (verified live against the real account — uploading with
+    `folder="x", public_id="y"` produces an asset only resolvable as `"x/y"`, never bare
+    `"y"`) — the bare `public_id` this function used to look up and return was never
+    actually resolvable, so every confirm here failed with "No image was actually
+    uploaded for this signature" even on a fully successful upload. Every A4 caller
+    (personal/community memes, challenge submissions, templates, avatars, community
+    icon/banner) shares this one function, so the fix lives here only.
     """
     redis = await get_arq_pool()
     raw_owner = await redis.getdel(f"{MEDIA_PENDING_KEY_PREFIX}{public_id}")
@@ -125,18 +138,19 @@ async def confirm_pending_upload(user_id: uuid.UUID, public_id: str) -> tuple[st
         raise UploadSignatureNotFoundError("Upload signature not found or expired")
 
     owner_str = raw_owner.decode() if isinstance(raw_owner, bytes) else raw_owner
-    if owner_str != str(user_id):
+    owner_id_str, _, folder = owner_str.partition(":")
+    if owner_id_str != str(user_id):
         raise UploadSignatureOwnerMismatchError("This upload was not issued to you")
 
-    resource = await get_image_resource(public_id)
+    resource = await get_image_resource(f"{folder}/{public_id}")
     if resource is None:
         raise UploadSignatureNotFoundError("No image was actually uploaded for this signature")
 
     if resource.get("bytes", 0) > MAX_IMAGE_BYTES:
-        await delete_image(public_id)
+        await delete_image(resource["public_id"])
         raise MediaTooLargeError("Image exceeds the 10MB upload limit")
     if resource.get("format") not in ALLOWED_IMAGE_FORMATS:
-        await delete_image(public_id)
+        await delete_image(resource["public_id"])
         raise UnsupportedMediaTypeError(f"Unsupported image format: {resource.get('format')}")
 
-    return resource["secure_url"], public_id
+    return resource["secure_url"], resource["public_id"]

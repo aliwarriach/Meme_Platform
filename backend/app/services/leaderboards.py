@@ -47,10 +47,17 @@ from app.schemas.leaderboards import (
     IndividualLeaderboardPage,
     ProfileScoreOut,
 )
-from app.services.communities import require_active_membership
+from app.services.communities import require_membership_or_open_community
 from app.services.scoring import meme_score_expr
 
 _stored_or_live_score = func.coalesce(MemeScore.score, meme_score_expr())
+
+# Deliberately deletion-agnostic (confirmed product decision, not an oversight): every
+# query below sums/reads straight off `memes` with no `deleted_at` filter, so a deleted
+# post's score keeps contributing to a user's leaderboard/profile total. Only competition
+# standings (services/competitions.py) and fresh challenge nomination (services/challenges.py
+# ::submit_to_challenge) exclude a deleted post — a challenge it was already submitted to
+# before deletion still counts it too (services/challenges.py::_side_scores).
 
 # Competitive leaderboards reflect the last 30 days, so newcomers can climb and last
 # month's winner doesn't own the board forever. Lifetime totals live on the profile score.
@@ -173,10 +180,11 @@ async def get_internal_community_leaderboard(
 ) -> IndividualLeaderboardPage:
     """A single community's own members, ranked by their **community-post-only** score
     within that community over the last 30 days (not their platform-wide individual score) —
-    member-gated, no open-community exception, matching every other community-scoped read
-    ([[communities]]'s `require_active_membership`). Membership is checked before the cache
-    is consulted, so a non-member never gets a cached response either."""
-    await require_active_membership(db, community_id, current_user.id)
+    member-gated for an invite-only community; an **open** community's leaderboard is also
+    readable by a non-member browsing it (2026-08-27, [[communities]]'s
+    `require_membership_or_open_community`). Membership/openness is checked before the cache
+    is consulted, so an invite-only community's non-member never gets a cached response either."""
+    await require_membership_or_open_community(db, community_id, current_user.id)
 
     async def _compute() -> IndividualLeaderboardPage:
         member_score = func.coalesce(func.sum(_stored_or_live_score), 0)

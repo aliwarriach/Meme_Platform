@@ -1,3 +1,4 @@
+import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -22,7 +23,14 @@ const TABS: { type: CompetitionPeriodType; label: string; winnerLabel: string }[
 export default function VotingScreen() {
   const { mode } = useThemeMode();
   const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
-  const [activeTab, setActiveTab] = useState<CompetitionPeriodType>('day');
+  // `period=week|month` (set by the "You won" competition notification, NotificationsScreen.tsx)
+  // opens straight to the period the win actually happened in — without this, a week/month win
+  // would land on the Today tab, where the win banner never appears at all.
+  const { period } = useLocalSearchParams<{ period?: string }>();
+  const initialTab = TABS.some((tab) => tab.type === period)
+    ? (period as CompetitionPeriodType)
+    : 'day';
+  const [activeTab, setActiveTab] = useState<CompetitionPeriodType>(initialTab);
   const [selectedContent, setSelectedContent] = useState<StandingContent | null>(null);
 
   const standingsQuery = useCurrentStandings(activeTab);
@@ -62,8 +70,11 @@ export default function VotingScreen() {
       <TopBar title="Competitions" showBack />
       <FlatList
         data={standingsQuery.data?.items ?? []}
+        // Live standings entries never carry a deleted (meme: null) placeholder — that only
+        // ever appears in a *closed* period's winner (WinnerBanner, handled separately and
+        // never opened via onPress) — so the assertion here is a real structural invariant.
         keyExtractor={(item) =>
-          item.content.kind === 'meme' ? item.content.meme.id : item.content.container.id
+          item.content.kind === 'meme' ? item.content.meme!.id : item.content.container.id
         }
         renderItem={({ item }) => <StandingRow entry={item} onPress={setSelectedContent} />}
         ListHeaderComponent={header}

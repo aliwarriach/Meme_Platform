@@ -1,9 +1,10 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useThemeMode } from '@/constants/ThemeMode';
 
+import { KeyboardAwareForm } from '@/components/KeyboardAvoidingScreen';
 import PillButton from '@/components/PillButton';
 import { TextField } from '@/components/TextField';
 import TopBar from '@/components/TopBar';
@@ -114,7 +115,7 @@ export default function CreateChallengeScreen({ communityId }: CreateChallengeSc
   return (
     <SafeAreaView className="flex-1 bg-bg" edges={['top']}>
       <TopBar title="New Challenge" showBack />
-      <ScrollView className="flex-1 px-6 pt-4">
+      <KeyboardAwareForm className="flex-1 px-6 pt-4">
         <TextField label="Title" value={title} onChangeText={setTitle} placeholder="Meme War" />
         <TextField
           label="Duration (minutes)"
@@ -160,7 +161,7 @@ export default function CreateChallengeScreen({ communityId }: CreateChallengeSc
             loading={createChallenge.isPending}
           />
         </View>
-      </ScrollView>
+      </KeyboardAwareForm>
     </SafeAreaView>
   );
 }

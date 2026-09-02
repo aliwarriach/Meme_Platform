@@ -10,6 +10,7 @@ import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 interface WebThreadTopBarProps {
   username: string;
   avatarUrl?: string | null;
+  avatarPreset?: string | null;
 }
 
 interface WebPressableState {
@@ -25,7 +26,7 @@ interface WebPressableState {
  * avatar/username + the light/dark toggle. No "New Chat" action here — that's the list page's
  * job, not a single thread's.
  */
-export default function WebThreadTopBar({ username, avatarUrl }: WebThreadTopBarProps) {
+export default function WebThreadTopBar({ username, avatarUrl, avatarPreset }: WebThreadTopBarProps) {
   const router = useRouter();
   const { colors, type, radius, spacing, mode, toggleMode } = useVaporwaveTheme();
   const styles = useMemo(() => createStyles(colors, radius, spacing), [colors, radius, spacing]);
@@ -46,7 +47,7 @@ export default function WebThreadTopBar({ username, avatarUrl }: WebThreadTopBar
           <MaterialIcons name="arrow-back" size={22} color={colors.foreground} />
         </Pressable>
 
-        <WebAvatar username={username} avatarUrl={avatarUrl} size={32} />
+        <WebAvatar username={username} avatarUrl={avatarUrl} avatarPreset={avatarPreset} size={32} />
         <Text style={[type.h2, styles.title]} numberOfLines={1}>
           {username}
         </Text>

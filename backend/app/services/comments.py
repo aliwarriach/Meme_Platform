@@ -6,9 +6,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import CommentNotFoundError, NotCommentAuthorError
 from app.models.comment import Comment
+from app.models.notification import NotificationType
 from app.models.user import User
 from app.schemas.comments import CommentCreate, CommentOut
+from app.services import notifications as notifications_service
 from app.services.memes import get_visible_meme
+
+_COMMENT_PREVIEW_MAX_CHARS = 150
 
 
 async def add_comment(
@@ -22,6 +26,19 @@ async def add_comment(
     # comment is already identity-mapped in this session — db.get() would return it
     # as-is without loading relationships, so refresh() is required to populate author.
     await db.refresh(comment)
+
+    if meme.author_id != current_user.id:
+        preview = data.body[:_COMMENT_PREVIEW_MAX_CHARS]
+        if len(data.body) > _COMMENT_PREVIEW_MAX_CHARS:
+            preview += "…"
+        await notifications_service.notify_one(
+            db,
+            meme.author_id,
+            NotificationType.meme_comment_received,
+            title=f"{current_user.username} commented on your meme",
+            body=preview,
+            data={"meme_id": str(meme_id)},
+        )
     return CommentOut.model_validate(comment)
 
 

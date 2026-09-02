@@ -9,6 +9,7 @@ export interface AuthUser {
   username: string;
   bio: string | null;
   avatarUrl: string | null;
+  avatarPreset: string | null;
   emailVerifiedAt: string | null;
 }
 
@@ -30,6 +31,7 @@ function toAuthUser(raw: {
   username: string;
   bio: string | null;
   avatar_url: string | null;
+  avatar_preset: string | null;
   email_verified_at: string | null;
 }): AuthUser {
   return {
@@ -38,6 +40,7 @@ function toAuthUser(raw: {
     username: raw.username,
     bio: raw.bio,
     avatarUrl: raw.avatar_url,
+    avatarPreset: raw.avatar_preset,
     emailVerifiedAt: raw.email_verified_at,
   };
 }
@@ -53,6 +56,7 @@ export const bootstrapAuth = createAsyncThunk('auth/bootstrap', async (_: void, 
     username: string;
     bio: string | null;
     avatar_url: string | null;
+    avatar_preset: string | null;
     email_verified_at: string | null;
   }>('/auth/me');
 
@@ -76,6 +80,7 @@ export const persistCredentials = createAsyncThunk(
       username: string;
       bio: string | null;
       avatar_url: string | null;
+      avatar_preset: string | null;
       email_verified_at: string | null;
     };
   }) => {
@@ -109,6 +114,15 @@ const authSlice = createSlice({
     setEmailVerified(state, action: PayloadAction<string>) {
       if (state.user) state.user.emailVerifiedAt = action.payload;
     },
+    setAvatar(state, action: PayloadAction<{ avatarUrl: string | null; avatarPreset: string | null }>) {
+      if (!state.user) return;
+      state.user.avatarUrl = action.payload.avatarUrl;
+      state.user.avatarPreset = action.payload.avatarPreset;
+    },
+    setBio(state, action: PayloadAction<string | null>) {
+      if (!state.user) return;
+      state.user.bio = action.payload;
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -131,5 +145,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { setCredentials, setEmailVerified } = authSlice.actions;
+export const { setCredentials, setEmailVerified, setAvatar, setBio } = authSlice.actions;
 export default authSlice.reducer;

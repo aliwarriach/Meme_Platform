@@ -2,23 +2,39 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useThemeMode } from '@/constants/ThemeMode';
 import { Pressable, Text, View } from 'react-native';
+import { useSelector } from 'react-redux';
 
 import { NEON_PLUM_DARK, NEON_PLUM_LIGHT } from '@/constants/theme';
 import type { CommunityResponse } from '@/services/communities';
+import type { RootState } from '@/store/store';
 
 interface CommunityCardProps {
   community: CommunityResponse;
   onPress: () => void;
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  active: 'Member',
-  pending: 'Request pending',
+// `active` isn't in here — it's resolved to "Owner"/"Member" below since a card viewer who
+// owns the community was previously always shown the generic "Member" label, indistinguishable
+// from any other member.
+const STATUS_LABEL: Record<'pending' | 'invited', string> = {
+  pending: 'Requested',
+  invited: 'Pending',
 };
 
 export function CommunityCard({ community, onPress }: CommunityCardProps) {
   const { mode } = useThemeMode();
   const c = mode === 'dark' ? NEON_PLUM_DARK : NEON_PLUM_LIGHT;
+  const currentUser = useSelector((state: RootState) => state.auth.user);
+  const isOwner = !!currentUser && community.owner.id === currentUser.id;
+
+  const statusLabel =
+    community.viewer_membership_status === 'active'
+      ? isOwner
+        ? 'Owner'
+        : 'Member'
+      : community.viewer_membership_status
+        ? STATUS_LABEL[community.viewer_membership_status]
+        : null;
 
   return (
     <Pressable
@@ -53,11 +69,6 @@ export function CommunityCard({ community, onPress }: CommunityCardProps) {
         <Text className="font-title text-base text-heading" numberOfLines={1}>
           {community.name}
         </Text>
-        {community.description ? (
-          <Text className="mt-0.5 font-body text-xs text-ink-muted" numberOfLines={1} ellipsizeMode="tail">
-            {community.description}
-          </Text>
-        ) : null}
         <Text className="mt-0.5 font-body text-xs text-ink-muted">
           {community.member_count} member{community.member_count === 1 ? '' : 's'} ·{' '}
           {community.privacy === 'open' ? 'Open' : 'Invite only'}
@@ -73,11 +84,9 @@ export function CommunityCard({ community, onPress }: CommunityCardProps) {
         ) : null}
       </View>
 
-      {community.viewer_membership_status ? (
+      {statusLabel ? (
         <View className="rounded-full bg-primary/20 px-3 py-1">
-          <Text className="font-label text-xs text-primary-dim">
-            {STATUS_LABEL[community.viewer_membership_status]}
-          </Text>
+          <Text className="font-label text-xs text-primary-dim">{statusLabel}</Text>
         </View>
       ) : null}
     </Pressable>

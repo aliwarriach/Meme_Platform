@@ -1,10 +1,14 @@
 """Roadmap_Scaling.md A4 — direct signed Cloudinary uploads.
 
-Backend-only, meme creation is the one flagship migrated endpoint (scope agreed with the
-project owner given the phase's own 4-5 day estimate covering 5+ upload call sites plus
-frontend rewiring — see the phase's Roadmap_Scaling.md implementation note). Templates,
-community icon/banner, challenge images, and avatars remain on the legacy proxied
-`validate_and_upload_image` path.
+These tests exercise the shared signing/verification mechanism
+(`POST /media/upload-signature`, `confirm_pending_upload`) via `POST /memes`, the
+flagship migrated endpoint. Every other call site (`POST /templates`, community
+icon/banner, challenge images, avatar upload) repeats the same mechanism mechanically —
+see their own per-endpoint direct-upload tests in `test_templates.py`,
+`test_communities.py`, `test_challenge_compete.py`, and `test_content_deletion.py`
+rather than duplicating the full negative-path matrix here. The legacy proxied
+`validate_and_upload_image` path is kept working alongside the new flow until the
+frontend finishes migrating (IMPLEMENT step 6).
 
 Cloudinary itself is never called for real here — `get_image_resource` (the Admin API
 verification call) is monkeypatched per test to return a plausible resource, since these
@@ -20,8 +24,13 @@ from tests.conftest import auth_header, create_user
 
 
 def _fake_resource(bytes_: int = 1000, format_: str = "png"):
+    """`public_id` here is whatever `confirm_pending_upload` actually queries with —
+    the real Cloudinary-prefixed `folder/public_id` form, not the bare id issued to the
+    client — echoed back in the response exactly as the real Admin API would."""
+
     async def _get(public_id: str) -> dict:
         return {
+            "public_id": public_id,
             "bytes": bytes_,
             "format": format_,
             "secure_url": f"https://res.cloudinary.com/test/image/upload/{public_id}.{format_}",
@@ -79,7 +88,7 @@ async def test_meme_creation_via_direct_upload_confirms_and_creates(
     )
     assert response.status_code == 201
     assert response.json()["image_url"] == (
-        f"https://res.cloudinary.com/test/image/upload/{sig['public_id']}.png"
+        f"https://res.cloudinary.com/test/image/upload/{sig['folder']}/{sig['public_id']}.png"
     )
 
 
@@ -168,7 +177,7 @@ async def test_oversized_uploaded_resource_is_rejected_and_deleted(
         headers=auth_header(alice),
     )
     assert response.status_code == 400
-    assert deleted == [sig["public_id"]]
+    assert deleted == [f"{sig['folder']}/{sig['public_id']}"]
 
 
 async def test_disallowed_format_on_the_uploaded_resource_is_rejected_and_deleted(
@@ -191,7 +200,7 @@ async def test_disallowed_format_on_the_uploaded_resource_is_rejected_and_delete
         headers=auth_header(alice),
     )
     assert response.status_code == 400
-    assert deleted == [sig["public_id"]]
+    assert deleted == [f"{sig['folder']}/{sig['public_id']}"]
 
 
 async def test_meme_creation_requires_exactly_one_image_source(client: AsyncClient):

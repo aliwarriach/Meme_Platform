@@ -1,12 +1,13 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
+import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 
 import WebVotePill from '@/components/web/WebVotePill';
 import type { VaporwaveTheme } from '@/constants/webFeedThemeVapor';
-import { ContainerCommentsSection } from '@/features/instagram-companion/ContainerCommentsSection';
+import { WebContainerCommentsSection } from '@/components/web/WebContainerCommentsSection';
 import { useVaporwaveTheme } from '@/constants/VaporwaveWebTheme';
 import type { MemeContainerResponse } from '@/services/instagram';
 import { useCastContainerVoteMutation, useRecordContainerViewMutation } from '@/services/useInstagram';
@@ -26,6 +27,7 @@ const INSTAGRAM_HOST_RE = /^https:\/\/(www\.)?instagram\.com(\/|$)/i;
  * untouched) for Instagram Companion Mode items merged into the web feed. Same data/hooks,
  * new chrome only. */
 export function WebContainerCard({ container }: WebContainerCardProps) {
+  const router = useRouter();
   const [commentsOpen, setCommentsOpen] = useState(false);
   const castVote = useCastContainerVoteMutation();
   const recordView = useRecordContainerViewMutation();
@@ -40,13 +42,19 @@ export function WebContainerCard({ container }: WebContainerCardProps) {
   return (
     <View ref={cardRef} style={styles.card}>
       <View style={styles.header}>
-        <View style={styles.badge}>
-          <MaterialIcons name="camera-alt" size={15} color={FEED_WEB_COLORS.onAccent} />
-        </View>
-        <View style={styles.headerText}>
-          <Text style={[FEED_WEB_TYPE.title, styles.heading]}>{container.submitter.username}</Text>
-          <Text style={[FEED_WEB_TYPE.meta, styles.muted]}>shared from Instagram</Text>
-        </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Open ${container.submitter.username}'s profile`}
+          onPress={() => router.push({ pathname: '/users/[id]', params: { id: container.submitter.id } })}
+          style={styles.headerIdentity}>
+          <View style={styles.badge}>
+            <MaterialIcons name="camera-alt" size={15} color={FEED_WEB_COLORS.onAccent} />
+          </View>
+          <View style={styles.headerText}>
+            <Text style={[FEED_WEB_TYPE.title, styles.heading]}>{container.submitter.username}</Text>
+            <Text style={[FEED_WEB_TYPE.meta, styles.muted]}>shared from Instagram</Text>
+          </View>
+        </Pressable>
         <Text style={[FEED_WEB_TYPE.meta, styles.muted]}>{timeAgo(container.created_at)}</Text>
       </View>
 
@@ -123,7 +131,7 @@ export function WebContainerCard({ container }: WebContainerCardProps) {
 
       {commentsOpen ? (
         <View style={styles.commentsWrap}>
-          <ContainerCommentsSection containerId={container.id} />
+          <WebContainerCommentsSection containerId={container.id} />
         </View>
       ) : null}
     </View>
@@ -157,6 +165,12 @@ const createStyles = (
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: FEED_WEB_COLORS.indigoSecondary,
+  },
+  headerIdentity: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: FEED_WEB_SPACING.md,
   },
   headerText: {
     flex: 1,

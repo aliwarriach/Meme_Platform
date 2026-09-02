@@ -147,7 +147,7 @@ async def test_either_participant_can_remove_friendship(client: AsyncClient):
 
 async def test_non_participant_cannot_remove_friendship(client: AsyncClient):
     alice = await _create_user(client, "alice")
-    bob = await _create_user(client, "bob")
+    await _create_user(client, "bob")
     carol = await _create_user(client, "carol")
 
     request_response = await client.post(

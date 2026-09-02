@@ -167,9 +167,162 @@ async def test_winner_surfaced_for_closed_period_with_votes(client: AsyncClient)
     assert body["score"] == 40
 
 
+async def test_winner_shows_deleted_post_placeholder_when_deleted_after_period_closed(
+    client: AsyncClient,
+):
+    """A post that already won a closed period stays the winner even after deletion —
+    deleting it must never retroactively promote the runner-up, that would rewrite
+    history based on an unrelated moderation action. Its content degrades to a null/
+    'Deleted Post' placeholder for display (the underlying Cloudinary asset is gone),
+    but the rank/score stand."""
+    alice = await create_user(client, "alice")
+    bob = await create_user(client, "bob")
+    carol = await create_user(client, "carol")
+    winning_meme = await _post_meme(client, bob)
+    losing_meme = await _post_meme(client, bob)
+
+    yesterday_start = (
+        datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=1)
+    ).replace(hour=12, minute=0, second=0, microsecond=0)
+    yesterday_key = yesterday_start.strftime("%Y-%m-%d")
+
+    async with TestSessionFactory() as session:
+        await session.execute(
+            update(Meme)
+            .where(Meme.id.in_([uuid.UUID(winning_meme["id"]), uuid.UUID(losing_meme["id"])]))
+            .values(created_at=yesterday_start)
+        )
+        session.add_all(
+            [
+                MemeVote(
+                    id=uuid.uuid4(),
+                    user_id=uuid.UUID(alice["user"]["id"]),
+                    meme_id=uuid.UUID(winning_meme["id"]),
+                    value=1,
+                ),
+                MemeVote(
+                    id=uuid.uuid4(),
+                    user_id=uuid.UUID(carol["user"]["id"]),
+                    meme_id=uuid.UUID(winning_meme["id"]),
+                    value=1,
+                ),
+            ]
+        )
+        await session.commit()
+
+    # Deleted "today" — well after yesterday's period already closed.
+    delete_response = await client.delete(f"/memes/{winning_meme['id']}", headers=auth_header(bob))
+    assert delete_response.status_code == 204
+
+    response = await client.get(
+        f"/competitions/day/winner?period_key={yesterday_key}", headers=auth_header(alice)
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["content"]["kind"] == "meme"
+    assert body["content"]["meme"] is None
+    assert body["content"]["is_deleted"] is True
+    assert body["score"] == 40
+
+
+async def test_winner_excludes_a_meme_deleted_before_its_period_closed(client: AsyncClient):
+    """A meme deleted *while* its period was still live/ongoing was never actually
+    eligible the whole time (matches get_current_standings's exclusion) — the period
+    later closing doesn't retroactively un-exclude it, even though it would otherwise
+    have scored highest."""
+    alice = await create_user(client, "alice")
+    bob = await create_user(client, "bob")
+    carol = await create_user(client, "carol")
+    would_be_winner = await _post_meme(client, bob)
+    actual_winner = await _post_meme(client, bob)
+
+    yesterday_start = (
+        datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=1)
+    ).replace(hour=8, minute=0, second=0, microsecond=0)
+    deleted_mid_period = yesterday_start.replace(hour=14)
+    yesterday_key = yesterday_start.strftime("%Y-%m-%d")
+
+    async with TestSessionFactory() as session:
+        await session.execute(
+            update(Meme)
+            .where(Meme.id.in_([uuid.UUID(would_be_winner["id"]), uuid.UUID(actual_winner["id"])]))
+            .values(created_at=yesterday_start)
+        )
+        session.add_all(
+            [
+                # would_be_winner: 3 up -> higher atom than actual_winner's 1 up, but
+                # deleted mid-period, before the day even closed.
+                MemeVote(
+                    id=uuid.uuid4(),
+                    user_id=uuid.UUID(alice["user"]["id"]),
+                    meme_id=uuid.UUID(would_be_winner["id"]),
+                    value=1,
+                ),
+                MemeVote(
+                    id=uuid.uuid4(),
+                    user_id=uuid.UUID(bob["user"]["id"]),
+                    meme_id=uuid.UUID(would_be_winner["id"]),
+                    value=1,
+                ),
+                MemeVote(
+                    id=uuid.uuid4(),
+                    user_id=uuid.UUID(carol["user"]["id"]),
+                    meme_id=uuid.UUID(would_be_winner["id"]),
+                    value=1,
+                ),
+                MemeVote(
+                    id=uuid.uuid4(),
+                    user_id=uuid.UUID(alice["user"]["id"]),
+                    meme_id=uuid.UUID(actual_winner["id"]),
+                    value=1,
+                ),
+            ]
+        )
+        await session.execute(
+            update(Meme)
+            .where(Meme.id == uuid.UUID(would_be_winner["id"]))
+            .values(deleted_at=deleted_mid_period)
+        )
+        await session.commit()
+
+    response = await client.get(
+        f"/competitions/day/winner?period_key={yesterday_key}", headers=auth_header(alice)
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["content"]["kind"] == "meme"
+    assert body["content"]["meme"]["id"] == actual_winner["id"]
+    assert body["content"]["is_deleted"] is False
+
+
 async def test_winner_malformed_period_key_rejected(client: AsyncClient):
     alice = await create_user(client, "alice")
     response = await client.get(
         "/competitions/day/winner?period_key=not-a-date", headers=auth_header(alice)
     )
     assert response.status_code == 400
+
+
+async def test_deleted_meme_excluded_from_standings(client: AsyncClient):
+    """A deleted post can never be nominated for Meme of the Day/Week/Month, even though
+    its score keeps counting toward the author's leaderboard/profile total (see
+    test_scoring.py/test_leaderboards.py) and toward any challenge it was already
+    submitted to (see test_open_challenges.py) — competitions are the one surface a
+    deletion actually removes a post from."""
+    alice = await create_user(client, "alice")
+    bob = await create_user(client, "bob")
+
+    deleted_meme = await _post_meme(client, bob)
+    surviving_meme = await _post_meme(client, bob)
+
+    # Give the deleted one the higher score so it would win if it weren't excluded.
+    await _vote(client, alice, deleted_meme["id"], 1)
+
+    delete_response = await client.delete(f"/memes/{deleted_meme['id']}", headers=auth_header(bob))
+    assert delete_response.status_code == 204
+
+    response = await client.get("/competitions/day/current", headers=auth_header(alice))
+    assert response.status_code == 200
+    ids = [item["content"]["meme"]["id"] for item in response.json()["items"]]
+    assert deleted_meme["id"] not in ids
+    assert surviving_meme["id"] in ids

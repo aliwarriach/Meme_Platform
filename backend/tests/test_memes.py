@@ -160,7 +160,6 @@ async def test_invite_only_community_meme_is_not_public(client: AsyncClient):
 async def test_community_feed_shows_only_that_communitys_posts(client: AsyncClient):
     alice = await create_user(client, "alice")
     community_a = await _create_community(client, alice)
-    community_b = await _create_community(client, alice, privacy="invite_only")
 
     await _post_community_meme(client, alice, community_a["id"], caption="for A")
     await _post_meme(client, alice, audiences=["public"], caption="public only")
@@ -441,3 +440,53 @@ async def test_memes_endpoints_require_authentication(client: AsyncClient):
     meme_id = meme_response.json()["id"]
     response = await client.post(f"/memes/{meme_id}/votes", json={"value": 1})
     assert response.status_code == 401
+
+
+async def test_get_meme_detail_returns_the_meme(client: AsyncClient):
+    alice = await create_user(client, "alice")
+    bob = await create_user(client, "bob")
+    meme_response = await _post_meme(client, alice, audiences=["public"], caption="detail view")
+    meme_id = meme_response.json()["id"]
+
+    response = await client.get(f"/memes/{meme_id}", headers=auth_header(bob))
+    assert response.status_code == 200
+    body = response.json()
+    assert body["id"] == meme_id
+    assert body["caption"] == "detail view"
+    assert body["author"]["username"] == "alice"
+
+
+async def test_get_meme_detail_404s_for_meme_not_visible_to_viewer(client: AsyncClient):
+    alice = await create_user(client, "alice")
+    carol = await create_user(client, "carol")
+    meme_response = await _post_meme(client, alice, audiences=["friends"])
+    meme_id = meme_response.json()["id"]
+
+    response = await client.get(f"/memes/{meme_id}", headers=auth_header(carol))
+    assert response.status_code == 404
+
+
+async def test_get_meme_detail_404s_for_nonexistent_meme(client: AsyncClient):
+    alice = await create_user(client, "alice")
+    response = await client.get(
+        "/memes/00000000-0000-0000-0000-000000000000", headers=auth_header(alice)
+    )
+    assert response.status_code == 404
+
+
+async def test_get_meme_detail_requires_auth(client: AsyncClient):
+    alice = await create_user(client, "alice")
+    meme_response = await _post_meme(client, alice, audiences=["public"])
+    meme_id = meme_response.json()["id"]
+
+    response = await client.get(f"/memes/{meme_id}")
+    assert response.status_code == 401
+
+
+async def test_feed_endpoint_still_reachable_after_adding_meme_detail_route(client: AsyncClient):
+    """Guards against the `/memes/{meme_id}` catch-all route shadowing the literal
+    `/memes/feed` route — regression test for the registration-order requirement noted
+    in routers/memes.py::get_meme."""
+    alice = await create_user(client, "alice")
+    response = await client.get("/memes/feed", headers=auth_header(alice))
+    assert response.status_code == 200

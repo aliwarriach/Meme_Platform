@@ -28,13 +28,19 @@ def _get_redis() -> Redis:
 
 
 async def cached_or_compute(
-    cache_key: str, model: type[ModelT], compute: Callable[[], Awaitable[ModelT]]
+    cache_key: str,
+    model: type[ModelT],
+    compute: Callable[[], Awaitable[ModelT]],
+    ttl: int | None = None,
 ) -> ModelT:
+    """`ttl` defaults to the module's `TTL_SECONDS` so existing leaderboard callers are
+    unaffected — trending hashtags (Roadmap_Search.md S2) passes a shorter one since it's
+    also warmed by its own arq cron rather than relying solely on read-triggered refresh."""
     redis = _get_redis()
     cached = await redis.get(cache_key)
     if cached is not None:
         return model.model_validate_json(cached)
 
     result = await compute()
-    await redis.set(cache_key, result.model_dump_json(), ex=TTL_SECONDS)
+    await redis.set(cache_key, result.model_dump_json(), ex=ttl if ttl is not None else TTL_SECONDS)
     return result

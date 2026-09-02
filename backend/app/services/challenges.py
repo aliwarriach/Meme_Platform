@@ -29,7 +29,7 @@ import math
 import uuid
 
 from fastapi import UploadFile
-from sqlalchemy import case, exists, func, or_, select
+from sqlalchemy import ColumnElement, and_, case, exists, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,6 +39,7 @@ from app.core.exceptions import (
     CannotDuelSelfError,
     ChallengeNotOpenError,
     HashtagAlreadyReservedError,
+    HashtagTooPopularToReserveError,
     ChallengeNotActiveError,
     ChallengeNotEvaluatedError,
     ChallengeNotFoundError,
@@ -52,6 +53,7 @@ from app.core.exceptions import (
     NotChallengeParticipantError,
     NotCommunityOwnerError,
     NotFriendsError,
+    TooManyActiveReservationsError,
 )
 from app.core.security import hash_password
 from app.models.badge import Badge, BadgeType
@@ -59,7 +61,7 @@ from app.models.challenge import Challenge, ChallengeStatus, ChallengeType
 from app.models.challenge_participant import ChallengeParticipant
 from app.models.challenge_side import ChallengeSide
 from app.models.challenge_submission import ChallengeSubmission
-from app.models.community import Community
+from app.models.community import Community, CommunityPrivacy
 from app.models.community_membership import CommunityMembership, MembershipStatus
 from app.models.hashtag import Hashtag, MemeHashtag
 from app.models.meme import Meme
@@ -80,9 +82,14 @@ from app.schemas.challenges import (
 )
 from app.services import friends as friends_service
 from app.services import notifications as notifications_service
-from app.services.communities import require_active_membership
+from app.services.communities import require_membership_or_open_community
 from app.services.hashtags import get_or_create_hashtag
-from app.services.memes import build_meme_out, stage_community_meme, stage_personal_meme
+from app.services.memes import (
+    build_meme_out,
+    parse_editor_document_json,
+    stage_community_meme,
+    stage_personal_meme,
+)
 from app.services.scoring import meme_score_expr
 
 WINNER_POINTS = 100
@@ -90,10 +97,16 @@ WINNER_POINTS = 100
 # Cold-start weekly platform challenge (Roadmap §3.3) — a seeded system account, never a
 # real login (unguessable random password), so a brand-new user's Compete tab is never
 # empty. See create_weekly_open_challenge / _get_or_create_platform_user.
-PLATFORM_USERNAME = "memeversehq"
-PLATFORM_EMAIL = "platform@memeverse.internal"
+PLATFORM_USERNAME = "moshhq"
+PLATFORM_EMAIL = "platform@mosh.internal"
 WEEKLY_CHALLENGE_SIDE_NAMES = ("Team Alpha", "Team Beta")
 WEEKLY_CHALLENGE_DURATION_DAYS = 7
+
+# Anti-squatting tunables for `open` challenges (Roadmap_Search.md S1) — the community
+# shapes are owner-created and not a squatting vector, so these apply to `open` only.
+MAX_OPEN_CHALLENGE_DAYS = 14
+POPULAR_TAG_MEME_THRESHOLD = 50
+POPULAR_TAG_AUTHOR_THRESHOLD = 20
 
 # Anti-gaming tunables for `_side_scores` — see its docstring for why each exists. Kept as
 # module constants like the [[scoring-engine]] atom's own tunables, so they're one edit to
@@ -140,7 +153,65 @@ async def _require_involved_member(db: AsyncSession, challenge: Challenge, user_
     for community_id in community_ids:
         if await _is_active_member(db, community_id, user_id):
             return
+
+    # 2026-08-27 product decision: a non-member can still view (and, while active, submit
+    # an entry backing) a community_vs_community challenge if either participating
+    # community is open — browsing an open community you haven't joined shouldn't hide its
+    # inter-community challenges. Deliberately *not* extended to `intra_community`
+    # (team-vs-team) challenges, which stay member-only regardless of community privacy.
+    if challenge.challenge_type == ChallengeType.community_vs_community:
+        for community_id in community_ids:
+            community = await db.get(Community, community_id)
+            if community is not None and community.privacy == CommunityPrivacy.open:
+                return
+
     raise CommunityAccessDeniedError("Only members of a participating community can do this")
+
+
+def challenge_visibility_clause(viewer_id: uuid.UUID) -> ColumnElement[bool]:
+    """A `WHERE`-clause equivalent of `_require_involved_member`, for list/search queries
+    that filter many challenges at once rather than checking one already-fetched row
+    (Roadmap_Search.md S3's Challenges scope). **Must be kept in exact parity with
+    `_require_involved_member`** — see `test_search.py`'s dedicated parity test — a drift
+    here is an information leak (a challenge showing up in search results/counts that the
+    same viewer can't actually open), not a cosmetic bug.
+    """
+    is_member_home = exists().where(
+        CommunityMembership.community_id == Challenge.community_id,
+        CommunityMembership.user_id == viewer_id,
+        CommunityMembership.status == MembershipStatus.active,
+    )
+    is_member_opponent = exists().where(
+        CommunityMembership.community_id == Challenge.opponent_community_id,
+        CommunityMembership.user_id == viewer_id,
+        CommunityMembership.status == MembershipStatus.active,
+    )
+    home_is_open = exists().where(
+        Community.id == Challenge.community_id, Community.privacy == CommunityPrivacy.open
+    )
+    opponent_is_open = exists().where(
+        Community.id == Challenge.opponent_community_id, Community.privacy == CommunityPrivacy.open
+    )
+
+    return or_(
+        Challenge.challenge_type == ChallengeType.open,
+        and_(
+            Challenge.challenge_type == ChallengeType.duel,
+            or_(Challenge.creator_id == viewer_id, Challenge.invitee_id == viewer_id),
+        ),
+        and_(Challenge.challenge_type == ChallengeType.intra_community, is_member_home),
+        and_(
+            Challenge.challenge_type == ChallengeType.community_vs_community,
+            or_(
+                is_member_home,
+                is_member_opponent,
+                and_(
+                    Challenge.status.in_((ChallengeStatus.active, ChallengeStatus.evaluated)),
+                    or_(home_is_open, opponent_is_open),
+                ),
+            ),
+        ),
+    )
 
 
 async def _get_challenge_or_404(db: AsyncSession, challenge_id: uuid.UUID) -> Challenge:
@@ -151,10 +222,20 @@ async def _get_challenge_or_404(db: AsyncSession, challenge_id: uuid.UUID) -> Ch
 
 
 async def _side_scores(db: AsyncSession, challenge_id: uuid.UUID) -> dict[uuid.UUID, float]:
-    """Live per-side totals via the [[scoring-engine]] atom, in one query rather than one
-    per side. Sides with no submissions are absent from the result — callers must default
-    them to 0.0 (`evaluate_challenge`'s tie detection depends on every side having a score,
-    including the all-zero case).
+    """Single-challenge convenience wrapper — see `_side_scores_batch`, which this delegates
+    to unchanged (a `side_id` is a globally unique PK, so scoping the batch query to one
+    challenge id is exactly this function's original single-challenge behavior)."""
+    return await _side_scores_batch(db, [challenge_id])
+
+
+async def _side_scores_batch(db: AsyncSession, challenge_ids: list[uuid.UUID]) -> dict[uuid.UUID, float]:
+    """Live per-side totals via the [[scoring-engine]] atom, batched across one or many
+    challenges in a single query — `ChallengeSide.id` is a globally unique PK (not scoped to
+    one challenge), so grouping by `side_id` alone still produces correct per-side results
+    even when `challenge_ids` spans many unrelated challenges at once. Sides with no
+    submissions are absent from the result — callers must default them to 0.0
+    (`evaluate_challenge`'s tie detection depends on every side having a score, including the
+    all-zero case).
 
     Two anti-gaming levers are baked in, and they are what make `open` challenges — where
     anyone can join any side — safe to run at all. A plain `SUM` means the side that posts
@@ -173,7 +254,15 @@ async def _side_scores(db: AsyncSession, challenge_id: uuid.UUID) -> dict[uuid.U
     the roster is assigned or self-selected, and one code path is easier to reason about
     than two. With one submission per side (the common community case) neither lever binds:
     the cap doesn't bite and a single contributor's multiplier is exactly 1.
+
+    Deliberately deletion-agnostic: no `Meme.deleted_at` filter here, so a submission whose
+    meme is later deleted keeps its score in this side's total (confirmed product decision —
+    a deleted post can never be *freshly* nominated into a challenge, see
+    `submit_to_challenge`'s deleted-meme check, but one already counted stays counted).
     """
+    if not challenge_ids:
+        return {}
+
     atom = meme_score_expr()
     ranked = (
         select(
@@ -189,7 +278,7 @@ async def _side_scores(db: AsyncSession, challenge_id: uuid.UUID) -> dict[uuid.U
         )
         .select_from(ChallengeSubmission)
         .join(Meme, Meme.id == ChallengeSubmission.meme_id)
-        .where(ChallengeSubmission.challenge_id == challenge_id)
+        .where(ChallengeSubmission.challenge_id.in_(challenge_ids))
         .subquery()
     )
 
@@ -209,83 +298,190 @@ async def _side_scores(db: AsyncSession, challenge_id: uuid.UUID) -> dict[uuid.U
     }
 
 
-async def _build_challenge_out(db: AsyncSession, challenge: Challenge) -> ChallengeOut:
-    side_member_ids: dict[uuid.UUID, list[uuid.UUID]] = {side.id: [] for side in challenge.sides}
+def _resolve_viewer_side_id(
+    challenge: Challenge,
+    viewer_id: uuid.UUID | None,
+    side_member_ids: dict[uuid.UUID, list[uuid.UUID]],
+    viewer_community_ids: set[uuid.UUID],
+) -> uuid.UUID | None:
+    """Which side, if any, the viewer is already on — backs `ChallengeOut.viewer_side_id`
+    (Roadmap_Search.md §1.8). Read-only and silent: unlike `_resolve_caller_side` (used at
+    submission time, which raises for an ineligible caller), this simply returns `None` for
+    a non-participant or an ambiguous `community_vs_community` membership (both/neither
+    community), so every viewer of a challenge — not just its participants — can fetch it.
+
+    Synchronous and DB-free: `viewer_community_ids` (the viewer's own active memberships
+    across every community referenced by the whole list being built) is resolved once by
+    `_build_challenge_outs` for the entire list, rather than this function querying
+    membership per challenge — the shape that made `_build_challenge_out` N+1 in a list
+    context (see `.claude/memory/api_issues.md`).
+    """
+    if viewer_id is None:
+        return None
+
+    if challenge.challenge_type == ChallengeType.community_vs_community:
+        is_home_member = challenge.community_id in viewer_community_ids
+        is_opponent_member = (
+            challenge.opponent_community_id is not None
+            and challenge.opponent_community_id in viewer_community_ids
+        )
+        if is_home_member == is_opponent_member:
+            # Member of both (ambiguous, same guard as submission) or of neither.
+            return None
+        side_community_id = challenge.community_id if is_home_member else challenge.opponent_community_id
+        return next(
+            (side.id for side in challenge.sides if side.community_id == side_community_id), None
+        )
+
+    # intra_community / open / duel all use an explicit ChallengeParticipant roster — reuse
+    # the roster this call already fetched rather than a second query.
+    return next(
+        (side_id for side_id, member_ids in side_member_ids.items() if viewer_id in member_ids),
+        None,
+    )
+
+
+async def _build_challenge_out(
+    db: AsyncSession, challenge: Challenge, viewer_id: uuid.UUID | None = None
+) -> ChallengeOut:
+    """Single-challenge convenience wrapper around `_build_challenge_outs` — see there for
+    the real logic. Kept as its own function since every detail/mutation endpoint
+    (`get_challenge`, create/accept/submit/etc.) only ever has one challenge in hand and
+    reads better calling this than wrapping a list every time."""
+    return (await _build_challenge_outs(db, [challenge], viewer_id=viewer_id))[0]
+
+
+async def _build_challenge_outs(
+    db: AsyncSession, challenges: list[Challenge], viewer_id: uuid.UUID | None = None
+) -> list[ChallengeOut]:
+    """Batched builder used by every list-producing caller (`list_my_challenges`,
+    `list_open_challenges`, `list_community_challenges`, challenge search) — and, via
+    `_build_challenge_out`, by every single-challenge caller too, so there is exactly one
+    code path to keep correct. Collapses what used to be ~6-8 queries *per challenge* down to
+    a fixed handful for the whole list (see `.claude/memory/api_issues.md`'s N+1 finding).
+
+    `community`/`opponent_community`/`hashtag` are read off the ORM relationship rather than
+    fetched via `db.get()` — those are declared `lazy="selectin"` on `Challenge`
+    (`models/challenge.py`), so SQLAlchemy already issued one batched SELECT covering every
+    challenge in `challenges` the moment they were loaded; a per-challenge `db.get()` here
+    would have been a second, redundant round trip for data already in memory.
+    """
+    if not challenges:
+        return []
+
+    challenge_ids = [c.id for c in challenges]
+
+    # Every side's roster, one query for the whole list.
+    side_member_ids: dict[uuid.UUID, list[uuid.UUID]] = {
+        side.id: [] for challenge in challenges for side in challenge.sides
+    }
     if side_member_ids:
         result = await db.execute(
-            select(ChallengeParticipant).where(
-                ChallengeParticipant.challenge_id == challenge.id
-            )
+            select(ChallengeParticipant).where(ChallengeParticipant.challenge_id.in_(challenge_ids))
         )
         for participant in result.scalars().all():
             side_member_ids.setdefault(participant.side_id, []).append(participant.user_id)
 
-    # Live scoreboard: a competitor must be able to see whether their side is winning
-    # *during* the window, not only at results time.
-    scores = await _side_scores(db, challenge.id)
+    # Live scoreboard for every side across every challenge, one query. A competitor must be
+    # able to see whether their side is winning *during* the window, not only at results time.
+    scores = await _side_scores_batch(db, challenge_ids)
 
+    # Participant counts per side across every challenge, one query.
     participant_counts = dict(
         (
             await db.execute(
                 select(ChallengeParticipant.side_id, func.count(ChallengeParticipant.id))
-                .where(ChallengeParticipant.challenge_id == challenge.id)
+                .where(ChallengeParticipant.challenge_id.in_(challenge_ids))
                 .group_by(ChallengeParticipant.side_id)
             )
         ).all()
     )
 
-    creator = await db.get(User, challenge.creator_id)
-    invitee = (
-        await db.get(User, challenge.invitee_id) if challenge.invitee_id is not None else None
-    )
-    community = (
-        await db.get(Community, challenge.community_id)
-        if challenge.community_id is not None
-        else None
-    )
-    opponent = (
-        await db.get(Community, challenge.opponent_community_id)
-        if challenge.opponent_community_id is not None
-        else None
-    )
-    hashtag = (
-        await db.get(Hashtag, challenge.hashtag_id) if challenge.hashtag_id is not None else None
+    # Every referenced creator/invitee, fetched once instead of via `db.get()` per challenge —
+    # there's no ORM relationship for these (plain `creator_id`/`invitee_id` FK columns).
+    user_ids = {c.creator_id for c in challenges} | {
+        c.invitee_id for c in challenges if c.invitee_id is not None
+    }
+    users_by_id = (
+        {u.id: u for u in (await db.execute(select(User).where(User.id.in_(user_ids)))).scalars().all()}
+        if user_ids
+        else {}
     )
 
-    return ChallengeOut(
-        id=challenge.id,
-        community_id=challenge.community_id,
-        community_name=community.name if community else None,
-        opponent_community_id=challenge.opponent_community_id,
-        opponent_community_name=opponent.name if opponent else None,
-        hashtag=hashtag.slug if hashtag else None,
-        creator=PublicUserOut.model_validate(creator),
-        invitee_id=challenge.invitee_id,
-        invitee=PublicUserOut.model_validate(invitee) if invitee else None,
-        title=challenge.title,
-        challenge_type=challenge.challenge_type,
-        status=challenge.status,
-        start_time=challenge.start_time,
-        end_time=challenge.end_time,
-        winning_side_id=challenge.winning_side_id,
-        sides=[
-            ChallengeSideOut(
-                id=side.id,
-                name=side.name,
-                community_id=side.community_id,
-                # An open challenge's roster is unbounded — send the count, not thousands
-                # of ids. Community shapes keep the explicit roster the UI already uses.
-                member_ids=(
-                    []
-                    if challenge.challenge_type == ChallengeType.open
-                    else side_member_ids.get(side.id, [])
-                ),
-                participant_count=participant_counts.get(side.id, 0),
-                score=scores.get(side.id, 0.0),
+    # Viewer's own active memberships across every referenced community, one query, so
+    # per-challenge `community_vs_community` viewer-side resolution (below) doesn't re-query
+    # membership once per challenge.
+    viewer_community_ids: set[uuid.UUID] = set()
+    if viewer_id is not None:
+        referenced_community_ids = {
+            c.community_id for c in challenges if c.community_id is not None
+        } | {c.opponent_community_id for c in challenges if c.opponent_community_id is not None}
+        if referenced_community_ids:
+            viewer_community_ids = set(
+                (
+                    await db.execute(
+                        select(CommunityMembership.community_id).where(
+                            CommunityMembership.community_id.in_(referenced_community_ids),
+                            CommunityMembership.user_id == viewer_id,
+                            CommunityMembership.status == MembershipStatus.active,
+                        )
+                    )
+                )
+                .scalars()
+                .all()
             )
-            for side in challenge.sides
-        ],
-    )
+
+    outs = []
+    for challenge in challenges:
+        viewer_side_id = _resolve_viewer_side_id(
+            challenge, viewer_id, side_member_ids, viewer_community_ids
+        )
+        creator = users_by_id.get(challenge.creator_id)
+        invitee = (
+            users_by_id.get(challenge.invitee_id) if challenge.invitee_id is not None else None
+        )
+
+        outs.append(
+            ChallengeOut(
+                id=challenge.id,
+                community_id=challenge.community_id,
+                community_name=challenge.community.name if challenge.community else None,
+                opponent_community_id=challenge.opponent_community_id,
+                opponent_community_name=(
+                    challenge.opponent_community.name if challenge.opponent_community else None
+                ),
+                hashtag=challenge.hashtag.slug if challenge.hashtag else None,
+                creator=PublicUserOut.model_validate(creator),
+                invitee_id=challenge.invitee_id,
+                invitee=PublicUserOut.model_validate(invitee) if invitee else None,
+                title=challenge.title,
+                challenge_type=challenge.challenge_type,
+                status=challenge.status,
+                start_time=challenge.start_time,
+                end_time=challenge.end_time,
+                winning_side_id=challenge.winning_side_id,
+                viewer_side_id=viewer_side_id,
+                sides=[
+                    ChallengeSideOut(
+                        id=side.id,
+                        name=side.name,
+                        community_id=side.community_id,
+                        # An open challenge's roster is unbounded — send the count, not
+                        # thousands of ids. Community shapes keep the explicit roster the UI
+                        # already uses.
+                        member_ids=(
+                            []
+                            if challenge.challenge_type == ChallengeType.open
+                            else side_member_ids.get(side.id, [])
+                        ),
+                        participant_count=participant_counts.get(side.id, 0),
+                        score=scores.get(side.id, 0.0),
+                    )
+                    for side in challenge.sides
+                ],
+            )
+        )
+    return outs
 
 
 async def create_challenge(
@@ -358,7 +554,7 @@ async def create_challenge(
             data={"challenge_id": str(challenge.id)},
         )
 
-    return await _build_challenge_out(db, challenge)
+    return await _build_challenge_out(db, challenge, viewer_id=current_user.id)
 
 
 async def propose_challenge(
@@ -422,7 +618,7 @@ async def propose_challenge(
         data={"challenge_id": str(challenge.id)},
     )
 
-    return await _build_challenge_out(db, challenge)
+    return await _build_challenge_out(db, challenge, viewer_id=current_user.id)
 
 
 async def create_open_challenge(
@@ -439,14 +635,65 @@ async def create_open_challenge(
     """
     if payload.end_time <= payload.start_time:
         raise ChallengeSetupInvalidError("end_time must be after start_time")
+    if payload.end_time - payload.start_time > datetime.timedelta(days=MAX_OPEN_CHALLENGE_DAYS):
+        raise ChallengeSetupInvalidError(
+            f"An open challenge can run for at most {MAX_OPEN_CHALLENGE_DAYS} days"
+        )
 
     names = [side.name.strip() for side in payload.sides]
     if len(set(names)) != len(names):
         raise ChallengeSetupInvalidError("Every side needs a distinct name")
 
+    # One active reservation per user at a time — otherwise one account could bulk-reserve
+    # every valuable tag in an afternoon. The platform account is exempt so the weekly
+    # auto-challenge (which always needs a fresh reservation) keeps working; resolved by
+    # the flag rather than by username, matching the precedent at `_get_or_create_platform_user`.
+    if not current_user.is_platform_account:
+        has_active_reservation = await db.scalar(
+            select(
+                exists().where(
+                    Challenge.creator_id == current_user.id,
+                    Challenge.hashtag_id.isnot(None),
+                    Challenge.status != ChallengeStatus.evaluated,
+                )
+            )
+        )
+        if has_active_reservation:
+            raise TooManyActiveReservationsError(
+                "You already have an active challenge with a reserved tag — "
+                "wait for it to finish before starting another"
+            )
+
     hashtag = await get_or_create_hashtag(db, payload.hashtag)
+
+    # A tag with enough organic activity belongs to the community, not to one challenge.
+    # Not retroactive: only blocks a *new* reservation, a tag that becomes popular during a
+    # live challenge is unaffected.
+    meme_count, author_count = (
+        await db.execute(
+            select(
+                func.count(MemeHashtag.id), func.count(func.distinct(Meme.author_id))
+            )
+            .select_from(MemeHashtag)
+            .join(Meme, Meme.id == MemeHashtag.meme_id)
+            .where(MemeHashtag.hashtag_id == hashtag.id)
+        )
+    ).one()
+    if meme_count >= POPULAR_TAG_MEME_THRESHOLD and author_count >= POPULAR_TAG_AUTHOR_THRESHOLD:
+        raise HashtagTooPopularToReserveError(
+            f"#{hashtag.slug} already has too much organic activity to be reserved by a "
+            "new challenge — it belongs to the whole community now"
+        )
+
+    # Status-filtered: a reservation only holds while the challenge is setup/active — once
+    # evaluated, the tag is free for the next challenge (partial unique index is the real
+    # gate on the write below; this is just the friendly pre-check).
     already_reserved = await db.scalar(
-        select(exists().where(Challenge.hashtag_id == hashtag.id))
+        select(
+            exists().where(
+                Challenge.hashtag_id == hashtag.id, Challenge.status != ChallengeStatus.evaluated
+            )
+        )
     )
     if already_reserved:
         raise HashtagAlreadyReservedError(
@@ -479,7 +726,7 @@ async def create_open_challenge(
         ) from None
 
     await db.refresh(challenge)
-    return await _build_challenge_out(db, challenge)
+    return await _build_challenge_out(db, challenge, viewer_id=current_user.id)
 
 
 async def join_open_challenge(
@@ -519,7 +766,7 @@ async def join_open_challenge(
         raise AlreadyJoinedChallengeError("You've already picked a side in this challenge") from None
 
     await db.refresh(challenge)
-    return await _build_challenge_out(db, challenge)
+    return await _build_challenge_out(db, challenge, viewer_id=current_user.id)
 
 
 async def list_open_challenges(db: AsyncSession, current_user: User) -> list[ChallengeOut]:
@@ -533,7 +780,7 @@ async def list_open_challenges(db: AsyncSession, current_user: User) -> list[Cha
         )
         .order_by(Challenge.end_time.asc())
     )
-    return [await _build_challenge_out(db, challenge) for challenge in result.scalars().all()]
+    return await _build_challenge_outs(db, list(result.scalars().all()), viewer_id=current_user.id)
 
 
 async def _get_pending_proposal_for_opponent_owner(
@@ -581,7 +828,7 @@ async def accept_challenge(
             data={"challenge_id": str(challenge.id)},
         )
 
-    return await _build_challenge_out(db, challenge)
+    return await _build_challenge_out(db, challenge, viewer_id=current_user.id)
 
 
 async def decline_challenge(db: AsyncSession, current_user: User, challenge_id: uuid.UUID) -> None:
@@ -658,7 +905,7 @@ async def propose_duel(
         data={"challenge_id": str(challenge.id)},
     )
 
-    return await _build_challenge_out(db, challenge)
+    return await _build_challenge_out(db, challenge, viewer_id=current_user.id)
 
 
 async def _get_pending_duel_for_invitee(
@@ -710,7 +957,7 @@ async def accept_duel(db: AsyncSession, current_user: User, challenge_id: uuid.U
         data={"challenge_id": str(challenge.id)},
     )
 
-    return await _build_challenge_out(db, challenge)
+    return await _build_challenge_out(db, challenge, viewer_id=current_user.id)
 
 
 async def decline_duel(db: AsyncSession, current_user: User, challenge_id: uuid.UUID) -> None:
@@ -766,7 +1013,7 @@ async def get_challenge(
 ) -> ChallengeOut:
     challenge = await _get_challenge_or_404(db, challenge_id)
     await _require_involved_member(db, challenge, current_user.id)
-    return await _build_challenge_out(db, challenge)
+    return await _build_challenge_out(db, challenge, viewer_id=current_user.id)
 
 
 async def list_community_challenges(
@@ -776,8 +1023,16 @@ async def list_community_challenges(
     (`community_id`) or, for a community_vs_community proposal, as the challenged
     opponent (`opponent_community_id`) — including still-pending proposals awaiting this
     community owner's accept/decline.
+
+    A non-member of an **open** community sees a deliberately narrower slice: only
+    `community_vs_community` challenges (never `intra_community`/team ones — those stay
+    member-only) that are `active` (so they have something to submit into) or `evaluated`
+    (so they can browse results) — never a still-`setup` proposal, which is host-internal.
+    A non-member of an invite-only community is rejected entirely, same as before.
     """
-    await require_active_membership(db, community_id, current_user.id)
+    await require_membership_or_open_community(db, community_id, current_user.id)
+    is_member = await _is_active_member(db, community_id, current_user.id)
+
     result = await db.execute(
         select(Challenge)
         .where(
@@ -788,7 +1043,17 @@ async def list_community_challenges(
         )
         .order_by(Challenge.created_at.desc())
     )
-    return [await _build_challenge_out(db, challenge) for challenge in result.scalars().all()]
+    challenges = list(result.scalars().all())
+
+    if not is_member:
+        challenges = [
+            c
+            for c in challenges
+            if c.challenge_type == ChallengeType.community_vs_community
+            and c.status in (ChallengeStatus.active, ChallengeStatus.evaluated)
+        ]
+
+    return await _build_challenge_outs(db, challenges, viewer_id=current_user.id)
 
 
 async def _get_caller_side_intra_community(
@@ -812,6 +1077,12 @@ async def _get_caller_side_vs_community(
     is whichever of the two participating communities they're an active member of. A
     member of *both* communities is rejected rather than silently picking one, since which
     side they're submitting for would be ambiguous.
+
+    2026-08-27: a caller who's a member of *neither* community isn't rejected outright
+    anymore — if exactly one of the two participating communities is **open**, they submit
+    for that one (backing an open community without having joined it). Still rejected if
+    neither community is open, or (kept genuinely ambiguous, same as the both-member case)
+    if both are open and they're a member of neither.
     """
     is_home_member = await _is_active_member(db, challenge.community_id, user_id)
     is_opponent_member = (
@@ -829,6 +1100,22 @@ async def _get_caller_side_vs_community(
         if is_opponent_member
         else None
     )
+    if side_community_id is None:
+        home_community = await db.get(Community, challenge.community_id)
+        opponent_community = (
+            await db.get(Community, challenge.opponent_community_id)
+            if challenge.opponent_community_id is not None
+            else None
+        )
+        home_open = home_community is not None and home_community.privacy == CommunityPrivacy.open
+        opponent_open = (
+            opponent_community is not None and opponent_community.privacy == CommunityPrivacy.open
+        )
+        if home_open and not opponent_open:
+            side_community_id = challenge.community_id
+        elif opponent_open and not home_open:
+            side_community_id = challenge.opponent_community_id
+
     if side_community_id is None:
         raise NotChallengeParticipantError(
             "You aren't an active member of either community in this challenge"
@@ -899,9 +1186,18 @@ async def submit_to_challenge(
     side = await _resolve_caller_side(db, challenge, current_user.id)
     side_id = side.id
 
-    author_id = await db.scalar(select(Meme.author_id).where(Meme.id == meme_id))
-    if author_id is None or author_id != current_user.id:
+    meme_row = (
+        await db.execute(select(Meme.author_id, Meme.deleted_at).where(Meme.id == meme_id))
+    ).one_or_none()
+    if meme_row is None or meme_row.author_id != current_user.id:
         raise MemeNotEligibleForChallengeError("You can only submit your own memes")
+    if meme_row.deleted_at is not None:
+        # A deleted post can never be freshly nominated for a challenge — the score of a
+        # meme already submitted before deletion still counts (see `_side_scores`, which is
+        # deliberately deletion-agnostic), but a deleted meme can't newly enter one.
+        raise MemeNotEligibleForChallengeError(
+            "This meme has been deleted and can't be submitted to a challenge"
+        )
 
     if challenge.challenge_type == ChallengeType.community_vs_community:
         targets_side_community = await db.scalar(
@@ -956,7 +1252,9 @@ async def create_and_submit_to_challenge(
     current_user: User,
     challenge_id: uuid.UUID,
     caption: str | None,
-    image: UploadFile,
+    image: UploadFile | None,
+    image_public_id: str | None = None,
+    editor_document_json: str | None = None,
 ) -> ChallengeSubmissionOut:
     """Create a meme **and** enter it into a challenge in one transaction.
 
@@ -967,6 +1265,10 @@ async def create_and_submit_to_challenge(
     "posted but not submitted" state whenever the second call failed, which is the same
     confusing half-state, just automated.
 
+    `image` (legacy multipart upload) and `image_public_id` (Roadmap_Scaling.md A4's
+    direct-to-Cloudinary flow) are mutually exclusive; exactly one is required — enforced
+    by `stage_personal_meme`/`stage_community_meme` below.
+
     No "already submitted" check is needed here: the meme is created by this call, so it
     cannot already belong to a submission.
     """
@@ -975,13 +1277,15 @@ async def create_and_submit_to_challenge(
 
     side = await _resolve_caller_side(db, challenge, current_user.id)
     target_community_id = _submission_target_community_id(challenge, side)
+    editor_document = parse_editor_document_json(editor_document_json)
 
     if target_community_id is None:
         # Open challenge: no community to post into, so the entry is a public personal post
         # carrying the challenge's reserved tag — which is also what makes it show up in
         # that tag's feed alongside everyone else's entries.
         meme = await stage_personal_meme(
-            db, current_user.id, caption, {AudienceType.public}, image
+            db, current_user.id, caption, {AudienceType.public}, image,
+            confirmed_image_public_id=image_public_id, editor_document=editor_document,
         )
         if challenge.hashtag_id is not None:
             # Attached by id rather than via `challenge.hashtag.slug`: `_get_challenge_or_404`
@@ -991,9 +1295,16 @@ async def create_and_submit_to_challenge(
     else:
         # Membership (and the community's privacy, which decides whether the post also goes
         # public) is resolved *before* the Cloudinary upload, so a rejected submission never
-        # wastes an upload — same ordering as `create_community_meme`.
-        community = await require_active_membership(db, target_community_id, current_user.id)
-        meme = await stage_community_meme(db, community, current_user.id, caption, image)
+        # wastes an upload — same ordering as `create_community_meme`. Uses the relaxed
+        # open-community-accepts-non-members helper (not `require_active_membership`) since
+        # `_resolve_caller_side` above may have already let a non-member through for an
+        # open community's side of a community_vs_community challenge — this call must
+        # accept the same caller it just approved, not re-reject them here.
+        community = await require_membership_or_open_community(db, target_community_id, current_user.id)
+        meme = await stage_community_meme(
+            db, community, current_user.id, caption, image, editor_document=editor_document,
+            confirmed_image_public_id=image_public_id,
+        )
 
     submission = ChallengeSubmission(
         challenge_id=challenge.id,
@@ -1070,7 +1381,7 @@ async def list_my_challenges(db: AsyncSession, current_user: User) -> list[Chall
         )
         .order_by(status_rank, sort_time)
     )
-    return [await _build_challenge_out(db, challenge) for challenge in result.scalars().all()]
+    return await _build_challenge_outs(db, list(result.scalars().all()), viewer_id=current_user.id)
 
 
 async def evaluate_challenge(db: AsyncSession, challenge_id: uuid.UUID) -> Challenge:
@@ -1200,7 +1511,8 @@ async def get_results(
         )
 
     return ChallengeResultsOut(
-        challenge=await _build_challenge_out(db, challenge), submissions=submissions
+        challenge=await _build_challenge_out(db, challenge, viewer_id=current_user.id),
+        submissions=submissions,
     )
 
 
@@ -1220,7 +1532,7 @@ async def _get_or_create_platform_user(db: AsyncSession) -> User:
         # Unguessable random password — this account is never meant to log in, it only
         # exists as a `creator_id` for platform-run challenges.
         hashed_password=hash_password(uuid.uuid4().hex),
-        bio="Official MemeVerse account — runs the weekly platform challenge.",
+        bio="Official Mosh account — runs the weekly platform challenge.",
         is_platform_account=True,
     )
     db.add(user)
@@ -1250,10 +1562,25 @@ async def create_weekly_open_challenge(db: AsyncSession) -> bool:
     platform_user = await _get_or_create_platform_user(db)
     now = datetime.datetime.now(datetime.timezone.utc)
     iso_year, iso_week, _ = now.isocalendar()
+    weekly_slug = f"weekly{iso_year}w{iso_week:02d}"
+
+    # Releasing reservations on `evaluated` (S1) broke the old "rely on
+    # HashtagAlreadyReservedError" idempotency check for one edge case: re-running this
+    # cron for an ISO week whose challenge has *already* been evaluated would no longer
+    # collide on the reservation and would create a duplicate. Explicit pre-check for any
+    # challenge on this slug regardless of status — one extra query, no dependency on an
+    # exception for control flow.
+    hashtag = await db.scalar(select(Hashtag).where(Hashtag.slug == weekly_slug))
+    if hashtag is not None:
+        already_ran = await db.scalar(
+            select(exists().where(Challenge.hashtag_id == hashtag.id))
+        )
+        if already_ran:
+            return False
 
     payload = OpenChallengeCreate(
         title=f"Weekly Meme Showdown — Week {iso_week}",
-        hashtag=f"weekly{iso_year}w{iso_week:02d}",
+        hashtag=weekly_slug,
         start_time=now,
         end_time=now + datetime.timedelta(days=WEEKLY_CHALLENGE_DURATION_DAYS),
         sides=[OpenChallengeSideSetup(name=name) for name in WEEKLY_CHALLENGE_SIDE_NAMES],

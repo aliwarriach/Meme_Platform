@@ -7,11 +7,25 @@ export type NotificationType =
   | 'challenge_starting'
   | 'challenge_ending_soon'
   | 'challenge_side_overtaken'
-  | 'challenge_results';
+  | 'challenge_results'
+  | 'friend_request_received'
+  | 'friend_request_accepted'
+  | 'community_join_request'
+  | 'community_join_approved'
+  | 'community_join_rejected'
+  | 'community_post_removed'
+  | 'meme_comment_received'
+  | 'meme_upvotes_received'
+  | 'competition_won';
 
 export interface NotificationData {
   challenge_id?: string;
   conversation_id?: string;
+  friendship_id?: string;
+  community_id?: string;
+  meme_id?: string;
+  period_type?: 'day' | 'week' | 'month';
+  period_key?: string;
 }
 
 export interface NotificationResponse {
